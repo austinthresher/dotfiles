@@ -1,0 +1,47 @@
+#!/bin/bash
+
+function norm      { printf "\e[0m";    }
+function bold      { printf "\e[1m";    }
+function reverse   { printf "\e[7m";    }
+function noreverse { printf "\e[27m";   }
+function under     { printf "\e[4m";    }
+function colorfg   { printf "\e[3$1m";  }
+function colorbg   { printf "\e[4$1m";  }
+function brightfg  { printf "\e[9$1m";  }
+function brightbg  { printf "\e[10$1m"; }
+
+function colortest {
+    local TEXT=" Test "
+    local SEP="$(norm)    "
+    local WIDTH=$(expr 8 \* ${#TEXT})
+    printf "%-${WIDTH}s" "Normal on Normal"
+    printf "$SEP"
+    printf "%-${WIDTH}s" "Normal on Bright"
+    printf "\n"
+    for n in {0..7}; do
+        for m in {0..7}; do
+            echo -n "$(colorbg $n)$(colorfg $m)${TEXT}"
+        done
+        printf "$SEP"
+        for m in {0..7}; do
+            echo -n "$(brightbg $n)$(colorfg $m)${TEXT}"
+        done
+        echo "$(norm)"
+    done
+    printf "%-${WIDTH}s" "Bright on Normal"
+    printf "$SEP"
+    printf "%-${WIDTH}s" "Bright on Bright"
+    printf "\n"
+    for n in {0..7}; do
+        for m in {0..7}; do
+            echo -n "$(colorbg $n)$(brightfg $m)${TEXT}"
+        done
+        printf "$SEP"
+        for m in {0..7}; do
+            echo -n "$(brightbg $n)$(brightfg $m)${TEXT}"
+        done
+        echo "$(norm)"
+    done
+}
+
+colortest

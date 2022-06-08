@@ -1,0 +1,62 @@
+#!/bin/bash
+
+touch_with_umask() {
+    local filename=$1
+    local mask=$2
+    if [ -f "$filename" ]; then return 1; fi
+    local um=$(umask)
+    umask $mask && touch $filename
+    umask $um
+}
+
+# Starts ssh-agent and passes the environment variables to a new shell
+# while leaving them unset in the current shell. Kills ssh-agent when
+# the new shell exits.
+start_ssh_agent() {
+    eval $(ssh-agent -s)
+    local auth_sock=$SSH_AUTH_SOCK
+    local agent_pid=$SSH_AGENT_PID
+    unset SSH_AUTH_SOCK
+    unset SSH_AGENT_PID
+
+    local init_script=$HOME/.ssh/.set-trap-$agent_pid
+    touch_with_umask $init_script 077
+    cat > $init_script << EOF
+trap 'eval \$(ssh-agent -k)' EXIT
+rm $HOME/.ssh/.set-trap-$agent_pid
+source $HOME/.bashrc
+EOF
+    if [ "$#" == 0 ]; then
+        echo 'ssh-add' >> $init_script
+    else
+        # Add the keys given as arguments
+        for arg in "$@"; do
+            # Look for a key with the given name in common locations,
+            # add it to our init script if found
+            local keys=( \
+                "$HOME/.ssh/${arg}" \
+                "$HOME/.ssh/${arg}_ecdsa" \
+                "$HOME/.ssh/${arg}_rsa" \
+            )
+            local key_found=0
+            for k in "${keys[@]}"; do
+                if [ -e "$k" ]; then
+                    echo "ssh-add $k" >> $init_script
+                    key_found=1
+                    break
+                fi
+            done
+            if [ $key_found == 0 ]; then
+                echo "Couldn't find a key for '${arg}'"
+            fi
+        done
+    fi
+    SSH_AUTH_SOCK=$auth_sock SSH_AGENT_PID=$agent_pid bash --rcfile $init_script
+}
+
+if [ ! -z "$SSH_AGENT_PID" ]; then
+    echo "ssh-agent is already running with PID $SSH_AGENT_PID"
+else
+    start_ssh_agent $@
+fi
+

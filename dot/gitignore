@@ -1,0 +1,23 @@
+# Swap files
+.*.*sw?
+.*.*~
+
+# Python related files
+__pycache__/
+*.pyc
+*.egg-info/
+
+# Local project configuration
+venv/
+.venv/
+.notes
+.activate
+.idea
+tags
+.tags
+
+# Build files (these shouldn't end up in your source anyways!)
+*.o
+*.a
+*.lib
+*.exe

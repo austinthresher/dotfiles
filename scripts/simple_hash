@@ -1,0 +1,25 @@
+#!/bin/bash
+
+# Accepts a single string and writes a hash to stdout
+function simple_hash {
+    # Assign all letters an arbitrary number value
+    local num=$(echo "$1" \
+        | sed -e 's/[^A-Za-z0-9]//g' \
+        | tr ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz \
+             123456789ABCDEF123456789ABCDEF123456789ABCDEF1234567)
+
+    local hashed=1
+    # Ghetto for loop to compute a hash, hash function taken from:
+    # https://stackoverflow.com/a/107657
+    seq ${#num} | while read i; do
+        local digit="${num:$i:1}"
+        if [ ! -z "$digit" ]; then
+            local b16="0x${digit}"
+            hashed=$((hashed * 101 + b16))
+        else
+            echo $hashed
+        fi
+    done
+}
+
+simple_hash "$@"

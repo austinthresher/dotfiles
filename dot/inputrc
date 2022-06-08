@@ -1,0 +1,23 @@
+set bell-style none
+set blink-matching-paren on
+set colored-completion-prefix on
+set colored-stats on
+set completion-map-case on
+set enable-bracketed-paste off
+set expand-tilde on
+set horizontal-scroll-mode off
+set keyseq-timeout 100
+set mark-symlinked-directories on
+set match-hidden-files off
+set print-completions-horizontally on
+set show-all-if-ambiguous on
+set show-all-if-unmodified on
+set show-mode-in-prompt off
+set skip-completed-text on
+set visible-stats on
+
+Control-]: menu-complete
+Control-[: menu-complete-backward
+"\C-q": "fg\n"
+
+Control-w: unix-filename-rubout

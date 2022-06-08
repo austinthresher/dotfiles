@@ -1,0 +1,44 @@
+# ~/.profile: executed by the command interpreter for login shells.
+# This file is not read by bash(1), if ~/.bash_profile or ~/.bash_login
+# exists.
+
+# BSD specific stuff
+if echo "$OSTYPE" | grep -q bsd; then
+    # FreeBSD doesn't have entries for tmux,
+    # so use the screen entries instead
+    if [ "$TERM" = tmux-256color ]; then
+        TERM=screen-256color;
+    elif [ "$TERM" = tmux ]; then
+        TERM=screen
+    fi
+    export TERM
+
+    # set ENV to a file invoked each time sh is started for interactive use.
+    ENV=$HOME/.shrc; export ENV
+
+    # Query terminal size; useful for serial lines.
+    if [ -x /usr/bin/resizewin ] ; then /usr/bin/resizewin -z ; fi
+fi
+
+EDITOR=vi;   	export EDITOR
+PAGER=less;  	export PAGER
+
+# Include script directories if they exist
+# This is in .profile so that they can be accessed when the wm starts
+if [ -d "$HOME/.wm_dotfiles/scripts" ]; then
+    PATH="$HOME/.wm_dotfiles/scripts:$PATH"
+fi
+if [ -d "$HOME/.dotfiles/scripts" ]; then
+    PATH="$HOME/.dotfiles/scripts:$PATH"
+fi
+
+# Include user's bin directory
+PATH="$HOME/.local/bin:$PATH"
+export PATH
+
+if [ -n "$BASH_VERSION" ]; then
+    # include .bashrc if it exists
+    if [ -f "$HOME/.bashrc" ]; then
+	. "$HOME/.bashrc"
+    fi
+fi

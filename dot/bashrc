@@ -1,0 +1,72 @@
+if [[ $- == *i* ]]; then echo "Running $(uname -s -r)"; fi
+
+# The first part of this file runs both interactively and non-interactively
+# =========================================================================
+[ -e "$HOME/.bashrc_local" ] && source "$HOME/.bashrc_local"
+unset -f command_not_found_handle
+export HISTCONTROL=ignoreboth:erasedups
+
+if [ ! -z "$WSL_DISTRO_NAME" -o "$OSTYPE" == cygwin -o "$OSTYPE" == msys ]; then
+    export WINDOWS=1
+    # Assume there's an X server running
+    if [ -z "$DISPLAY" ]; then
+        export DISPLAY=0:0
+    fi
+    # Fix ugly dircolors because every Windows directory shows up as 777
+    export LS_COLORS='ow=01;36;40'
+fi
+
+if command -v mdvl &> /dev/null; then
+    alias md='mdvl'
+fi
+
+export EDITOR=vi
+export VISUAL=vi
+export PAGER=less
+export SCREENDIR="$HOME/.screen"
+[ ! -d "$SCREENDIR" ] && mkdir "$SCREENDIR" && chmod 700 "$SCREENDIR"
+
+# The rest of this file is skipped if not running interactively
+# =============================================================
+
+case $- in
+    *i*) ;; # Interactive session
+    *) return ;; # Non interactive
+esac
+
+
+# Ignore legacy scroll lock on <C-S> and <C-Q>
+stty -ixon
+
+alias rgrep='grep -Iirn'
+alias more='less'
+alias gdb='gdb -q'
+alias preview='feh --scale -d . &'
+
+if [[ $OSTYPE == *darwin* ]]; then
+    alias ls='ls -F'
+    export BASH_SILENCE_DEPRECATION_WARNING=1
+elif [ -z "$WINDOWS" ]; then
+    alias ls="ls -p -N --color=auto -I '*System Volume Information*' -I '*RECYCLE.BIN*'"
+else
+    alias ls="ls -F --color=auto"
+fi
+
+alias tmux='tmux -u'
+alias ubuntu='lsb_release -d'
+
+if command -v nvim &> /dev/null; then
+    alias vim=nvim
+    alias view='nvim -R'
+    alias vimdiff='nvim -d -R'
+    export EDITOR=nvim
+    export VISUAL=nvim
+fi
+
+source venv
+source promptcolor
+
+if [ -f ".activate" ]; then
+    activate &> /dev/null
+fi
+

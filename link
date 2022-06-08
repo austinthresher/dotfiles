@@ -1,0 +1,38 @@
+#!/bin/bash
+
+if [ ! -d .git ]; then
+    echo "This script must be ran from inside the repository directory. Exiting."
+    exit 1
+fi
+
+# link SRC DST
+function link {
+    # Overwrite symlinks without prompting, otherwise make a backup
+    local SRC="$PWD/$1"
+    local DST="$HOME/$2"
+    if [ -L "$DST" ]; then
+        ln -n -f -s "$SRC" "$DST"
+    elif [ ! -d "$DST" ]; then
+        echo "$DST exists and is not a symlink, linking with backup"
+        ln -n -b -s "$SRC" "$DST"
+    else
+        echo "$DST exists and is a directory, skipping"
+    fi
+}
+
+link dot/bashrc     .bashrc
+link dot/profile    .profile
+link dot/tmux.conf  .tmux.conf
+link dot/inputrc    .inputrc
+link dot/gitignore  .gitignore
+
+mkdir -p $HOME/.config/nvim/{autoload,plugged}
+mkdir -p $HOME/.vim/{autoload,plugged}
+
+link vim/init.vim   .vimrc
+link vim/ginit.vim  .gvimrc
+link vim/conf       .vim/conf
+
+link vim/init.vim   .config/nvim/init.vim
+link vim/ginit.vim  .config/nvim/ginit.vim
+link vim/conf       .config/nvim/conf

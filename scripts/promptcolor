@@ -1,0 +1,146 @@
+#!/bin/bash
+
+# This file picks a "theme" color for
+# the shell and tmux based on the hostname
+
+norm()      { printf "\e[0m";    }
+bold()      { printf "\e[1m";    }
+reverse()   { printf "\e[7m";    }
+noreverse() { printf "\e[27m";   }
+under()     { printf "\e[4m";    }
+colorfg()   { printf "\e[3$1m";  }
+colorbg()   { printf "\e[4$1m";  }
+brightfg()  { printf "\e[9$1m";  }
+brightbg()  { printf "\e[10$1m"; }
+
+HOST=$(hostname -f 2>/dev/null || hostname)
+
+# Predefined colors for specific hosts
+case $(simple_hash $HOST) in
+    # work
+    "2000859944153293065") PROMPT_COLOR_IDX=10 ;;
+    "4252336200651278864") PROMPT_COLOR_IDX=4  ;;
+    "8056869920325048752") PROMPT_COLOR_IDX=5  ;;
+    "6448036692464193025") PROMPT_COLOR_IDX=11 ;;
+    # home
+    "6528359238558541617") PROMPT_COLOR_IDX=1  ;;
+    "7904619887024063336") PROMPT_COLOR_IDX=9  ;;
+    "1105816367849791686") PROMPT_COLOR_IDX=6  ;; 
+    "7435254907764971302") PROMPT_COLOR_IDX=3  ;;
+    "3634829238533771921") PROMPT_COLOR_IDX=5  ;;
+    "12116202349837038")   PROMPT_COLOR_IDX=12 ;;
+    "11031555534") PROMPT_COLOR_IDX=2 ;;
+    *)
+        # Randomize color based on hostname for all else
+        PROMPT_COLOR_IDX=$(expr $(simple_hash $HOST) % 12 + 1)
+        ;;
+esac
+
+# Map color index to escape sequences
+case "$PROMPT_COLOR_IDX" in
+    0) # black
+        export TMUX_COLOR=black
+        export PROMPT_COLOR=$(colorfg 0)
+        ;;
+    1) # red
+        export TMUX_COLOR=red
+        export PROMPT_COLOR=$(colorfg 1)
+        ;;
+    2) # green
+        export TMUX_COLOR=green
+        export PROMPT_COLOR=$(colorfg 2)
+        ;;
+    3) # yellow
+        export TMUX_COLOR=yellow
+        export PROMPT_COLOR=$(colorfg 3)
+        ;;
+    4) # blue
+        export TMUX_COLOR=blue
+        export PROMPT_COLOR=$(colorfg 4)
+        ;;
+    5) # magenta
+        export TMUX_COLOR=magenta
+        export PROMPT_COLOR=$(colorfg 5)
+        ;;
+    6) # cyan
+        export TMUX_COLOR=cyan
+        export PROMPT_COLOR=$(colorfg 6)
+        ;;
+    7) # white (light grey)
+        export TMUX_COLOR=white
+        export PROMPT_COLOR=$(colorfg 7)
+        ;;
+    8) # bright black (dark grey)
+        export TMUX_COLOR=colour8
+        export PROMPT_COLOR=$(brightfg 0)
+        ;;
+    9) # bright red
+        export TMUX_COLOR=colour9
+        export PROMPT_COLOR=$(brightfg 1)
+        ;;
+    10) # bright green
+        export TMUX_COLOR=colour10
+        export PROMPT_COLOR=$(brightfg 2)
+        ;;
+    11) # bright yellow
+        export TMUX_COLOR=colour11
+        export PROMPT_COLOR=$(brightfg 3)
+        ;;
+    12) # bright blue
+        export TMUX_COLOR=colour12
+        export PROMPT_COLOR=$(brightfg 4)
+        ;;
+    13) # bright magenta
+        export TMUX_COLOR=colour13
+        export PROMPT_COLOR=$(brightfg 5)
+        ;;
+    14) # bright cyan
+        export TMUX_COLOR=colour14
+        export PROMPT_COLOR=$(brightfg 6)
+        ;;
+    15|*) # bright white
+        export TMUX_COLOR=colour15
+        export PROMPT_COLOR=$(brightfg 7)
+        ;;
+esac
+
+case $TERM in
+    xterm*)
+        export SET_TITLE="\[\033]0;\u@\h: \w\007\]"
+        ;;
+    *)
+        export SET_TITLE=
+        ;;
+esac
+
+update_ps1() {
+    local PREFIX=
+    if [ ! -z "$VIRTUAL_ENV" ]; then
+        PREFIX="\[$(brightfg 0)\][$(basename $VIRTUAL_ENV)] $PREFIX"
+    fi
+    if [ ! -z "$CONDA_DEFAULT_ENV" ]; then
+        PREFIX="\[$(brightfg 0)\][$CONDA_DEFAULT_ENV] $PREFIX"
+    fi
+    local JOBS=0
+    local IDS=0
+    if [ -z "$PROMPT_HIDE_JOBS" ]; then
+        # For some reason this gives an incorrect answer
+        # if it's after the ssh conditional
+        JOBS=$(jobs | wc -l | sed 's/[ \t]//g')
+    fi
+    if [ -z "$PROMPT_HIDE_SSH" ]; then
+        if ssh-add -l &> /dev/null; then
+            IDS="$(ssh-add -l | wc -l)"
+        fi
+    fi
+    if [ "$IDS" -gt 0 ]; then
+        PREFIX="\[$(colorfg 7)\]ssh ($IDS) $PREFIX"
+    fi
+    if [ "$JOBS" -gt 0 ]; then
+        export PS1="${SET_TITLE}${PREFIX}\[$PROMPT_COLOR\] \u @ \h ($JOBS) \[$(reverse)\] \w \[$(norm)\] "
+    else
+        export PS1="${SET_TITLE}${PREFIX}\[$PROMPT_COLOR\]\u @ \h \[$(reverse)\] \w \[$(norm)\] "
+    fi
+}
+
+export PROMPT_COMMAND="command -v update_ps1 &> /dev/null && update_ps1"
