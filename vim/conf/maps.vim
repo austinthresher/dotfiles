@@ -54,7 +54,8 @@ function! ToggleQuickfix()
         exec 'cclose'
     else
         exec 'copen 5'
-        set nowrap bufhidden
+        set nowrap nobuflisted
+        stopinsert
         " NOTE: Not sure if I want this, jumps to the first line with 'error'
         "norm gg
         "silent! exec '/\<error\>'

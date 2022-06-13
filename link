@@ -13,7 +13,7 @@ function link {
     if [ -L "$DST" ]; then
         ln -n -f -s "$SRC" "$DST"
     elif [ ! -d "$DST" ]; then
-        echo "$DST exists and is not a symlink, linking with backup"
+        [ -f "$DST" ] && echo "$DST exists and is not a symlink, linking with backup"
         ln -n -b -s "$SRC" "$DST"
     else
         echo "$DST exists and is a directory, skipping"
@@ -26,7 +26,7 @@ link dot/tmux.conf  .tmux.conf
 link dot/inputrc    .inputrc
 link dot/gitignore  .gitignore
 
-mkdir -p $HOME/.config/nvim/{autoload,plugged}
+mkdir -p $HOME/.config/nvim/{autoload,plugged,lua}
 mkdir -p $HOME/.vim/{autoload,plugged}
 
 link vim/init.vim   .vimrc

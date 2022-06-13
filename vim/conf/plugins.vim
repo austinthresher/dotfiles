@@ -39,5 +39,6 @@ call plug#begin()
     Plug 'justinmk/vim-dirvish'
     Plug 'vim-scripts/cmdalias.vim'
     Plug 'ludovicchabant/vim-gutentags'
+    if has('nvim') | runtime conf/nvim_plugins.vim | endif
 call plug#end()
 

@@ -1,3 +1,19 @@
+" Load terminal colorscheme values
+runtime conf/terminal_colors.vim
+
+function! InitializeTerm()
+    " Unlist terminals so we don't hit them with bprev / bnext
+    set nobuflisted
+    " Automatically enter terminal mode when focusing the terminal window
+    autocmd BufEnter <buffer> sil! exec 'norm i | redraw!'
+endfunc
+
+" If we're in Neovim, redirect to Neovim-specific setup.
+if has('nvim')
+    runtime conf/nvim_terminal.vim
+    finish
+endif
+
 set termwinkey=<ins>
 let g:terminal_ansi_colors = [
         \ g:term_black,
@@ -23,12 +39,5 @@ augroup TerminalAG
     " Terminal FG / BG are set separately from colors 0-15
     autocmd ColorScheme *
                 \ exec 'hi Terminal guifg='.g:term_fg.' guibg='.g:term_bg
-    " Automatically enter insert mode when selecting terminal window
-    " The redraw fixes a cursor placemenet bug with vim-flip
-    autocmd BufEnter *
-                \ if &buftype ==# 'terminal' |
-                \ exec 'norm i' | exec 'redraw!' |
-                \ endif
-    " Unlist terminals so we don't hit them with bprev / bnext
-    autocmd TerminalOpen * set nobuflisted
+    autocmd TerminalOpen * call InitializeTerm()
 augroup END

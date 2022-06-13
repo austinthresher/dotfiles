@@ -18,6 +18,24 @@ let g:terminal_color_15 = g:term_br_white
 " This is a bunch of ugly hacks to make Neovim's terminal
 " behave in a way that I find easier to work with
 
+" Keep a list of hidden terminals that were still running
+let s:hidden = get(s:, 'hidden', [])
+
+function! OnTermHidden()
+    let l:bn = expand('<abuf>')
+    if getbufvar(l:bn, 'exit_code') == -1
+        let s:hidden += [l:bn]
+    endif
+endfunc
+
+function! NInitializeTerm()
+    call InitializeTerm()
+    setlocal statusline=%{b:term_title} winhl=Normal:Terminal
+    " -1 indicates the job has not yet exited
+    let b:exit_code = -1
+    autocmd BufHidden <buffer> call OnTermHidden()
+endfunc
+
 function! SaneTerm(args)
     " Start terminals in a new split instead of taking over the window
     exec 'new | startinsert | terminal '.a:args
@@ -27,12 +45,28 @@ endfunc
 
 command! -nargs=* -complete=file Terminal call SaneTerm('<args>')
 
-" This is so dumb but it effectively replaces the built-in command with ours
+" This is so dumb but it effectively replaces the built-in command
 function! RemapTerminal()
     if !exists("*CmdAlias") | return | endif
     for i in range(1, len('terminal'))
         call CmdAlias('terminal'[:i], 'Terminal')
     endfor
+endfunc
+
+" Called when the job in a terminal finishes, despite misleading the event name
+function! OnTermClose(status)
+    let b:exit_code = a:status
+    if exists('b:autoclose') && b:autoclose
+        sil exec 'bd! ' .. expand('<abuf>')
+    elseif b:exit_code == 0
+        " Scroll up to hide the [Process exited 0] message that wastes space
+        " For some reason bufwinid always returns -1 but win_findbuf works
+        if win_gotoid(win_findbuf(expand('<abuf>'))[0])
+            " win_execute doesn't play nicely with :norm in terminal windows
+            call feedkeys("\<C-y>", "x")
+            wincmd p
+        endif
+    endif
 endfunc
 
 " These functions are used to make terminal windows unclosable
@@ -42,7 +76,7 @@ function! OnTermWinClosed()
     " As soon as a terminal window is hidden, we record the buffer number.
     " This won't work if multiple terminals are hidden at once, but for most
     " uses it's fine.
-    if getbufvar(l:bn, '&buftype') ==# 'terminal'
+    if getbufvar(l:bn, '&buftype') ==# 'terminal' && getbufvar(l:bn, 'exit_code') == -1
         exec "sb"..l:bn
         if exists('g:hidden_term')
             unlet g:hidden_term
@@ -68,25 +102,12 @@ augroup NeovimTerminalAG
     " Terminal FG / BG are set separately from colors 0-15
     autocmd ColorScheme *
                 \ exec 'hi Terminal guifg='.g:term_fg.' guibg='.g:term_bg
-    " Automatically enter insert mode when selecting terminal window
-    " The redraw fixes a cursor placemenet bug with vim-flip
-    autocmd BufEnter *
-                \ if &buftype ==# 'terminal' |
-                \ exec 'norm i' | exec 'redraw!' |
-                \ endif
     " These three autocommands are what keep active terminals visible
-    autocmd BufHidden term://* let g:hidden_term=expand('<abuf>')
-    autocmd WinClosed * call OnTermWinClosed()
-    autocmd BufEnter * call ReopenHiddenTerm()
+    " FIXME: Make this play nicely with the build commands
+    "autocmd WinClosed * call OnTermWinClosed()
+    "autocmd BufEnter * call ReopenHiddenTerm()
     " Terminal-specific settings
-    autocmd TermOpen *
-                \ setlocal 
-                    \ winhl=Normal:Terminal
-                    \ statusline=%{b:term_title}
-                    \ nobuflisted 
+    autocmd TermOpen * call NInitializeTerm()
     " Autoclose a terminal buffer on process exit if its autoclose flag is set
-    autocmd TermClose * 
-                \ try | if b:autoclose |
-                    \ sil exec 'bdelete! '.expand('<abuf>') |
-                \ endif | catch | endtry
+    autocmd TermClose * call OnTermClose(v:event.status)
 augroup END

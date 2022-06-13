@@ -32,15 +32,12 @@ set updatetime=100
 set mouse=a
 set foldmethod=marker
 set tags+=.tags
+set equalalways
 
 if has('nvim')
     set inccommand=nosplit
 else
     "set timeout ttimeout ttimeoutlen=100 timeoutlen=100
-endif
-
-if &equalalways
-    set noequalalways
 endif
 
 " Ignore files when searching

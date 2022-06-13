@@ -6,19 +6,37 @@ augroup AutoReloadRC
                 \ echo ':source '.expand('<afile>')
 augroup END
 
-runtime conf/settings.vim
-runtime conf/plugins.vim
-runtime conf/maps.vim
+" We could use 'runtime' instead, but this makes conditionals cleaner
+let s:config_dir = split(&rtp, ',')[0] .. '/conf/'
+function! Include(name, condition=v:true)
+    if a:condition
+        let l:file = glob(s:config_dir .. a:name)
+        if l:file != ''
+            exec 'source ' .. s:config_dir .. a:name
+        else
+            echom 'Could not find ' .. a:name
+        endif
+    endif
+endfunc
 
-runtime conf/terminal_colors.vim
-if has('nvim')
-    runtime conf/nvim_terminal.vim
-else
-    runtime conf/terminal.vim
-endif
+" Basic config and settings
+call Include('settings.vim')
+call Include('maps.vim')
+call Include('windows.vim', has('win32'))
+
+" Terminal buffer setup
+call Include('terminal.vim')
+
+" Managed plugins
+call Include('plugins.vim')
 
 " Mini plugins
-runtime conf/viewsnap.vim
-runtime conf/spaces.vim
+call Include('viewsnap.vim')
+call Include('spaces.vim')
 
+" Neovim-specific mini plugins and plugin config
+call Include('nvim_build.vim', has('nvim'))
+call Include('plugin_config.lua', has('nvim'))
+
+" Set colorscheme with a default fallback
 try | colorscheme lyra | catch | colorscheme darkblue | endtry
