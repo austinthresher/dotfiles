@@ -40,3 +40,8 @@ call Include('plugin_config.lua', has('nvim'))
 
 " Set colorscheme with a default fallback
 try | colorscheme lyra | catch | colorscheme darkblue | endtry
+
+" nvui ignores ginit.vim for some reason
+if exists('g:nvui')
+    runtime ginit.vim
+endif

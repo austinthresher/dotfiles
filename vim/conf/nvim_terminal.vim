@@ -23,16 +23,13 @@ let s:hidden = get(s:, 'hidden', [])
 
 function! OnTermHidden()
     let l:bn = expand('<abuf>')
-    if getbufvar(l:bn, 'exit_code') == -1
-        let s:hidden += [l:bn]
-    endif
+    echom "hidden: " .. l:bn
+    let s:hidden += [l:bn]
 endfunc
 
-function! NInitializeTerm()
+function! s:NInitializeTerm()
     call InitializeTerm()
     setlocal statusline=%{b:term_title} winhl=Normal:Terminal
-    " -1 indicates the job has not yet exited
-    let b:exit_code = -1
     autocmd BufHidden <buffer> call OnTermHidden()
 endfunc
 
@@ -46,7 +43,7 @@ endfunc
 command! -nargs=* -complete=file Terminal call SaneTerm('<args>')
 
 " This is so dumb but it effectively replaces the built-in command
-function! RemapTerminal()
+function! s:RemapTerminal()
     if !exists("*CmdAlias") | return | endif
     for i in range(1, len('terminal'))
         call CmdAlias('terminal'[:i], 'Terminal')
@@ -54,11 +51,11 @@ function! RemapTerminal()
 endfunc
 
 " Called when the job in a terminal finishes, despite misleading the event name
-function! OnTermClose(status)
-    let b:exit_code = a:status
+function! s:OnTermClose(status)
+    let b:exited = v:true
     if exists('b:autoclose') && b:autoclose
         sil exec 'bd! ' .. expand('<abuf>')
-    elseif b:exit_code == 0
+    elseif a:status == 0
         " Scroll up to hide the [Process exited 0] message that wastes space
         " For some reason bufwinid always returns -1 but win_findbuf works
         if win_gotoid(win_findbuf(expand('<abuf>'))[0])
@@ -71,43 +68,29 @@ endfunc
 
 " These functions are used to make terminal windows unclosable
 " unless forced or the job has exited
-function! OnTermWinClosed()
-    let l:bn = winbufnr(expand('<afile>'))
-    " As soon as a terminal window is hidden, we record the buffer number.
-    " This won't work if multiple terminals are hidden at once, but for most
-    " uses it's fine.
-    if getbufvar(l:bn, '&buftype') ==# 'terminal' && getbufvar(l:bn, 'exit_code') == -1
-        exec "sb"..l:bn
-        if exists('g:hidden_term')
-            unlet g:hidden_term
-        endif
-    endif
+function! s:ReopenTerms()
+    try
+        for bn in s:hidden
+            if !getbufvar(bn, 'exited', v:false)
+                exec 'sb ' .. bn
+            endif
+        endfor
+        let s:hidden = []
+    catch | endtry
 endfunc
 
-func! ReopenHiddenTerm()
-    " If a terminal was just hidden, we re-open it. This won't work if
-    " multiple terminals are hidden at once, but for most uses it's fine
-    if exists('g:hidden_term') | try
-       exec "sb"..g:hidden_term
-       wincmd p
-       unlet g:hidden_term
-    catch | endtry | endif
-endfunc
 
 " Most of the above functions need to be called on certain autocommands
 augroup NeovimTerminalAG
     autocmd!
     " CmdAlias won't exist until VimEnter fires, so we delay the remapping
-    autocmd VimEnter * call RemapTerminal()
+    autocmd VimEnter * call s:RemapTerminal()
     " Terminal FG / BG are set separately from colors 0-15
     autocmd ColorScheme *
                 \ exec 'hi Terminal guifg='.g:term_fg.' guibg='.g:term_bg
-    " These three autocommands are what keep active terminals visible
-    " FIXME: Make this play nicely with the build commands
-    "autocmd WinClosed * call OnTermWinClosed()
-    "autocmd BufEnter * call ReopenHiddenTerm()
+    autocmd CursorHold * call s:ReopenTerms()
     " Terminal-specific settings
-    autocmd TermOpen * call NInitializeTerm()
+    autocmd TermOpen * call s:NInitializeTerm()
     " Autoclose a terminal buffer on process exit if its autoclose flag is set
-    autocmd TermClose * call OnTermClose(v:event.status)
+    autocmd TermClose * call s:OnTermClose(v:event.status)
 augroup END
