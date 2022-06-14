@@ -41,24 +41,23 @@ tmap <M-j> <C-\><C-N><C-w>j
 tmap <M-k> <C-\><C-N><C-w>k
 tmap <M-l> <C-\><C-N><C-w>l
 
+" Switch tab pages with Alt+N and Alt+P
+inoremap <M-n> <C-\><C-N>gt
+inoremap <M-p> <C-\><C-N>gT
+nnoremap <M-n> gt
+nnoremap <M-p> gT
+
 " Fast re-run
 nnoremap <leader>! :!!<cr>
 
 " Fast find-in-files
 command! -nargs=1 F :execute 'vimgrep /<args>/j **' | copen | wincmd J
 
-" Show and jump to quickfix, close quickfix when in the list
-function! ToggleQuickfix()
-    if &buftype ==# 'quickfix'
-        wincmd p
-        exec 'cclose'
-    else
-        exec 'copen 5'
-        set nowrap nobuflisted
-        stopinsert
-        " NOTE: Not sure if I want this, jumps to the first line with 'error'
-        "norm gg
-        "silent! exec '/\<error\>'
+" View highlight stack for debugging
+function! SynStack()
+    if !exists("*synstack")
+        return
     endif
-endfunction
-nnoremap <silent> Q :call ToggleQuickfix()<cr>
+    echo map(synstack(line('.'), col('.')), 'synIDattr(v:val, "name")')
+endfunc
+nnoremap <leader>h :call SynStack()<CR>

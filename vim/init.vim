@@ -33,6 +33,7 @@ call Include('plugins.vim')
 " Mini plugins
 call Include('viewsnap.vim')
 call Include('spaces.vim')
+call Include('quickfix.vim')
 
 " Neovim-specific mini plugins and plugin config
 call Include('nvim_build.vim', has('nvim'))

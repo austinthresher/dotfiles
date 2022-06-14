@@ -42,3 +42,38 @@ endif
 
 " Ignore files when searching
 set wildignore+=*.pyc,*.egg-info/,*__pycache__/,tags,.tags
+
+highlight QuickFixLine
+
+" Make it easier to write errorformat so we don't have to escape spaces
+set efm=
+function! EFM(pattern)
+    let &efm .= ',' .. a:pattern
+endfunc
+
+" Match a sequence of spaces
+let s:wh = ' %#'
+" Equivalent to .*
+let s:any = '%.%#'
+
+" errorformat for GCC
+call EFM('%-GIn file included from' .. s:any)
+call EFM('%-G' .. s:wh .. 'from' .. s:any)
+call EFM('%-G%f: In ' .. s:any .. 'function' .. s:any)
+call EFM('%-G%f: In ' .. s:any .. 'ctor' .. s:any)
+call EFM('%-G%f: At global scope:')
+call EFM('%W%f:%l:%c: warning: %m')
+call EFM('%W%f:%l: warning: %m')
+call EFM('%N%f:%l:%c: note: %m')
+call EFM('%E%f:%l:%c: error: %m')
+call EFM('%E%f:%l: error: %m')
+call EFM('%C' .. s:wh .. '%l |' .. s:any)
+call EFM('%Z' .. s:wh .. '|' .. s:any .. '^' .. s:any)
+call EFM('%Z' .. s:wh .. '+++ |' .. s:any)
+call EFM('%-G' .. s:wh .. '%l |' .. s:any)
+call EFM('%-G' .. s:wh .. '|' .. s:any)
+call EFM('%-G......')
+
+" Used in some of my other configs to open a terminal or quickfix on the
+" bottom of the screen
+let g:quickfix_window_height = 7

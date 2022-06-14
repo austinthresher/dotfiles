@@ -32,7 +32,9 @@ mkdir -p $HOME/.vim/{autoload,plugged}
 link vim/init.vim   .vimrc
 link vim/ginit.vim  .gvimrc
 link vim/conf       .vim/conf
+link vim/syntax     .vim/syntax
 
 link vim/init.vim   .config/nvim/init.vim
 link vim/ginit.vim  .config/nvim/ginit.vim
 link vim/conf       .config/nvim/conf
+link vim/syntax     .config/nvim/syntax
