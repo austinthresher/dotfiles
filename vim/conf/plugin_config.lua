@@ -1,7 +1,7 @@
 -- Configuration for Neovim Lua plugins
 
 found, lualine = pcall(require, 'lualine')
-if found then lualine .setup {
+if found then lualine.setup {
     options = {
         icons_enabled = false,
         theme = 'codedark',
@@ -27,6 +27,14 @@ if found then lualine .setup {
         lualine_y = {},
         lualine_z = {}
     },
-    tabline = {},
+    tabline = {
+        lualine_a = {'buffers'},
+        lualine_b = {},
+        lualine_c = {},
+        lualine_x = {},
+        lualine_y = {},
+        lualine_z = {'tabs'},
+    },
     extensions = {}
 } end
+

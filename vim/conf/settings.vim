@@ -43,8 +43,6 @@ endif
 " Ignore files when searching
 set wildignore+=*.pyc,*.egg-info/,*__pycache__/,tags,.tags
 
-highlight QuickFixLine
-
 " Make it easier to write errorformat so we don't have to escape spaces
 set efm=
 function! EFM(pattern)

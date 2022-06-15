@@ -15,9 +15,6 @@ let g:loaded_python_provider = v:false
 let g:loaded_ruby_provider = v:false
 let g:loaded_node_provider = v:false
 
-let g:flip_left_char = ' <'
-let g:flip_right_char = '> '
-
 let g:lyra_use_system_colors = v:false
 let g:lyra_transparent = v:false
 let g:lyra_no_highlighting = v:false
@@ -27,7 +24,6 @@ let g:gutentags_ctags_tagfile = '.tags'
 
 call plug#begin()
     Plug 'austinthresher/vim-lyra'
-    Plug 'austinthresher/vim-flip'
     Plug 'google/vim-searchindex'
     Plug 'tpope/vim-unimpaired'
     Plug 'tpope/vim-eunuch'

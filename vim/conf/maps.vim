@@ -53,6 +53,13 @@ nnoremap <leader>! :!!<cr>
 " Fast find-in-files
 command! -nargs=1 F :execute 'vimgrep /<args>/j **' | copen | wincmd J
 
+" Navigate buffers with Ctrl+J/K
+function! NoTermExec(cmd)
+    if &buftype !=# 'terminal' | sil exec a:cmd | endif
+endfunc
+nmap <silent> <C-j> :call NoTermExec('bn')<CR>
+nmap <silent> <C-k> :call NoTermExec('bp')<CR>
+
 " View highlight stack for debugging
 function! SynStack()
     if !exists("*synstack")
