@@ -3,7 +3,7 @@ runtime conf/terminal_colors.vim
 
 function! InitializeTerm()
     " Unlist terminals so we don't hit them with bprev / bnext
-    set nobuflisted
+    silent set nobuflisted
     " Automatically enter terminal mode when focusing the terminal window
     autocmd BufEnter <buffer> sil! exec 'norm i | redraw!'
 endfunc

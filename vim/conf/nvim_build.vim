@@ -10,7 +10,7 @@ function! s:NewBuildWindow(wintype='new')
         exec 'bd' .. s:build_buf
     endif
     exec 'bot' .. g:quickfix_window_height .. ' ' .. a:wintype
-    set winfixheight noswapfile nobuflisted
+    silent set winfixheight noswapfile nobuflisted
     let s:build_buf = bufnr('%')
 endfunc
 
@@ -20,11 +20,14 @@ function! s:PostBuild(job_id, data, event) dict
     let l:remove_ansi = 'sed -r ''s/\x1b[(]?\[?[0-9;]*[A-Za-z]//g'''
     cgetexpr system('cat ' .. s:tempfile .. ' | ' .. l:remove_ansi)
     call setqflist([], 'a', {'title': s:build_cmd})
+    call setbufvar(s:build_buf, 'term_title',
+                \ '[exited ' .. a:data .. '] ' ..
+                \ getbufvar(s:build_buf, 'term_title', ''))
     " If the build failed, open the quickfix window automatically
     " Otherwise, run the post-build command
     if a:data != 0
         call s:NewBuildWindow('copen')
-        exec "norm z\<cr>"
+        silent exec "norm z\<cr>"
         wincmd p
     elseif s:post_build_cmd != ''
         call s:NewBuildWindow()
@@ -45,10 +48,11 @@ function! Build(cmd='') abort
         let s:build_cmd = a:cmd
     endif
     let s:tempfile = tempname()
-    " Run the command, displaying both stdout and stderr in the terminal
-    " but writing stderr to file for quickfix parsing later
-    let l:cmd = '{ ' .. s:build_cmd .. ' ; } |& tee ' .. s:tempfile .. ' && exit ${PIPESTATUS[0]}'
+    " Run the command and write output to tempfile for quickfix parsing later
+    let l:cmd = '{ ' .. s:build_cmd .. ' ; } |& tee '
+                \ .. s:tempfile .. ' && exit ${PIPESTATUS[0]}'
     call termopen(l:cmd, { 'on_exit': function('s:PostBuild') })
+    call setbufvar(s:build_buf, 'term_title', s:build_cmd)
     norm G
     wincmd p
     let s:building = v:true

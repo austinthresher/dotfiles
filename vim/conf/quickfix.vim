@@ -2,14 +2,11 @@
 function! ToggleQuickfix()
     if &buftype ==# 'quickfix'
         wincmd p
-        exec 'cclose'
+        silent exec 'cclose'
     else
-        exec 'copen ' .. g:quickfix_window_height
-        set nowrap nobuflisted
-        stopinsert
-        " NOTE: Not sure if I want this, jumps to the first line with 'error'
-        "norm gg
-        "silent! exec '/\<error\>'
+        silent exec 'copen ' .. g:quickfix_window_height
+        silent set nowrap nobuflisted
+        silent stopinsert
     endif
 endfunction
 

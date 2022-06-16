@@ -14,10 +14,10 @@ xnoremap <tab> >
 xnoremap <s-tab> <
 
 " Delete buffer while keeping window open
-nmap <leader>bd :set nobuflisted\|bp\|bd #<cr>
+nnoremap <silent> <leader>bd :set nobuflisted\|bp\|bd #<cr>
 
 " Clear search with <C-l>
-nnoremap <c-l> :noh<cr><c-l>
+nnoremap <silent> <c-l> :noh<cr><c-l>
 
 " * Sets word under cursor to search term but doesn't go to the next match
 nnoremap * *N

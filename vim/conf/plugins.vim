@@ -29,6 +29,7 @@ call plug#begin()
     Plug 'tpope/vim-eunuch'
     Plug 'tpope/vim-fugitive'
     Plug 'tpope/vim-surround'
+    Plug 'tpope/vim-repeat'
     Plug 'jonhiggs/vim-readline'
     Plug 'ekalinin/dockerfile.vim'
     Plug 'lbrayner/vim-rzip'

@@ -23,19 +23,34 @@ let s:hidden = get(s:, 'hidden', [])
 
 function! OnTermHidden()
     let l:bn = expand('<abuf>')
-    echom "hidden: " .. l:bn
     let s:hidden += [l:bn]
+endfunc
+
+function! TermExitCodeStatusline()
+    if !getbufvar(bufnr('%'), 'exited', v:false)
+        return ''
+    endif
+    let exit_code = getbufvar(bufnr('%'), 'exit_code', -1)
+    if exit_code == 0
+        return '%#ExitOk#exited 0%* '
+    endif
+    return '%#ExitError#exited ' .. exit_code .. '%* '
 endfunc
 
 function! s:NInitializeTerm()
     call InitializeTerm()
-    setlocal statusline=%{b:term_title} winhl=Normal:Terminal
+    silent setlocal winhl=Normal:Terminal
+    silent setlocal statusline=%{%TermExitCodeStatusline()%}
+    silent setlocal statusline+=%{b:term_title}
+    let b:term_title = substitute(b:term_title,
+                \ 'term://\(.*\)//[0-9]*:\(.*\)', '\1$ \2', '')
     autocmd BufHidden <buffer> call OnTermHidden()
+    redraw!
 endfunc
 
 function! SaneTerm(args)
     " Start terminals in a new split instead of taking over the window
-    exec 'new | startinsert | terminal '.a:args
+    silent exec 'new | startinsert | terminal '.a:args
     " Set a flag to auto-close interactive terminals but not one-off commands
     let b:autoclose = (len(trim(a:args)) == 0)
 endfunc
@@ -52,6 +67,7 @@ endfunc
 
 " Called when the job in a terminal finishes, despite misleading the event name
 function! s:OnTermClose(status)
+    let b:exit_code = a:status
     let b:exited = v:true
     if exists('b:autoclose') && b:autoclose
         sil exec 'bd! ' .. expand('<abuf>')
@@ -64,6 +80,7 @@ function! s:OnTermClose(status)
             wincmd p
         endif
     endif
+    redraw!
 endfunc
 
 " These functions are used to make terminal windows unclosable
@@ -87,7 +104,9 @@ augroup NeovimTerminalAG
     autocmd VimEnter * call s:RemapTerminal()
     " Terminal FG / BG are set separately from colors 0-15
     autocmd ColorScheme *
-                \ exec 'hi Terminal guifg='.g:term_fg.' guibg='.g:term_bg
+                \ exec 'hi Terminal guifg=' .. g:term_fg .. ' guibg=' .. g:term_bg |
+                \ exec 'hi ExitOK guifg=#22CC22 guibg=NONE' |
+                \ exec 'hi ExitError guifg=#CC2222 guibg=NONE'
     autocmd CursorHold * call s:ReopenTerms()
     " Terminal-specific settings
     autocmd TermOpen * call s:NInitializeTerm()
