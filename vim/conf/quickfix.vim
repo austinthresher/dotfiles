@@ -21,17 +21,20 @@ function! QuickFixTextFunc(info) abort
     endif
     let dst = []
     for i in range(a:info.start_idx-1, a:info.end_idx-1)
-        let e = src[i]
-        if !e.valid
-            call add(dst, e.text)
-        else
-            let loc = '<' .. fnamemodify(bufname(e.bufnr), ':~:.')
-            if e.lnum != 0 | let loc .= ':' .. e.lnum | endif
-            if e.col != 0 | let loc .= ':' .. e.col | endif
-            let loc .= '>'
-            let line = loc .. ' ' .. get(s:type, tolower(e.type), 'other') .. ': ' .. e.text
-            call add(dst, line)
-        endif
+        try
+            let e = src[i]
+            if !e.valid
+                call add(dst, e.text)
+            else
+                let loc = '<' .. fnamemodify(bufname(e.bufnr), ':~:.')
+                if e.lnum != 0 | let loc .= ':' .. e.lnum | endif
+                if e.col != 0 | let loc .= ':' .. e.col | endif
+                let loc .= '>'
+                let line = loc .. ' ' .. get(s:type, tolower(e.type), 'other') .. ': ' .. e.text
+                call add(dst, line)
+            endif
+        catch
+        endtry
     endfor
     return dst
 endfunc

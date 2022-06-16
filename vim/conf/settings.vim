@@ -33,6 +33,7 @@ set mouse=a
 set foldmethod=marker
 set tags+=.tags
 set equalalways
+set noshowmode
 
 if has('nvim')
     set inccommand=nosplit

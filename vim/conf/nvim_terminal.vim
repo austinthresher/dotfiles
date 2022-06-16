@@ -32,7 +32,7 @@ function! TermExitCodeStatusline()
     endif
     let exit_code = getbufvar(bufnr('%'), 'exit_code', -1)
     if exit_code == 0
-        return '%#ExitOk#exited 0%* '
+        return '%#ExitOk#finished%* '
     endif
     return '%#ExitError#exited ' .. exit_code .. '%* '
 endfunc
@@ -40,8 +40,6 @@ endfunc
 function! s:NInitializeTerm()
     call InitializeTerm()
     silent setlocal winhl=Normal:Terminal
-    silent setlocal statusline=%{%TermExitCodeStatusline()%}
-    silent setlocal statusline+=%{b:term_title}
     let b:term_title = substitute(b:term_title,
                 \ 'term://\(.*\)//[0-9]*:\(.*\)', '\1$ \2', '')
     autocmd BufHidden <buffer> call OnTermHidden()
@@ -105,8 +103,8 @@ augroup NeovimTerminalAG
     " Terminal FG / BG are set separately from colors 0-15
     autocmd ColorScheme *
                 \ exec 'hi Terminal guifg=' .. g:term_fg .. ' guibg=' .. g:term_bg |
-                \ exec 'hi ExitOK guifg=#22CC22 guibg=NONE' |
-                \ exec 'hi ExitError guifg=#CC2222 guibg=NONE'
+                \ exec 'hi ExitOK guifg=#22CC22 guibg=#262626' |
+                \ exec 'hi ExitError guifg=#CC2222 guibg=#262626'
     autocmd CursorHold * call s:ReopenTerms()
     " Terminal-specific settings
     autocmd TermOpen * call s:NInitializeTerm()

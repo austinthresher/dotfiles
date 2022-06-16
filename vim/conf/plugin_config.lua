@@ -1,10 +1,82 @@
 -- Configuration for Neovim Lua plugins
 
+local V = vim.api.nvim_eval
+
+local colors = {
+    red      = '#5F0000',
+    green    = '#00DF5F',
+    yellow   = '#FF8700',
+    blue     = '#0087DF',
+    magenta  = '#FF00AF',
+    cyan     = '#00FFAF',
+    white    = '#D0D0D0',
+    black    = '#121212',
+    br_white = '#EEEEEE',
+    dark     = '#3A3A3A',
+    darker   = '#262626',
+    darkest  = '#1C1C1C',
+}
+
+local insert_color = colors.green
+local normal_color = colors.blue
+local replace_color = colors.yellow
+local visual_color = colors.cyan
+
+local lualine_theme = {
+    normal = {
+        a = { fg = colors.black, bg = normal_color, gui = 'bold' },
+        b = { fg = normal_color, bg = colors.darker },
+        c = { fg = colors.white, bg = colors.dark },
+    },
+    visual = {
+        a = { fg = colors.black, bg = visual_color, gui = 'bold' },
+        b = { fg = visual_color, bg = colors.darker },
+    },
+    inactive = {
+        a = { fg = colors.black, bg = colors.dark, gui = 'bold' },
+        b = { fg = colors.dark, bg = colors.darker },
+        c = { fg = colors.dark, bg = colors.darkest },
+    },
+    replace = {
+        a = { fg = colors.black, bg = replace_color, gui = 'bold' },
+        b = { fg = replace_color, bg = colors.darker },
+    },
+    insert = {
+        a = { fg = colors.black, bg = insert_color, gui = 'bold' },
+        b = { fg = insert_color, bg = colors.darker },
+        c = { fg = colors.white, bg = colors.dark },
+    },
+    terminal = {
+        a = { fg = colors.black, bg = insert_color, gui = 'bold' },
+        b = { fg = insert_color, bg = colors.darker },
+        c = { fg = colors.white, bg = colors.dark },
+    },
+}
+
+function exclude_term()
+    return V('&buftype') ~= 'terminal'
+end
+
+function term()
+    return not exclude_term()
+end
+
+function term_status()
+    if not V([[getbufvar(bufnr(), 'exited', v:false)]]) then
+        return 'running'
+    end
+    local exit_code = V('b:exit_code')
+    if exit_code == 0 then
+        return '%#ExitOk#finished'
+    end
+    return '%#ExitError#exited ' .. exit_code
+end
+
 found, lualine = pcall(require, 'lualine')
 if found then lualine.setup {
     options = {
         icons_enabled = false,
-        theme = 'codedark',
+        theme = lualine_theme,
         component_separators = '',
         section_separators = '',
         disabled_filetypes = {},
@@ -13,17 +85,35 @@ if found then lualine.setup {
     },
     sections = {
         lualine_a = {'mode'},
-        lualine_b = {'branch', 'diff', 'diagnostics'},
-        lualine_c = { { 'filename', path = 1 } },
-        lualine_x = {'encoding', 'fileformat', 'filetype'},
-        lualine_y = {'progress'},
-        lualine_z = {'location'}
+        lualine_b = {
+            { 'branch', cond = exclude_term },
+            { 'diff', cond = exclude_term },
+            { 'diagnostics', cond = exclude_term },
+        },
+        lualine_c = {
+            { 'filename', path = 1, cond = exclude_term },
+            { 'b:term_title', cond = term },
+        },
+        lualine_x = {
+            { 'encoding', cond = exclude_term },
+            { 'fileformat', cond = exclude_term },
+            { 'filetype', cond = exclude_term },
+            { term_status, cond = term },
+        },
+        lualine_y = { {'progress', cond = exclude_term } },
+        lualine_z = { {'location', cond = exclude_term } }
     },
     inactive_sections = {
         lualine_a = {},
         lualine_b = {},
-        lualine_c = { { 'filename', path = 1 } },
-        lualine_x = {'location'},
+        lualine_c = {
+            { 'filename', path = 1, cond = exclude_term },
+            { 'b:term_title', cond = term },
+        },
+        lualine_x = { 
+            { 'location', cond = exclude_term },
+            { term_status, cond = term },
+        },
         lualine_y = {},
         lualine_z = {}
     },
@@ -43,6 +133,6 @@ if found then lualine.setup {
         lualine_y = {},
         lualine_z = {'tabs'},
     },
-    extensions = {}
+    extensions = {'quickfix', 'fugitive'}
 } end
 

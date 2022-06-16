@@ -16,16 +16,16 @@ endfunc
 
 function! s:PostBuild(job_id, data, event) dict
     let s:building = v:false
+    call setbufvar(s:build_buf, 'exited', v:true)
+    call setbufvar(s:build_buf, 'exit_code', a:data)
     " Populate the quickfix list with the output, stripped of color codes
     let l:remove_ansi = 'sed -r ''s/\x1b[(]?\[?[0-9;]*[A-Za-z]//g'''
     cgetexpr system('cat ' .. s:tempfile .. ' | ' .. l:remove_ansi)
     call setqflist([], 'a', {'title': s:build_cmd})
-    call setbufvar(s:build_buf, 'term_title',
-                \ '[exited ' .. a:data .. '] ' ..
-                \ getbufvar(s:build_buf, 'term_title', ''))
+    call setbufvar(s:build_buf, 'term_title', getbufvar(s:build_buf, 'term_title', ''))
     " If the build failed, open the quickfix window automatically
     " Otherwise, run the post-build command
-    if a:data != 0
+    if a:data != 0 && len(getqflist()) > 0
         call s:NewBuildWindow('copen')
         silent exec "norm z\<cr>"
         wincmd p
