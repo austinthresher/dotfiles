@@ -1,6 +1,6 @@
 let $MYGVIMRC = expand('<sfile>:p')
 
-let g:font_name = "CamingoCode"
+let g:font_name = "Cascadia Code"
 
 " Automatically source $MYGVIMRC after write.
 augroup AutoReloadRC
@@ -33,9 +33,13 @@ if exists(':GuiRenderLigatures')
 endif
 
 if exists('g:nvui')
+    if has('win32')
+        NvuiFrameless v:true
+    endif
     NvuiCursorHideWhileTyping v:true
-    NvuiFrameless v:true
     NvuiAnimationsEnabled v:true
+    NvuiMoveAnimationDuration 0.0
+    NvuiMoveAnimationFrametime 0.0
     NvuiCursorAnimationDuration 0.05
     NvuiTitlebarColors #eeeeee #262626
 
@@ -56,7 +60,7 @@ let g:font_size = g:default_font_size
 function! SetFontSize(size)
     let g:font_size = a:size
     if exists(':GuiFont')
-        GuiFont! {g:font_name}:h{g:font_size}
+        exec 'GuiFont! ' .. g:font_name .. ':h' .. g:font_size
     else
         if has('gui_gtk') | let l:sep = ' ' | else | let l:sep = ':h' | endif
         let &guifont=g:font_name .. l:sep .. g:font_size
