@@ -28,7 +28,15 @@ if found then lualine.setup {
         lualine_z = {}
     },
     tabline = {
-        lualine_a = {'buffers'},
+        lualine_a = {
+            {
+                'buffers',
+                buffers_color = {
+                    active = 'TabLineSel',
+                    inactive = 'TabLine'
+                }
+            }
+        },
         lualine_b = {},
         lualine_c = {},
         lualine_x = {},
