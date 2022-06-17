@@ -25,7 +25,6 @@ nnoremap <silent> Q :call ToggleQuickfix()<cr>
 
 let s:type = {'e': 'error', 'w': 'warning', 'i': 'info', 'n': 'note'}
 function! QuickFixTextFunc(info) abort
-    echom "QuickFixTextFunc called with " .. string(a:info)
     if a:info.quickfix
         let src = getqflist(#{id: a:info.id, items: 0}).items
     else
