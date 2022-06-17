@@ -4,9 +4,20 @@ function! ToggleQuickfix()
         wincmd p
         silent exec 'cclose'
     else
-        silent exec 'copen ' .. g:quickfix_window_height
-        silent set nowrap nobuflisted
-        silent stopinsert
+        " Try and find quickfix if it's already open
+        let qfactive = getqflist({'all':0})
+        if qfactive.winid != 0
+            call win_gotoid(qfactive.winid)
+        else
+            silent exec 'copen ' .. g:quickfix_window_height
+            silent set nowrap nobuflisted
+            silent stopinsert
+        endif
+        if len(qfactive.items) > 0
+            " Set cursor to current quickfix entry and align scroll with it
+            call cursor(qfactive.idx, 1)
+            sil exec "norm z\<CR>"
+        endif
     endif
 endfunction
 
@@ -14,6 +25,7 @@ nnoremap <silent> Q :call ToggleQuickfix()<cr>
 
 let s:type = {'e': 'error', 'w': 'warning', 'i': 'info', 'n': 'note'}
 function! QuickFixTextFunc(info) abort
+    echom "QuickFixTextFunc called with " .. string(a:info)
     if a:info.quickfix
         let src = getqflist(#{id: a:info.id, items: 0}).items
     else
