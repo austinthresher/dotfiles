@@ -43,7 +43,7 @@ else
 endif
 
 " Ignore files when searching
-set wildignore+=*.pyc,*.egg-info/,*__pycache__/,tags,.tags
+set wildignore+=*.pyc,*.egg-info/,*__pycache__/,tags,.tags,*.o,*.a,*.lib,*.dll,*.exe
 
 " Make it easier to write errorformat so we don't have to escape spaces
 set efm=
