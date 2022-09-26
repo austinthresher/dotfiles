@@ -34,6 +34,7 @@ set foldmethod=marker
 set tags+=.tags
 set equalalways
 set noshowmode
+set formatoptions-=cro
 
 if has('nvim')
     set inccommand=nosplit

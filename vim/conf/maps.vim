@@ -68,3 +68,6 @@ function! SynStack()
     echo map(synstack(line('.'), col('.')), 'synIDattr(v:val, "name")')
 endfunc
 nnoremap <leader>h :call SynStack()<CR>
+
+" Change working directory to current file location
+command CD cd %:p:h
