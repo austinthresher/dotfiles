@@ -10,14 +10,15 @@ set hlsearch
 set ignorecase
 set incsearch
 set lazyredraw
-set listchars=eol:$,tab:>\ ,extends:>,precedes:<,nbsp:+,trail:_
+set listchars=tab:▹▹▷,extends:»,precedes:«,nbsp:∙,trail:❚
+set list
 set matchtime=1
 set noerrorbells
 set path+=**
 set ruler
 set scrolloff=0
 set shiftwidth=4
-set showbreak==>\
+set showbreak=═▶
 set showcmd
 set showmatch
 set sidescroll=1

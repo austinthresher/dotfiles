@@ -15,7 +15,7 @@ let g:loaded_python_provider = v:false
 let g:loaded_ruby_provider = v:false
 let g:loaded_node_provider = v:false
 
-let g:lyra_use_system_colors = v:true
+let g:lyra_use_system_colors = v:false
 let g:lyra_transparent = v:true
 let g:lyra_no_highlighting = v:false
 let g:lyra_dim_inactive = v:false
