@@ -35,7 +35,12 @@ set foldmethod=marker
 set tags+=.tags
 set equalalways
 set noshowmode
-set formatoptions-=cro
+
+" Set this in an AutoCmd so that filetype-specific configs can't overwrite it
+augroup NoNewlineComments
+    au!
+    au FileType * setlocal formatoptions-=cro
+augroup END
 
 if has('nvim')
     set inccommand=nosplit
