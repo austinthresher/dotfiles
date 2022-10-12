@@ -67,7 +67,42 @@ function! SynStack()
     endif
     echo map(synstack(line('.'), col('.')), 'synIDattr(v:val, "name")')
 endfunc
-nnoremap <leader>h :call SynStack()<CR>
+nnoremap <leader>H :call SynStack()<CR>
 
 " Change working directory to current file location
 command CD cd %:p:h
+
+" CoC maps
+function! SetCoCMaps() abort
+    if exists('g:coc_enabled') && g:coc_enabled
+
+        " use <tab> for trigger completion and navigate to the next complete item
+        function! CheckBackspace() abort
+          let col = col('.') - 1
+          return !col || getline('.')[col - 1]  =~# '\s'
+        endfunction
+
+        function! InsertFirstHack() abort
+            echo coc#pum#info()['index']
+            if coc#pum#info()['index'] == 0
+                call coc#pum#prev(0)
+            endif
+            call coc#pum#next(1)
+        endfunc
+
+        inoremap <silent><expr> <Tab>
+              \ coc#pum#visible() ?
+              \ coc#pum#next(1) :
+              \ CheckBackspace() ? "\<Tab>" :
+              \ coc#refresh()
+        inoremap <silent><expr> <S-Tab> coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"
+        nnoremap <silent> <leader>h :call CocActionAsync('doHover')<cr>
+        inoremap <silent><expr> <C-Space> coc#refresh()
+
+    endif
+endfunc
+
+augroup CheckForCoC
+    au!
+    au VimEnter * call SetCoCMaps()
+augroup END

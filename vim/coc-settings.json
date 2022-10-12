@@ -1,0 +1,8 @@
+{
+    "diagnostic.enableSign": false,
+    "diagnostic.virtualText": true,
+    "diagnostic.virtualTextCurrentLineOnly": false,
+    "suggest.selection": "first",
+    "suggest.noselect": true,
+    "inlayHint.enable": false
+}

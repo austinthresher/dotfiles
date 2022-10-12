@@ -35,6 +35,9 @@ set foldmethod=marker
 set tags+=.tags
 set equalalways
 set noshowmode
+set number
+set cursorline
+set cursorlineopt=number
 
 " Set this in an AutoCmd so that filetype-specific configs can't overwrite it
 augroup NoNewlineComments
@@ -50,6 +53,9 @@ endif
 
 " Ignore files when searching
 set wildignore+=*.pyc,*.egg-info/,*__pycache__/,tags,.tags,*.o,*.a,*.lib,*.dll,*.exe
+
+" Highlight jsonc comments in any json file
+autocmd FileType json syntax match Comment +\/\/.\+$+ | hi jsonCommentError guifg=#005F00 ctermfg=22 gui='italic'
 
 " Make it easier to write errorformat so we don't have to escape spaces
 set efm=
