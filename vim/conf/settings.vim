@@ -55,7 +55,10 @@ endif
 set wildignore+=*.pyc,*.egg-info/,*__pycache__/,tags,.tags,*.o,*.a,*.lib,*.dll,*.exe
 
 " Highlight jsonc comments in any json file
-autocmd FileType json syntax match Comment +\/\/.\+$+ | hi jsonCommentError guifg=#005F00 ctermfg=22 gui='italic'
+augroup JsonToJsonc
+    au!
+    au FileType json set filetype=jsonc
+augroup END
 
 " Make it easier to write errorformat so we don't have to escape spaces
 set efm=
