@@ -8,5 +8,9 @@ if executable('node')
     if has('win32')
         let g:coc_global_extensions += ['coc-omnisharp']
     endif
+    augroup Shellcheck
+        au!
+        au FileType sh if !executable('shellcheck') | echomsg "shellcheck not found" | endif
+    augroup END
 endif
 
