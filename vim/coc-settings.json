@@ -2,7 +2,13 @@
     "diagnostic.enableSign": false,
     "diagnostic.virtualText": true,
     "diagnostic.virtualTextCurrentLineOnly": false,
+    "diagnostic.virtualTextLimitInOneLine": 1,
+    "diagnostic.virtualTextAlign": "right",
     "suggest.selection": "first",
     "suggest.noselect": true,
+    "coc.source.file.enable": false,
+    "coc.source.around.enable": false,
+    "coc.source.buffer.enable": false,
+    "coc.preferences.useQuickfixForLocations": true,
     "inlayHint.enable": false
 }

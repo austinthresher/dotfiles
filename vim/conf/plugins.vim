@@ -35,7 +35,11 @@ call plug#begin()
     Plug 'lbrayner/vim-rzip'
     Plug 'justinmk/vim-dirvish'
     Plug 'vim-scripts/cmdalias.vim'
-    Plug 'ludovicchabant/vim-gutentags'
-    if has('nvim') | runtime conf/nvim_plugins.vim | endif
+    if has('nvim')
+        runtime conf/nvim_plugins.vim
+    else
+        " Use CoC on nvim, ctags for vim
+        Plug 'ludovicchabant/vim-gutentags'
+    endif
 call plug#end()
 

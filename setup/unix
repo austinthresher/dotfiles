@@ -38,3 +38,4 @@ link vim/init.vim   .config/nvim/init.vim
 link vim/ginit.vim  .config/nvim/ginit.vim
 link vim/conf       .config/nvim/conf
 link vim/syntax     .config/nvim/syntax
+link vim/coc-settings.json .config/nvim/coc-settings.json

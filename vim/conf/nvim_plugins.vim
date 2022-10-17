@@ -2,7 +2,11 @@
 
 Plug 'nvim-lualine/lualine.nvim'
 
-" TODO: Check if node exists before installing CoC
-Plug 'neoclide/coc.nvim', {'branch': 'release'}
-let g:coc_global_extensions = ['coc-json', 'coc-vimlsp', 'coc-sh']
+if executable('node')
+    Plug 'neoclide/coc.nvim', {'branch': 'release'}
+    let g:coc_global_extensions = ['coc-json', 'coc-vimlsp', 'coc-sh', 'coc-jedi', 'coc-yaml', 'coc-lightbulb']
+    if has('win32')
+        let g:coc_global_extensions += ['coc-omnisharp']
+    endif
+endif
 
