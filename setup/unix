@@ -25,6 +25,7 @@ link dot/profile    .profile
 link dot/tmux.conf  .tmux.conf
 link dot/inputrc    .inputrc
 link dot/gitignore  .gitignore
+link dot/wezterm.lua .wezterm.lua
 
 mkdir -p $HOME/.config/nvim/{autoload,plugged,lua}
 mkdir -p $HOME/.vim/{autoload,plugged}
@@ -39,3 +40,4 @@ link vim/ginit.vim  .config/nvim/ginit.vim
 link vim/conf       .config/nvim/conf
 link vim/syntax     .config/nvim/syntax
 link vim/coc-settings.json .config/nvim/coc-settings.json
+
