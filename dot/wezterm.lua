@@ -1,18 +1,35 @@
 local wezterm = require 'wezterm'
 
---color_scheme = "midnight-in-mojave",
--- color_scheme = "ayu",
---color_scheme = "Dark+",
 local scheme = wezterm.get_builtin_color_schemes()['Classic Dark (base16)']
-scheme.cursor_fg = "#000000"
-scheme.cursor_bg = "#DDDDDD"
+scheme.cursor_fg = '#000000'
+scheme.cursor_bg = '#DDDDDD'
 
-return {
-    color_schemes = {
-        ['Custom'] = scheme
-    },
+wezterm.on(
+    'format-tab-title',
+    function(tab, tabs, _, _, _, max_width)
+        local separator = " "
+        if #tabs > 1 then
+            separator = "▕"
+        end
+        local tab_title = tab.active_pane.title
+        -- Remove the hostname if the tab is running locally
+        local first, last = string.find(tab_title, "@" .. wezterm.hostname())
+        if first ~= nil then
+            tab_title = string.sub(tab_title, last+3)
+        end
+        local prefix = " " .. tostring(tab.tab_index+1) .. ": "
+        local title =  prefix .. tab_title .. separator
+        -- I think the +2 here is because the separator is more than 1 byte in UTF8
+        if string.len(title) > max_width + 2 then
+            title = wezterm.truncate_right(title, max_width - 2) .. "…" .. separator
+        end
+        return title
+    end
+)
+
+local config = {
+    color_schemes = { ['Custom']=scheme },
     color_scheme = "Custom",
-
     window_background_opacity = 0.98,
     font_size = 13,
     font = wezterm.font('JetBrains Mono', {weight="Light"}),
@@ -22,7 +39,6 @@ return {
         { font = wezterm.font('JetBrains Mono', {weight="ExtraBold", italic=true}), intensity='Bold', italic=true }
     },
 
-    default_prog = { '/usr/bin/bash', '-l' },
     hide_tab_bar_if_only_one_tab = true,
     harfbuzz_features = { 'calt=0', 'clig=0', 'liga=0' },
     bold_brightens_ansi_colors = false,
@@ -33,4 +49,44 @@ return {
     cursor_blink_rate = 400,
     cursor_blink_ease_in = "Linear",
     cursor_blink_ease_out = "EaseOut",
+
+    -- Only for the retro tab bar
+    tab_max_width = 128,
+    colors = {
+        tab_bar = {
+            background = "#181820",
+            active_tab = {
+                bg_color = "#202038",
+                fg_color = "#DDDDDD"
+            },
+            inactive_tab = {
+                bg_color = "#101018",
+                fg_color = "#777777"
+            },
+            inactive_tab_hover = {
+                bg_color = "#282840",
+                fg_color = "#999999"
+            },
+            new_tab = {
+                bg_color = "#181820",
+                fg_color = "#777777",
+                intensity = "Bold"
+            },
+            new_tab_hover = {
+                bg_color = "#181820",
+                fg_color = "#FFFFFF",
+                intensity = "Bold"
+            }
+        }
+    }
 }
+
+if string.find(wezterm.target_triple, "windows") then
+    -- TODO: Check if git bash exists too
+    config.default_domain = wezterm.default_wsl_domains()[1].name
+    config.use_fancy_tab_bar = false
+else
+    config.default_prog = { '/usr/bin/bash', '-l' }
+end
+
+return config

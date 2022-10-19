@@ -9,5 +9,11 @@
     "coc.source.around.enable": false,
     "coc.source.buffer.enable": false,
     "coc.preferences.useQuickfixForLocations": true,
-    "inlayHint.enable": false
+    "inlayHint.enable": false,
+    "sumneko-lua.serverDir": "/home/athresher/.local/lua-language-server",
+    "sumneko-lua.checkUpdate": false,
+    "sumneko-lua.prompt": false,
+    "sumneko-lua.enableNvimLuaDev": true,
+    "Lua.completion.callSnippet": true,
+    "Lua.telemetry.enable": false
 }
