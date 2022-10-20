@@ -31,6 +31,7 @@ set winminheight=1
 set winminwidth=1
 set updatetime=100
 set mouse=a
+set mousemodel=extend
 set foldmethod=marker
 set tags+=.tags
 set equalalways
