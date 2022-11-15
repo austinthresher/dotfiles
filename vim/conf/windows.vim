@@ -6,5 +6,6 @@ if glob(s:git_bash, v:true) != '' && $TERM !=# 'vtpcon'
     let &shell = '"' .. s:git_bash .. '"'
     set shellcmdflag=-c
     set shellxquote="
-    set shellslash
+    " This seemed to work but I got a message complaining about it, commenting out for now
+    "set shellslash
 endif
