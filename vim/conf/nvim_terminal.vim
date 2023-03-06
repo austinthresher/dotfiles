@@ -39,11 +39,12 @@ endfunc
 
 function! s:NInitializeTerm()
     call InitializeTerm()
-    silent setlocal winhl=Normal:Terminal
+    silent setlocal winhl=Normal:Terminal nonumber winfixheight
     let b:term_title = substitute(b:term_title,
                 \ 'term://\(.*\)//[0-9]*:\(.*\)', '\1$ \2', '')
     autocmd BufHidden <buffer> call OnTermHidden()
     redraw!
+    silent resize 20
 endfunc
 
 function! SaneTerm(args)

@@ -21,3 +21,9 @@ Control-[: menu-complete-backward
 "\C-q": "fg\n"
 
 Control-w: unix-filename-rubout
+
+# Shift+space
+"\e[32;2u": " "
+
+# Shift+backspace
+"\e[127;2u": "\b"
