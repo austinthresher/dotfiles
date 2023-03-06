@@ -47,7 +47,7 @@ if [[ $OSTYPE == *darwin* ]]; then
     alias ls='ls -F'
     export BASH_SILENCE_DEPRECATION_WARNING=1
 elif [ -z "$WINDOWS" ]; then
-    alias ls="ls -p -N --color=auto -I '*System Volume Information*' -I '*RECYCLE.BIN*'"
+    alias ls="ls -p -N --color=auto -I '*System Volume Information*' -I '*RECYCLE.BIN*' -I lost+found"
 else
     alias ls="ls -F --color=auto"
 fi
