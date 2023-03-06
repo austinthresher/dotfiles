@@ -31,23 +31,13 @@ endif
 
 set tagfunc=CocTagFunc
 
-" use <tab> for trigger completion and navigate to the next complete item
-function! CheckBackspace() abort
-  let col = col('.') - 1
-  return !col || getline('.')[col - 1]  =~# '\s'
-endfunction
-
 function! QuietCocAsync(...) abort
     if CocAction('ensureDocument')
         call call(function("CocActionAsync"), a:000)
     endif
 endfunc
 
-inoremap <silent><expr> <Tab>
-      \ coc#pum#visible() ?
-      \ coc#pum#next(1) :
-      \ CheckBackspace() ? "\<Tab>" :
-      \ coc#refresh()
+inoremap <silent><expr> <Tab> coc#pum#visible() ? coc#pum#next(1) : "\<Tab>"
 inoremap <silent><expr> <S-Tab> coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"
 nnoremap <silent> <C-h> :call QuietCocAsync('doHover')<cr>
 inoremap <silent><expr> <C-Space> coc#refresh()

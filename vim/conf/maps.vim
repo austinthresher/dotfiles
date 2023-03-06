@@ -50,8 +50,12 @@ nnoremap <M-p> gT
 " Fast re-run
 nnoremap <leader>! :!!<cr>
 
-" Fast find-in-files
-command! -nargs=1 F :execute 'vimgrep /<args>/j **' | copen | wincmd J
+" Fast find-in-files, preferring ripgrep
+if executable('rg')
+    command! -nargs=1 F :cgetexpr system('rg --vimgrep <args>') | copen | wincmd J
+else
+    command! -nargs=1 F :execute 'vimgrep /<args>/j **' | copen | wincmd J
+endif
 
 " Navigate buffers with Ctrl+J/K
 function! NoTermExec(cmd)

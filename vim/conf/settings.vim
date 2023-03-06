@@ -90,6 +90,8 @@ call EFM('%-G' .. s:wh .. '%l |' .. s:any)
 call EFM('%-G' .. s:wh .. '|' .. s:any)
 call EFM('%-G......')
 
+call EFM('%f:%l:%c:%m') " ripgrep with --vimgrep flag
+
 " Used in some of my other configs to open a terminal or quickfix on the
 " bottom of the screen
 let g:quickfix_window_height = 7
