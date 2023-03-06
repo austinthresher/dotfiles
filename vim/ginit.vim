@@ -5,8 +5,8 @@ let g:font_name = "Cascadia Code"
 " Automatically source $MYGVIMRC after write.
 augroup AutoReloadRC
     autocmd!
-    autocmd BufWritePost $MYGVIMRC ++nested 
-                \ source <afile> | redraw | 
+    autocmd BufWritePost $MYGVIMRC ++nested
+                \ source <afile> | redraw |
                 \ echo ':source '.expand('<afile>')
 augroup END
 
@@ -30,6 +30,12 @@ if exists(':GuiAdaptiveStyle')
 endif
 if exists(':GuiRenderLigatures')
     GuiRenderLigatures 0
+endif
+if exists(':GuiPopupmenu')
+    GuiPopupmenu 0
+endif
+if exists(':GuiTabline')
+    GuiTabline 0
 endif
 
 if exists('g:nvui')

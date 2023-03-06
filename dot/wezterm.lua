@@ -4,6 +4,15 @@ local scheme = wezterm.get_builtin_color_schemes()['Classic Dark (base16)']
 scheme.cursor_fg = '#000000'
 scheme.cursor_bg = '#DDDDDD'
 
+function exists(fname)
+    local f = io.open(fname, "r")
+    if f ~= nil then
+        io.close(f)
+        return true
+    end
+    return false
+end
+
 wezterm.on(
     'format-tab-title',
     function(tab, tabs, _, _, _, max_width)
@@ -78,12 +87,19 @@ local config = {
                 intensity = "Bold"
             }
         }
-    }
+    },
+    keys = {
+        { key = 'l', mods='CTRL|SHIFT', action = wezterm.action.ShowLauncher },
+    },
 }
 
 if string.find(wezterm.target_triple, "windows") then
-    -- TODO: Check if git bash exists too
-    config.default_domain = wezterm.default_wsl_domains()[1].name
+    local git_bash = 'C:\\Program Files\\Git\\bin\\bash.exe'
+    if exists(git_bash) then
+        config.default_prog = { git_bash, '-l' }
+    else
+        config.default_domain = wezterm.default_wsl_domains()[1].name
+    end
     config.use_fancy_tab_bar = false
 else
     config.default_prog = { '/usr/bin/bash', '-l' }
