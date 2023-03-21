@@ -40,7 +40,7 @@ local config = {
     color_schemes = { ['Custom']=scheme },
     color_scheme = "Custom",
     window_background_opacity = 0.98,
-    font_size = 13,
+    font_size = 12,
     font = wezterm.font('JetBrains Mono', {weight="Light"}),
     font_rules = {
         { font = wezterm.font('JetBrains Mono', {weight="Light", italic=true}), italic=true },

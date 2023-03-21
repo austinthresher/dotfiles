@@ -36,7 +36,7 @@ set foldmethod=marker
 set tags+=.tags
 set equalalways
 set noshowmode
-set number
+"set number
 set cursorline
 set cursorlineopt=number
 
