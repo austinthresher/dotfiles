@@ -39,8 +39,16 @@ call Include('quickfix.vim')
 call Include('nvim_build.vim', has('nvim'))
 call Include('plugin_config.lua', has('nvim'))
 
-" Set colorscheme with a default fallback
-try | colorscheme lyra | catch | colorscheme darkblue | endtry
+" Set a colorscheme, falling back to the next if it isn't available
+try
+    colorscheme catppuccin-mocha
+catch
+    try
+        colorscheme lyra
+    catch
+        colorscheme slate
+    endtry
+endtry
 
 " nvui ignores ginit.vim for some reason
 if exists('g:nvui')

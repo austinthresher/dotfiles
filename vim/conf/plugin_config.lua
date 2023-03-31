@@ -2,6 +2,8 @@
 
 local V = vim.api.nvim_eval
 
+-- These colors go along with my lyra colorscheme.
+-- If we're using catppuccin these are ignored.
 local colors = {
     red      = '#5F0000',
     green    = '#00DF5F',
@@ -72,11 +74,14 @@ function term_status()
     return '%#ExitError#exited ' .. exit_code
 end
 
+actual_theme = lualina_theme
+if vim.cmd("call has('nvim-0.8')") then actual_theme = "catppuccin" end
+
 found, lualine = pcall(require, 'lualine')
 if found then lualine.setup {
     options = {
         icons_enabled = false,
-        theme = lualine_theme,
+        theme = actual_theme,
         component_separators = '',
         section_separators = '',
         disabled_filetypes = {},

@@ -34,6 +34,7 @@ call plug#begin()
     Plug 'ekalinin/dockerfile.vim'
     Plug 'lbrayner/vim-rzip'
     Plug 'justinmk/vim-dirvish'
+    Plug 'justinmk/vim-syntax-extra'
     Plug 'vim-scripts/cmdalias.vim'
     if has('nvim')
         runtime conf/nvim_plugins.vim
