@@ -1,8 +1,9 @@
 local wezterm = require 'wezterm'
 
-local scheme = wezterm.get_builtin_color_schemes()['Classic Dark (base16)']
-scheme.cursor_fg = '#000000'
-scheme.cursor_bg = '#DDDDDD'
+-- Leaving this commented as a reference for how to customize colors
+-- local scheme = wezterm.get_builtin_color_schemes()['Classic Dark (base16)']
+-- scheme.cursor_fg = '#000000'
+-- scheme.cursor_bg = '#DDDDDD'
 
 function exists(fname)
     local f = io.open(fname, "r")
@@ -37,8 +38,10 @@ wezterm.on(
 )
 
 local config = {
-    color_schemes = { ['Custom']=scheme },
-    color_scheme = "Custom",
+    -- Leaving this for the same reason above
+    -- color_schemes = { ['Custom']=scheme },
+    -- color_scheme = "Custom",
+    color_scheme = "iceberg-dark",
     window_background_opacity = 0.98,
     font_size = 12,
     font = wezterm.font('JetBrains Mono', {weight="Light"}),

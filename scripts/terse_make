@@ -3,4 +3,4 @@
 # This is a quick hack to see only the topmost error from GCC, avoiding
 # all the garbage that comes after. Mostly useful for template errors.
 
-unbuffer make "$@" 2>&1| grep -m1 -A1 "error:"
+unbuffer make "$@" 2>&1| grep -A1 "error:\|required from here"

@@ -75,7 +75,20 @@ function term_status()
 end
 
 actual_theme = lualina_theme
-if vim.cmd("call has('nvim-0.8')") then actual_theme = "catppuccin" end
+if vim.cmd("call has('nvim-0.8')") then
+    found, catppuccin = pcall(require, 'catppuccin')
+    if found then
+        actual_theme = "catppuccin"
+        catppuccin.setup {
+            custom_highlights = function(colors)
+                return {
+                    cTodo = { fg = colors.peach, bg = colors.none},
+                    pythonTodo = { fg = colors.peach, bg = colors.none}
+                }
+            end
+        }
+    end
+end
 
 found, lualine = pcall(require, 'lualine')
 if found then lualine.setup {
