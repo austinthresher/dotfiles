@@ -82,8 +82,7 @@ if vim.cmd("call has('nvim-0.8')") then
         catppuccin.setup {
             custom_highlights = function(colors)
                 return {
-                    cTodo = { fg = colors.peach, bg = colors.none},
-                    pythonTodo = { fg = colors.peach, bg = colors.none}
+                    Todo = {fg=colors.peach, bg=colors.none, style={}}
                 }
             end
         }
