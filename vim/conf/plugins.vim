@@ -7,6 +7,10 @@ if empty(glob(autoload .. 'plug.vim'))
     autocmd VimEnter * PlugInstall --sync | wincmd q | source $MYVIMRC | echo "Plugins installed!"
 endif
 
+" Disable syntax highlighting for built-ins,
+" this is then customized in after/python.vim
+let g:python_no_builtin_highlight = v:true
+
 " Disable netrw, dirvish is way nicer
 let g:loaded_netrw = v:true
 let g:loaded_netrwPlugin = v:true
@@ -16,7 +20,7 @@ let g:loaded_ruby_provider = v:false
 let g:loaded_node_provider = v:false
 
 let g:lyra_use_system_colors = v:false
-let g:lyra_transparent = v:true
+let g:lyra_transparent = v:false
 let g:lyra_no_highlighting = v:false
 let g:lyra_dim_inactive = v:false
 

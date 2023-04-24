@@ -5,18 +5,18 @@ local V = vim.api.nvim_eval
 -- These colors go along with my lyra colorscheme.
 -- If we're using catppuccin these are ignored.
 local colors = {
-    red      = '#5F0000',
-    green    = '#00DF5F',
-    yellow   = '#FF8700',
-    blue     = '#0087DF',
-    magenta  = '#FF00AF',
-    cyan     = '#00FFAF',
-    white    = '#D0D0D0',
-    black    = '#121212',
+    red      = '#8C2D2D',
+    green    = '#608860',
+    yellow   = '#D3944D',
+    blue     = '#3B7EAA',
+    magenta  = '#987CDA',
+    cyan     = '#1CB37B',
+    white    = '#A0A0A0',
+    black    = '#121214',
     br_white = '#EEEEEE',
-    dark     = '#3A3A3A',
-    darker   = '#262626',
-    darkest  = '#1C1C1C',
+    dark     = '#3A3A3F',
+    darker   = '#26262A',
+    darkest  = '#1C1C1F',
 }
 
 local insert_color = colors.green
@@ -74,7 +74,7 @@ function term_status()
     return '%#ExitError#exited ' .. exit_code
 end
 
-actual_theme = lualina_theme
+actual_theme = lualine_theme
 if vim.cmd("call has('nvim-0.8')") then
     found, catppuccin = pcall(require, 'catppuccin')
     if found then
@@ -88,6 +88,7 @@ if vim.cmd("call has('nvim-0.8')") then
         }
     end
 end
+actual_theme = lualine_theme
 
 found, lualine = pcall(require, 'lualine')
 if found then lualine.setup {

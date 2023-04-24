@@ -42,7 +42,7 @@ local config = {
     -- color_schemes = { ['Custom']=scheme },
     -- color_scheme = "Custom",
     color_scheme = "iceberg-dark",
-    window_background_opacity = 0.98,
+    window_background_opacity = 1.0,
     font_size = 12,
     font = wezterm.font('JetBrains Mono', {weight="Light"}),
     font_rules = {
