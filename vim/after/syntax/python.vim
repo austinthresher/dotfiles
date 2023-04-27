@@ -15,7 +15,7 @@ syn match pythonType /\<dtype\>\s*=\s*\zs\<\h\w*\(\.\h\w*\)\?\>\ze/ contained co
 syn region pythonDict start=/{/ end=/}/ transparent contains=TOP,pythonTypeAnno
 
 " Function calls
-syn region pythonFunctionCall matchgroup=pythonFunction start=/\<\h\w*\>(/rs=e-1 end=/)/re=s+1 transparent matchgroup=pythonFunction contains=TOP,pythonFunctionCall
+syn region pythonFunctionCall matchgroup=pythonFunction start=/\<\h\w*\>(/rs=e-1 end=/)/re=s+1 transparent matchgroup=pythonFunction contains=TOP
 
 " Imports / includes
 syn clear pythonInclude

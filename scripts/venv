@@ -3,7 +3,9 @@
 VENV_HOME="$HOME/.venv"
 
 # There has to be a better way
-if command -v python3.9 &> /dev/null; then
+if command -v python3.10 &> /dev/null; then
+    PYTHON3="$(which python3.10)"
+elif command -v python3.9 &> /dev/null; then
     PYTHON3="$(which python3.9)"
 elif command -v python3.8 &> /dev/null; then
     PYTHON3="$(which python3.8)"
