@@ -8,11 +8,16 @@ syn keyword pythonBuiltin NotImplemented Ellipsis __debug__
 " Type annotations, including nested stuff like tuple[list[str], int]
 syn match pythonType /\h\w*/ contained display
 syn region pythonTypeSub start=/\[/ end=/\]/ contains=pythonTypeSub,pythonType contained
-syn region pythonTypeAnno start=/:\|->/rs=e+1,hs=e+1 end=/=\|(\|:\|,\|\n/re=e-1,he=e-1 contains=pythonTypeSub,pythonType display
+syn region pythonTypeAnno start=/[^)]\zs\:\|->/rs=e+1,hs=e+1 end=/=\|(\|:\|,\|\n/re=e-1,he=e-1 contains=pythonTypeSub,pythonType display
 " Also match right after dtype= since numpy is so commonly used, only works inside function calls
 syn match pythonType /\<dtype\>\s*=\s*\zs\<\h\w*\(\.\h\w*\)\?\>\ze/ contained containedin=pythonFunctionCall,pythonFunction display
 " Ensure that dictionaries don't confuse the type annotation highlighting
 syn region pythonDict start=/{/ end=/}/ transparent contains=TOP,pythonTypeAnno
+" Prevent false matches after one-line conditionals / loops
+syn region pythonNoTypes start=/./ end=/$/ transparent contains=TOP,pythonTypeAnno contained
+syn keyword pythonRepeat for while nextgroup=pythonNoTypes skipwhite
+syn keyword pythonConditional elif else if nextgroup=pythonNoTypes skipwhite
+syn keyword pythonStatement with nextgroup=pythonNoTypes skipwhite
 
 " Function calls
 syn region pythonFunctionCall matchgroup=pythonFunction start=/\<\h\w*\>(/rs=e-1 end=/)/re=s+1 transparent matchgroup=pythonFunction contains=TOP
