@@ -1,8 +1,8 @@
 " Automatically source $MYVIMRC after a write to it or any files in conf
 augroup AutoReloadRC
     autocmd!
-    autocmd BufWritePost $MYVIMRC,*/conf/*.vim ++nested 
-                \ source <afile> | redraw | 
+    autocmd BufWritePost $MYVIMRC,*/conf/*.vim ++nested
+                \ source <afile> | redraw |
                 \ echo ':source '.expand('<afile>')
 augroup END
 

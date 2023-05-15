@@ -40,6 +40,7 @@ call plug#begin()
     Plug 'justinmk/vim-dirvish'
     Plug 'justinmk/vim-syntax-extra'
     Plug 'vim-scripts/cmdalias.vim'
+    Plug 'kien/rainbow_parentheses.vim'
     if has('nvim')
         runtime conf/nvim_plugins.vim
     else
@@ -48,3 +49,36 @@ call plug#begin()
     endif
 call plug#end()
 
+let g:rbpt_colorpairs = [
+    \ ['magenta', '#8C2D2D'],
+    \ ['red',     '#D3944D'],
+    \ ['blue',    '#3B7EAA'],
+    \ ['green',   '#608860'],
+    \ ['white',   '#987CDA'],
+    \ ['red',     '#1CB38B'],
+    \ ['blue',    '#D37474'],
+    \ ['green',   '#82CBFE'],
+    \ ['white',   '#EAC871'],
+    \ ['red',     '#76DE94'],
+    \ ['blue',    '#DE95DE'],
+    \ ['green',   '#5BEBEB'],
+    \ ['white',   '#A0A0A0'],
+    \ ['magenta', '#8C2D2D'],
+    \ ['red',     '#D3944D'],
+    \ ['blue',    '#3B7EAA'],
+    \ ['green',   '#608860'],
+    \ ['white',   '#987CDA'],
+    \ ['green',   '#1CB38B'],
+    \ ['red',     '#D37474'],
+    \ ['blue',    '#82CBFE'],
+    \ ['white',   '#5BEBEB'],
+    \ ['green',   '#EAC871'],
+    \ ['red',     '#76DE94'],
+    \ ['blue',    '#DE95DE'],
+    \ ['white',   '#A0A0A0']]
+
+augroup rainbow
+    autocmd!
+    autocmd VimEnter * RainbowParenthesesActivate
+    autocmd BufEnter * RainbowParenthesesLoadRound
+augroup END

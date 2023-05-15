@@ -75,3 +75,43 @@ nnoremap <leader>H :call SynStack()<CR>
 
 " Change working directory to current file location
 command CD cd %:p:h
+
+" Vim 'sentences' aren't very useful for code. Move to next or prev parens.
+nnoremap <silent> ) :<c-u>call search(")", "W")<cr>
+nnoremap <silent> ( :<c-u>call search("(", "bW")<cr>
+
+" Function correctly in visual and operator pending mode
+function! NextVisParen(mode)
+    if a:mode == 'o'
+        call setpos("'<", getpos("."))
+        call search(")", "W")
+        call setpos("'>", getpos("."))
+        normal! gv
+    else
+        exec "normal! \<esc>"
+        call setpos(".", getpos("'>"))
+        call search(")", "W")
+        call setpos("'>", getpos("."))
+        normal! gv
+    endif
+endfunc
+
+function! PrevVisParen(mode)
+    if a:mode == 'o'
+        call setpos("'>", getpos("."))
+        call search("(", "bW")
+        call setpos("'<", getpos("."))
+        normal! gvo
+    else
+        exec "normal! \<esc>"
+        call search("(", "bW")
+        call setpos("'<", getpos("."))
+        normal! gv
+    endif
+endfunc
+
+" The visual one sort of works but it's wonky when you use both together, fix later
+"xnoremap ) :<c-u>call NextVisParen('v')<CR>
+"xnoremap ( :<c-u>call PrevVisParen('v')<CR>
+onoremap ) :<c-u>call NextVisParen('o')<CR>
+onoremap ( :<c-u>call PrevVisParen('o')<CR>
