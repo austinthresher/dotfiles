@@ -26,7 +26,7 @@ syn region pythonFunctionCall matchgroup=pythonFunction start=/\<\h\w*\>(/rs=e-1
 syn clear pythonInclude
 syn match pythonImported /\h\w*\(\.\h\w*\)\?/ contained
 syn keyword pythonImport import nextgroup=pythonImported skipwhite
-syn region pythonFromImport matchgroup=pythonImport start="\<from\>" end="\<import\>" display
+syn region pythonFromImport matchgroup=pythonImport start="\<from\>" end="\<import\>\|\n" display
 
 " Make docstrings comments
 " Looks for a triple-quote that is the first non-whitespace on the line
