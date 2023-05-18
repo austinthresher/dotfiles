@@ -26,6 +26,15 @@ let g:lyra_dim_inactive = v:false
 
 let g:gutentags_ctags_tagfile = '.tags'
 
+let g:sneak#s_next = v:true
+let g:sneak#absolute_dir = v:true
+
+augroup PostHighlight
+    autocmd!
+    autocmd ColorScheme * hi Sneak ctermfg=0 ctermbg=13 cterm=bold guifg='#EEEEEE' guibg='#803080' gui=bold
+augroup END
+
+
 call plug#begin()
     Plug 'austinthresher/vim-lyra'
     Plug 'google/vim-searchindex'
@@ -39,6 +48,7 @@ call plug#begin()
     Plug 'lbrayner/vim-rzip'
     Plug 'justinmk/vim-dirvish'
     Plug 'justinmk/vim-syntax-extra'
+    Plug 'justinmk/vim-sneak'
     Plug 'vim-scripts/cmdalias.vim'
     Plug 'kien/rainbow_parentheses.vim'
     if has('nvim')

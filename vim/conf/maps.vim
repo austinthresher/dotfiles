@@ -77,41 +77,46 @@ nnoremap <leader>H :call SynStack()<CR>
 command CD cd %:p:h
 
 " Vim 'sentences' aren't very useful for code. Move to next or prev parens.
-nnoremap <silent> ) :<c-u>call search(")", "W")<cr>
-nnoremap <silent> ( :<c-u>call search("(", "bW")<cr>
-
-" Function correctly in visual and operator pending mode
-function! NextVisParen(mode)
-    if a:mode == 'o'
-        call setpos("'<", getpos("."))
-        call search(")", "W")
-        call setpos("'>", getpos("."))
-        normal! gv
+function! NextParen()
+    if sneak#is_sneaking() && sneak#state().input ==# ')'
+        normal f
     else
-        exec "normal! \<esc>"
-        call setpos(".", getpos("'>"))
-        call search(")", "W")
-        call setpos("'>", getpos("."))
-        normal! gv
+        call sneak#cancel()
+        normal f)
     endif
 endfunc
 
-function! PrevVisParen(mode)
-    if a:mode == 'o'
-        call setpos("'>", getpos("."))
-        call search("(", "bW")
-        call setpos("'<", getpos("."))
-        normal! gvo
+function! PrevParen()
+    if sneak#is_sneaking() && sneak#state().input ==# '('
+        normal F
     else
-        exec "normal! \<esc>"
-        call search("(", "bW")
-        call setpos("'<", getpos("."))
-        normal! gv
+        call sneak#cancel()
+        normal F(
     endif
 endfunc
 
-" The visual one sort of works but it's wonky when you use both together, fix later
-"xnoremap ) :<c-u>call NextVisParen('v')<CR>
-"xnoremap ( :<c-u>call PrevVisParen('v')<CR>
-onoremap ) :<c-u>call NextVisParen('o')<CR>
-onoremap ( :<c-u>call PrevVisParen('o')<CR>
+nnoremap <silent> ( <Cmd>call PrevParen()<cr>
+onoremap <silent> ( <Cmd>call PrevParen()<cr>
+xnoremap <silent> ( <Cmd>call PrevParen()<cr>
+nnoremap <silent> ) <Cmd>call NextParen()<cr>
+onoremap <silent> ) <Cmd>call NextParen()<cr>
+xnoremap <silent> ) <Cmd>call NextParen()<cr>
+
+nmap f <Plug>Sneak_f
+nmap F <Plug>Sneak_F
+nmap t <Plug>Sneak_t
+nmap T <Plug>Sneak_T
+xmap f <Plug>Sneak_f
+xmap F <Plug>Sneak_F
+xmap t <Plug>Sneak_t
+xmap T <Plug>Sneak_T
+omap f <Plug>Sneak_f
+omap F <Plug>Sneak_F
+omap t <Plug>Sneak_t
+omap T <Plug>Sneak_T
+nmap ; <Plug>Sneak_;
+nmap , <Plug>Sneak_,
+xmap ; <Plug>Sneak_;
+xmap , <Plug>Sneak_,
+omap ; <Plug>Sneak_;
+omap , <Plug>Sneak_,
