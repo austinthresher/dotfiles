@@ -89,6 +89,6 @@ let g:rbpt_colorpairs = [
 
 augroup rainbow
     autocmd!
-    autocmd VimEnter * RainbowParenthesesActivate
-    autocmd BufEnter * RainbowParenthesesLoadRound
+    autocmd VimEnter *.ls RainbowParenthesesActivate
+    autocmd BufEnter *.ls RainbowParenthesesLoadRound
 augroup END

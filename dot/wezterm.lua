@@ -43,13 +43,21 @@ local config = {
     -- color_scheme = "Custom",
     color_scheme = "iceberg-dark",
     window_background_opacity = 1.0,
-    font_size = 12,
-    font = wezterm.font('JetBrains Mono', {weight="Light"}),
+    font_size = 16,
+    font = wezterm.font('Px437 Wang Pro Mono'),
     font_rules = {
-        { font = wezterm.font('JetBrains Mono', {weight="Light", italic=true}), italic=true },
-        { font = wezterm.font('JetBrains Mono', {weight="ExtraBold"}), intensity='Bold' },
-        { font = wezterm.font('JetBrains Mono', {weight="ExtraBold", italic=true}), intensity='Bold', italic=true }
+        -- font = wezterm.font('Px437 Rainbow100 re.80'),
+        { font = wezterm.font('Px437 Rainbow100 re.80'), italic=true },
+        { font = wezterm.font('Px437 Wang Pro Mono'), intensity='Bold' },
+        { font = wezterm.font('Px437 Rainbow100 re.80'), intensity='Bold', italic=true }
     },
+    -- font_size = 12,
+    -- font = wezterm.font('JetBrains Mono', {weight="Light"}),
+    -- font_rules = {
+    --     { font = wezterm.font('JetBrains Mono', {weight="Light", italic=true}), italic=true },
+    --     { font = wezterm.font('JetBrains Mono', {weight="ExtraBold"}), intensity='Bold' },
+    --     { font = wezterm.font('JetBrains Mono', {weight="ExtraBold", italic=true}), intensity='Bold', italic=true }
+    -- },
 
     hide_tab_bar_if_only_one_tab = true,
     harfbuzz_features = { 'calt=0', 'clig=0', 'liga=0' },

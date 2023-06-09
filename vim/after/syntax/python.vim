@@ -8,7 +8,7 @@ syn keyword pythonBuiltin NotImplemented Ellipsis __debug__
 " Type annotations, including nested stuff like tuple[list[str], int]
 syn match pythonType /\h\w*/ contained display
 syn region pythonTypeSub start=/\[/ end=/\]/ contains=pythonTypeSub,pythonType contained
-syn region pythonTypeAnno start=/[^)]\zs\:\|->/rs=e+1,hs=e+1 end=/=\|(\|:\|,\|\n/re=e-1,he=e-1 contains=pythonTypeSub,pythonType display
+syn region pythonTypeAnno start=/[^)]\zs\:\|->/rs=e+1,hs=e+1 end=/=\|(\|:\|,\|\n|#/re=e-1,he=e-1 contains=pythonTypeSub,pythonType display
 " Also match right after dtype= since numpy is so commonly used, only works inside function calls
 syn match pythonType /\<dtype\>\s*=\s*\zs\<\h\w*\(\.\h\w*\)\?\>\ze/ contained containedin=pythonFunctionCall,pythonFunction display
 " Ensure that dictionaries don't confuse the type annotation highlighting

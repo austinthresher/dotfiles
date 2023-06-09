@@ -2,10 +2,17 @@
 if !has('nvim')
     for i in range(97, 122)
         let c = nr2char(i)
-        exec "map \e" .. c .. " <M-" .. c .. ">"
-        exec "map! \e" .. c .. " <M-" .. c .. ">"
+        "exec "map \e" .. c .. " <M-" .. c .. ">"
+        "exec "map! \e" .. c .. " <M-" .. c .. ">"
+        " Alternate version from stack overflow, seems to work better
+        " but I haven't taken a close look why.
+          exec "set <A-".c.">=\e".c
+          exec "imap \e".c." <A-".c.">"
+          exec "tmap \e".c." <A-".c.">"
     endfor
 endif
+" Came along with the stack overflow addition
+set ttimeout ttimeoutlen=50
 
 " Use tab and shift-tab to indent lines
 nnoremap <tab> >>
