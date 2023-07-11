@@ -24,8 +24,6 @@ let g:lyra_transparent = v:false
 let g:lyra_no_highlighting = v:false
 let g:lyra_dim_inactive = v:false
 
-let g:gutentags_ctags_tagfile = '.tags'
-
 let g:sneak#s_next = v:true
 let g:sneak#absolute_dir = v:true
 
@@ -38,7 +36,7 @@ augroup END
 call plug#begin()
     Plug 'austinthresher/vim-lyra'
     Plug 'google/vim-searchindex'
-    Plug 'tpope/vim-unimpaired'
+    "Plug 'tpope/vim-unimpaired'
     Plug 'tpope/vim-eunuch'
     Plug 'tpope/vim-fugitive'
     Plug 'tpope/vim-surround'
@@ -50,45 +48,72 @@ call plug#begin()
     Plug 'justinmk/vim-syntax-extra'
     Plug 'justinmk/vim-sneak'
     Plug 'vim-scripts/cmdalias.vim'
-    Plug 'kien/rainbow_parentheses.vim'
+    Plug 'junegunn/rainbow_parentheses.vim'
     if has('nvim')
         runtime conf/nvim_plugins.vim
-    else
-        " Use CoC on nvim, ctags for vim
-        Plug 'ludovicchabant/vim-gutentags'
     endif
 call plug#end()
 
-let g:rbpt_colorpairs = [
-    \ ['magenta', '#8C2D2D'],
-    \ ['red',     '#D3944D'],
-    \ ['blue',    '#3B7EAA'],
-    \ ['green',   '#608860'],
-    \ ['white',   '#987CDA'],
-    \ ['red',     '#1CB38B'],
-    \ ['blue',    '#D37474'],
-    \ ['green',   '#82CBFE'],
-    \ ['white',   '#EAC871'],
-    \ ['red',     '#76DE94'],
-    \ ['blue',    '#DE95DE'],
-    \ ['green',   '#5BEBEB'],
-    \ ['white',   '#A0A0A0'],
-    \ ['magenta', '#8C2D2D'],
-    \ ['red',     '#D3944D'],
-    \ ['blue',    '#3B7EAA'],
-    \ ['green',   '#608860'],
-    \ ['white',   '#987CDA'],
-    \ ['green',   '#1CB38B'],
-    \ ['red',     '#D37474'],
-    \ ['blue',    '#82CBFE'],
-    \ ['white',   '#5BEBEB'],
-    \ ['green',   '#EAC871'],
-    \ ['red',     '#76DE94'],
-    \ ['blue',    '#DE95DE'],
-    \ ['white',   '#A0A0A0']]
+
+function! LispRainbows()
+    let g:rainbow#pairs = [['(', ')'], ['[', ']']]
+    let g:rainbow#colors = {
+                \ 'dark': [
+                \[ 255, "#EEEEEE" ],
+                \[ 172, "#E67029" ],
+                \[  39, "#24D830" ],
+                \[   1, "#2266FF" ],
+                \[   2, "#F0D824" ],
+                \[   3, "#F058D8" ],
+                \[   4, "#26FFF4" ],
+                \[   5, "#F01818" ],
+                \[   6, "#0AD484" ],
+                \[   9, "#DFA3D3" ],
+                \[  10, "#D0F92B" ],
+                \[  11, "#7890F0" ],
+                \[  12, "#BAA67F" ],
+                \[  13, "#8B22B3" ],
+                \[  14, "#0099CC" ],
+                \[  15, "#9EF6A4" ],
+                \]}
+    RainbowParentheses
+endfunction
+
+function! PyRainbows()
+    let g:rainbow#pairs = [['{', '}'], ['[', ']']]
+    let g:rainbow#colors = {
+                \ 'dark': [
+                \[ 255, "#EEEEEE" ],
+                \[ 193, "#BAFFAA" ],
+                \[ 223, "#ECE1C8" ],
+                \[ 189, "#9FD3E5" ],
+                \[ 225, "#DEB3DF" ],
+                \[ 183, "#B8BCD6" ],
+                \[ 152, "#85B2AA" ],
+                \[ 138, "#E67E80" ],
+                \]}
+    RainbowParentheses
+endfunction
+
+function! CRainbows()
+    let g:rainbow#pairs = [['{', '}']]
+    let g:rainbow#colors = {
+                \ 'dark': [
+                \[ 255, "#EEEEEE" ],
+                \[ 193, "#BAFFAA" ],
+                \[ 223, "#ECE1C8" ],
+                \[ 189, "#9FD3E5" ],
+                \[ 225, "#DEB3DF" ],
+                \[ 183, "#B8BCD6" ],
+                \[ 152, "#85B2AA" ],
+                \[ 138, "#E67E80" ],
+                \]}
+    RainbowParentheses
+endfunction
 
 augroup rainbow
     autocmd!
-    autocmd VimEnter *.ls RainbowParenthesesActivate
-    autocmd BufEnter *.ls RainbowParenthesesLoadRound
+    autocmd FileType lisp,clojure,scheme call LispRainbows()
+    autocmd FileType c,cpp call CRainbows()
+    autocmd FileType python call PyRainbows()
 augroup END
