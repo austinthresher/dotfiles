@@ -14,6 +14,9 @@ if has('nvim')
     finish
 endif
 
+command! -nargs=* -complete=file Terminal terminal <args>
+command! -nargs=* -complete=file TTerminal terminal <args>
+
 set termwinkey=<ins>
 let g:terminal_ansi_colors = [
         \ g:term_black,

@@ -54,7 +54,13 @@ function! SaneTerm(args)
     let b:autoclose = (len(trim(a:args)) == 0)
 endfunc
 
+function! AutoCloseSaneTerm(args)
+    call SaneTerm(args)
+    let b:autoclose = v:true
+endfunc
+
 command! -nargs=* -complete=file Terminal call SaneTerm('<args>')
+command! -nargs=* -complete=file TTerminal call SaneTerm('<args>')
 
 " This is so dumb but it effectively replaces the built-in command
 function! s:RemapTerminal()

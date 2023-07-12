@@ -55,10 +55,16 @@ endif
 " Ignore files when searching
 set wildignore+=*.pyc,*.egg-info/,*__pycache__/,tags,.tags,*.o,*.a,*.lib,*.dll,*.exe
 
+" Set keywordprg for specific filetypes
+augroup CMake
+    au!
+    au FileType cmake setlocal keywordprg=:Terminal\ cmakehelp.py
+augroup END
+
 " Highlight jsonc comments in any json file
 augroup JsonToJsonc
     au!
-    au FileType json set filetype=jsonc
+    au FileType json setlocal filetype=jsonc
 augroup END
 
 " Make it easier to write errorformat so we don't have to escape spaces
