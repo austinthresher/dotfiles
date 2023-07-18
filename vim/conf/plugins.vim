@@ -48,72 +48,32 @@ call plug#begin()
     Plug 'justinmk/vim-syntax-extra'
     Plug 'justinmk/vim-sneak'
     Plug 'vim-scripts/cmdalias.vim'
-    Plug 'junegunn/rainbow_parentheses.vim'
+    "Plug 'kien/rainbow_parentheses.vim'
+    Plug 'luochen1990/rainbow'
     if has('nvim')
         runtime conf/nvim_plugins.vim
     endif
 call plug#end()
 
+let s:c = [255, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 172, 39, 1, 2]
+let s:g = [
+            \ '#EEEEEE', '#CA7DBE', '#5BC8C3', '#BA4F4F', '#3EA37A', '#D0B3CB',
+            \ '#B0C55E', '#97A3D3', '#baa67f', '#7B4790', '#338099', '#B3DFB6',
+            \ '#B67C58', '#45B54C', '#5B7BC8', '#BDB156']
+let s:p = ['start=/(/ end=/)/ fold', 'start=/\[/ end=/\]/ fold']
 
-function! LispRainbows()
-    let g:rainbow#pairs = [['(', ')'], ['[', ']']]
-    let g:rainbow#colors = {
-                \ 'dark': [
-                \[ 255, "#EEEEEE" ],
-                \[ 172, "#E67029" ],
-                \[  39, "#24D830" ],
-                \[   1, "#2266FF" ],
-                \[   2, "#F0D824" ],
-                \[   3, "#F058D8" ],
-                \[   4, "#26FFF4" ],
-                \[   5, "#F01818" ],
-                \[   6, "#0AD484" ],
-                \[   9, "#DFA3D3" ],
-                \[  10, "#D0F92B" ],
-                \[  11, "#7890F0" ],
-                \[  12, "#BAA67F" ],
-                \[  13, "#8B22B3" ],
-                \[  14, "#0099CC" ],
-                \[  15, "#9EF6A4" ],
-                \]}
-    RainbowParentheses
-endfunction
+let g:rainbow_conf = {
+\   'ctermfgs': [ 255, 193, 223, 189, 225, 183, 152, 138 ],
+\   'guifgs': [ '#EEEEEE', '#BAFFAA', '#ECE1C8', '#9FD3E5',
+\               '#DEB3DF', '#B8BCD6', '#85B2AA', '#E67E80' ],
+\   'parentheses': ['start=/{/ end=/}/ fold'],
+\   'separately': {
+\       'ls': { 'guifgs': s:g, 'ctermfgs': s:c, 'parentheses': s:p },
+\       'lisp': { 'guifgs': s:g, 'ctermfgs': s:c, 'parentheses': s:p },
+\       'scheme': { 'guifgs': s:g, 'ctermfgs': s:c, 'parentheses': s:p },
+\       'racket': { 'guifgs': s:g, 'ctermfgs': s:c, 'parentheses': s:p },
+\       'clojure': { 'guifgs': s:g, 'ctermfgs': s:c, 'parentheses': s:p }
+\   }
+\}
 
-function! PyRainbows()
-    let g:rainbow#pairs = [['{', '}'], ['[', ']']]
-    let g:rainbow#colors = {
-                \ 'dark': [
-                \[ 255, "#EEEEEE" ],
-                \[ 193, "#BAFFAA" ],
-                \[ 223, "#ECE1C8" ],
-                \[ 189, "#9FD3E5" ],
-                \[ 225, "#DEB3DF" ],
-                \[ 183, "#B8BCD6" ],
-                \[ 152, "#85B2AA" ],
-                \[ 138, "#E67E80" ],
-                \]}
-    RainbowParentheses
-endfunction
-
-function! CRainbows()
-    let g:rainbow#pairs = [['{', '}']]
-    let g:rainbow#colors = {
-                \ 'dark': [
-                \[ 255, "#EEEEEE" ],
-                \[ 193, "#BAFFAA" ],
-                \[ 223, "#ECE1C8" ],
-                \[ 189, "#9FD3E5" ],
-                \[ 225, "#DEB3DF" ],
-                \[ 183, "#B8BCD6" ],
-                \[ 152, "#85B2AA" ],
-                \[ 138, "#E67E80" ],
-                \]}
-    RainbowParentheses
-endfunction
-
-augroup rainbow
-    autocmd!
-    autocmd FileType lisp,clojure,scheme call LispRainbows()
-    autocmd FileType c,cpp call CRainbows()
-    autocmd FileType python call PyRainbows()
-augroup END
+let g:rainbow_active = 1
