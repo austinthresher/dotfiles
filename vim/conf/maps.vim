@@ -54,6 +54,9 @@ inoremap <M-p> <C-\><C-N>gT
 nnoremap <M-n> gt
 nnoremap <M-p> gT
 
+nnoremap [c <Cmd>:cprev<cr>
+nnoremap ]c <Cmd>:cnext<cr>
+
 " Fast re-run
 nnoremap <leader>! :!!<cr>
 
