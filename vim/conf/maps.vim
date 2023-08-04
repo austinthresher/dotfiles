@@ -53,6 +53,10 @@ inoremap <M-n> <C-\><C-N>gt
 inoremap <M-p> <C-\><C-N>gT
 nnoremap <M-n> gt
 nnoremap <M-p> gT
+tmap <M-n> <C-\><C-N>gt
+tmap <M-p> <C-\><C-N>gT
+tmap <S-space> <space>
+tmap <S-backspace> <backspace>
 
 nnoremap [c <Cmd>:cprev<cr>
 nnoremap ]c <Cmd>:cnext<cr>
