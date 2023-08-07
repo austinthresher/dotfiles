@@ -24,7 +24,8 @@ xnoremap <s-tab> <
 nnoremap <silent> <leader>bd :set nobuflisted\|bp\|bd #<cr>
 
 " Clear search with <C-l>
-nnoremap <silent> <c-l> :noh<cr><c-l>
+nnoremap <silent> <c-l> <cmd>noh<cr><c-l>
+inoremap <silent> <c-l> <cmd>noh<cr>
 
 " * Sets word under cursor to search term but doesn't go to the next match
 nnoremap * *N
@@ -93,19 +94,19 @@ command CD cd %:p:h
 " Vim 'sentences' aren't very useful for code. Move to next or prev parens.
 function! NextParen()
     if sneak#is_sneaking() && sneak#state().input ==# ')'
-        normal f
+        exec "normal \<Plug>Sneak_f"
     else
         call sneak#cancel()
-        normal f)
+        exec "normal \<Plug>Sneak_f)"
     endif
 endfunc
 
 function! PrevParen()
     if sneak#is_sneaking() && sneak#state().input ==# '('
-        normal F
+        exec "normal \<Plug>Sneak_F"
     else
         call sneak#cancel()
-        normal F(
+        exec "normal \<Plug>Sneak_F("
     endif
 endfunc
 
@@ -116,21 +117,25 @@ nnoremap <silent> ) <Cmd>call NextParen()<cr>
 onoremap <silent> ) <Cmd>call NextParen()<cr>
 xnoremap <silent> ) <Cmd>call NextParen()<cr>
 
-nmap f <Plug>Sneak_f
-nmap F <Plug>Sneak_F
-nmap t <Plug>Sneak_t
-nmap T <Plug>Sneak_T
-xmap f <Plug>Sneak_f
-xmap F <Plug>Sneak_F
-xmap t <Plug>Sneak_t
-xmap T <Plug>Sneak_T
-omap f <Plug>Sneak_f
-omap F <Plug>Sneak_F
-omap t <Plug>Sneak_t
-omap T <Plug>Sneak_T
-nmap ; <Plug>Sneak_;
-nmap , <Plug>Sneak_,
-xmap ; <Plug>Sneak_;
-xmap , <Plug>Sneak_,
-omap ; <Plug>Sneak_;
-omap , <Plug>Sneak_,
+
+" Convert a non-zero number to and from hex
+function! DecToHex(num)
+    let l:val = (a:num+1)-1
+    if l:val ==# 0
+        return
+    endif
+    let l:hex = printf("0x%X", l:val)
+    exec "norm! ciw" . l:hex
+endfunc
+
+function! HexToDec(num)
+    let l:val = (a:num+1)-1
+    if l:val ==# 0
+        return
+    endif
+    let l:dec = printf("%d", l:val)
+    exec "norm! ciw" . l:dec
+endfunc
+
+nnoremap <leader>x <Cmd>call DecToHex(expand("<cexpr>"))<cr>
+nnoremap <leader>X <Cmd>call HexToDec(expand("<cexpr>"))<cr>
