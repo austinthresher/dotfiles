@@ -17,6 +17,7 @@
     "tree.key.activeFilter": "<S-f>",
     "tree.key.actions": "<cr>",
     "workspace.openResourceCommand": "",
+    "clangd.arguments": ["--enable-config"],
     "lightbulb.text": {
         "default": "",
         "quickfix": ""
