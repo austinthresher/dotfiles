@@ -139,3 +139,10 @@ endfunc
 
 nnoremap <leader>x <Cmd>call DecToHex(expand("<cexpr>"))<cr>
 nnoremap <leader>X <Cmd>call HexToDec(expand("<cexpr>"))<cr>
+
+" Swap _ and - so I don't keep accidentally opening dirvish
+nnoremap _ <Plug>(dirvish_up)
+nnoremap - _
+
+" switch between related files (.c -> .h, etc.)
+nnoremap <leader>a <Plug>(altr-forward)

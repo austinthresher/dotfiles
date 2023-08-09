@@ -15,6 +15,9 @@ let g:python_no_builtin_highlight = v:true
 let g:loaded_netrw = v:true
 let g:loaded_netrwPlugin = v:true
 
+" Put folders at the top in dirvish
+let g:dirvish_mode = ':sort ,^\v(.*[\/])|\ze,'
+
 let g:loaded_python_provider = v:false
 let g:loaded_ruby_provider = v:false
 let g:loaded_node_provider = v:false
@@ -43,10 +46,13 @@ call plug#begin()
     Plug 'justinmk/vim-sneak'
     Plug 'vim-scripts/cmdalias.vim'
     Plug 'luochen1990/rainbow'
+    Plug 'kana/vim-altr'
     if has('nvim')
         runtime conf/nvim_plugins.vim
     endif
 call plug#end()
+
+" Rainbow parens
 
 let s:c = [255, 3, 4, 5, 6, 9, 10, 11, 12, 13, 14, 15, 172, 39, 1, 2]
 let s:g = [
@@ -70,3 +76,8 @@ let g:rainbow_conf = {
 \}
 
 let g:rainbow_active = 1
+
+" altr additional patterns to find related files
+call altr#define('%/%.c', '%/include/%.h')
+call altr#define('%/%.cpp', '%/include/%.h')
+
