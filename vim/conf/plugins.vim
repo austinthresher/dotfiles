@@ -47,10 +47,17 @@ call plug#begin()
     Plug 'vim-scripts/cmdalias.vim'
     Plug 'luochen1990/rainbow'
     Plug 'kana/vim-altr'
+    Plug 'jpalardy/vim-slime'
     if has('nvim')
         runtime conf/nvim_plugins.vim
     endif
 call plug#end()
+
+if has("nvim")
+    let g:slime_target = "neovim"
+else
+    let g:slime_target = "vimterminal"
+endif
 
 " Rainbow parens
 

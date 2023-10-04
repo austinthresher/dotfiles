@@ -14,6 +14,20 @@ endif
 " Came along with the stack overflow addition
 set ttimeout ttimeoutlen=50
 
+" Double-tap = to format the current block instead of just the current line
+" This would be far less verbose if we didn't preserve the cursor location
+function! FormatInPlace()
+    let l:pos = winsaveview()
+    let l:oldlen = col([l:pos.lnum, "$"])
+    normal! =ip
+    let l:diff = l:oldlen - col([l:pos.lnum, "$"])
+    let l:pos.col = l:pos.col - l:diff
+    let l:pos.curswant = l:pos.curswant - l:diff
+    call winrestview(l:pos)
+endfunc
+
+nnoremap == <Cmd>call FormatInPlace()<CR>
+
 " Use tab and shift-tab to indent lines
 nnoremap <tab> >>
 nnoremap <s-tab> <<
