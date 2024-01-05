@@ -40,6 +40,8 @@ nnoremap <silent> <leader>bd :set nobuflisted\|bp\|bd #<cr>
 " Clear search with <C-l>
 nnoremap <silent> <c-l> <cmd>noh<cr><c-l>
 inoremap <silent> <c-l> <cmd>noh<cr>
+" Also exit visual mode if used there
+xnoremap <silent> <c-l> <cmd>noh<cr><esc>
 
 " * Sets word under cursor to search term but doesn't go to the next match
 nnoremap * *N
@@ -160,3 +162,9 @@ nnoremap - _
 
 " switch between related files (.c -> .h, etc.)
 nnoremap <leader>a <Plug>(altr-forward)
+
+" save and return to normal mode if not already
+nnoremap <C-s> <Cmd>update<cr>
+inoremap <C-s> <Cmd>update<cr><esc>
+xnoremap <C-s> <Cmd>update<cr><esc>
+
