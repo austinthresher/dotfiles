@@ -78,7 +78,8 @@ let g:rainbow_conf = {
 \       'lisp': { 'guifgs': s:g, 'ctermfgs': s:c, 'parentheses': s:p },
 \       'scheme': { 'guifgs': s:g, 'ctermfgs': s:c, 'parentheses': s:p },
 \       'racket': { 'guifgs': s:g, 'ctermfgs': s:c, 'parentheses': s:p },
-\       'clojure': { 'guifgs': s:g, 'ctermfgs': s:c, 'parentheses': s:p }
+\       'clojure': { 'guifgs': s:g, 'ctermfgs': s:c, 'parentheses': s:p },
+\       'python': 0
 \   }
 \}
 

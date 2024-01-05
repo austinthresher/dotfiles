@@ -63,6 +63,13 @@ if command -v nvim &> /dev/null; then
     export VISUAL=nvim
 fi
 
+# Use bat for man pages if it's installed
+if command -v batcat &> /dev/null; then
+    alias bat=batcat
+    export MANPAGER="sh -c 'col -bx | batcat -l man -p'"
+fi
+
+
 source venv
 source promptcolor
 
