@@ -39,6 +39,7 @@ set noshowmode
 "set number
 set cursorline
 set cursorlineopt=number
+set concealcursor=n
 
 " Set this in an AutoCmd so that filetype-specific configs can't overwrite it
 augroup NoNewlineComments

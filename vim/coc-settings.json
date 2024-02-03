@@ -19,7 +19,9 @@
     "workspace.openResourceCommand": "",
     "clangd.arguments": ["--enable-config"],
     "lightbulb.text": {
-        "default": "",
-        "quickfix": ""
+        //"default": "",
+        //"quickfix": ""
+        "default": "",
+        "quickfix": ""
     }
 }

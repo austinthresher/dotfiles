@@ -1,30 +1,52 @@
 if exists('b:current_syntax')
     finish
 endif
-runtime syntax/scheme.vim
+"runtime syntax/scheme.vim
 
 syn sync fromstart
 " This is easier than pattern matching for case
-syn keyword schemeBoolean true false TRUE FALSE
-syn keyword schemeConstant nil NIL
+syn keyword schemeBoolean true false
+syn keyword schemeConstant nil
 
-syn keyword schemeFunction eq? string->symbol symbol->string string? symbol?
-syn keyword schemeFunction function? number? list->string string->list halt
-syn keyword schemeFunction char->number number->char string-concat
-syn keyword schemeFunction print readc rb wb openr openw intern
-syn keyword schemeFunction match nil? list* let let* letrec not-eq? not-nil?
-syn keyword schemeFunction file-open file-close file-write
-syn keyword schemeFunction file-read-string file-read-bytes
+" Special forms
+syn keyword schemeSyntax match let let* letrec define define-object begin and
+            \ or if cond when unless
 
-syn keyword schemeFunction EQ? STRING->SYMBOL SYMBOL->STRING STRING? SYMBOL?
-syn keyword schemeFunction FUNCTION? NUMBER? LIST->STRING STRING->LIST HALT
-syn keyword schemeFunction CHAR->NUMBER NUMBER->CHAR STRING-CONCAT
-syn keyword schemeFunction PRINT READC RB WB OPENR OPENW INTERN
-syn keyword schemeFunction FILE-OPEN FILE-CLOSE FILE-WRITE
-syn keyword schemeFunction FILE-READ-STRING FILE-READ-BYTES
-syn keyword schemeFunction MATCH NIL? LIST* LET LET* LETREC NOT-EQ? NOT-NIL?
+" Primops, copied from the source table
+syn keyword schemeFunction ++ -- bool bool-not bytes->string car make-bytes
+            \ nil? number? string? symbol? function? list? file? bytes? vector?
+            \ number->char string->list string-concat vector-length
+            \ bytes-length cdr char->number file-close file-get-pos intern
+            \ list->string make-vector number->string print string->bytes
+            \ string->number string->symbol string-length symbol->string
+            \ string-hash symbol-hash bytes-hash object?
+            \ set! cons + - * < > <= >= / mod eq? not-eq?
+            \ file-open file-read-string file-read-bytes file-write
+            \ file-set-pos string-ref bytes-ref vector-ref apply
+            \ bytes-set! vector-set!
 
-syn keyword schemeFunction syntax-transform SYNTAX-TRANSFORM
+" Function-style transforms and library functions
+syn keyword schemeFunction not boolean? not-nil? first second third fourth
+            \ fifth sixth seventh eighth nineth tenth equal? not-equal?
+            \ for-each error type fold-left fold-right reduce filter remove
+            \ map reverse list-copy vector-map member assoc alist-cons
+            \ alist-delete unique length concat append string-append
+            \ char->upper char->lower string->upper string->lower
+            \ string-replace bytes->list list->bytes bytes vector->list
+            \ list->vector vector vector-resize vector-copy take drop list-ref
+            \ list-index string-head string-tail substring assert list*
+
+
+" syn keyword schemefunction syntax-transform
 
 syn match lsEarmuffs "\*\w[a-z_0-9-]*\*"
 hi link lsEarmuffs Type
+
+syntax keyword schemeSyntax lambda conceal cchar=λ containedin=ALLBUT,schemeComment
+" This highlights correctly but the conceal doesn't work
+syntax match shortLambda "/\\" conceal cchar=λ containedin=ALLBUT,schemeComment
+hi link shortLambda Statement
+" This would be better somewhere else but it works for now
+highlight! link Conceal Statement
+
+"exec 'syntax keyword schemeSyntax "/\\" conceal cchar=λ'

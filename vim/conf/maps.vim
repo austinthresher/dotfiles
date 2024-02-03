@@ -160,3 +160,14 @@ nnoremap - _
 
 " switch between related files (.c -> .h, etc.)
 nnoremap <leader>a <Plug>(altr-forward)
+
+" Toggle conceal
+function! ToggleConceal()
+    if &conceallevel == 0
+        setlocal conceallevel=2
+    else
+        setlocal conceallevel=0
+    endif
+endfunction
+
+nnoremap <silent> <leader>C <Cmd>call ToggleConceal()<cr>

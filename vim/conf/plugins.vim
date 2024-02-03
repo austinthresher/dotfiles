@@ -48,6 +48,7 @@ call plug#begin()
     Plug 'luochen1990/rainbow'
     Plug 'kana/vim-altr'
     Plug 'jpalardy/vim-slime'
+    Plug 'calebsmith/vim-lambdify'
     if has('nvim')
         runtime conf/nvim_plugins.vim
     endif
@@ -66,7 +67,7 @@ let s:g = [
             \ '#EEEEEE', '#CA7DBE', '#5BC8C3', '#BA4F4F', '#3EA37A', '#D0B3CB',
             \ '#B0C55E', '#97A3D3', '#baa67f', '#7B4790', '#338099', '#B3DFB6',
             \ '#B67C58', '#45B54C', '#5B7BC8', '#BDB156']
-let s:p = ['start=/(/ end=/)/ fold', 'start=/\[/ end=/\]/ fold']
+let s:p = ['start=/(/ end=/)/ fold', 'start=/\[/ end=/\]/ fold', 'start=/{/ end=/}/ fold']
 
 let g:rainbow_conf = {
 \   'ctermfgs': [ 255, 193, 223, 189, 225, 183, 152, 138 ],
