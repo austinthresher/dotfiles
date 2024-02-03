@@ -57,9 +57,10 @@ endif
 set wildignore+=*.pyc,*.egg-info/,*__pycache__/,tags,.tags,*.o,*.a,*.lib,*.dll,*.exe
 
 " Set keywordprg for specific filetypes
-augroup CMake
+augroup KeywordPrograms
     au!
     au FileType cmake setlocal keywordprg=:Terminal\ cmakehelp.py
+    au FileType scheme setlocal keywordprg=:Terminal\ schemehelp.py
 augroup END
 
 " Highlight jsonc comments in any json file

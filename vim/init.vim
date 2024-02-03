@@ -19,6 +19,17 @@ function! Include(name, condition=v:true)
     endif
 endfunc
 
+" Dummy autocommand to prevent an error if .vimrc.local doesn't add one
+augroup Config
+    autocmd!
+    autocmd User PostConfig :
+augroup END
+
+" Source .vimrc.local if it exists for host-specific configuration
+if filereadable(expand('~/.vimrc.local'))
+    exec 'source ' .. expand('~/.vimrc.local')
+endif
+
 " Basic config and settings
 call Include('settings.vim')
 call Include('maps.vim')
@@ -54,3 +65,6 @@ call Include('plugin_config.lua', has('nvim'))
 if exists('g:nvui')
     runtime ginit.vim
 endif
+
+" This autocommand is a hook for .vimrc.local to override any previous config
+doautocmd <nomodeline> User PostConfig
