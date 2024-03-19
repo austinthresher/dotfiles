@@ -62,6 +62,12 @@ augroup KeywordPrograms
     au FileType scheme setlocal keywordprg=:Terminal\ schemehelp.py
 augroup END
 
+" Set equalprg for specific filetypes
+augroup EqualPrograms
+    au!
+    au FileType python setlocal equalprg=black\ --fast\ --quiet\ -
+augroup END
+
 " Highlight jsonc comments in any json file
 augroup JsonToJsonc
     au!
