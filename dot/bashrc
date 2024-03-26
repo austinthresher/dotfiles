@@ -6,7 +6,9 @@ if [[ $- == *i* ]]; then echo "Running $(uname -s -r)"; fi
 unset -f command_not_found_handle
 export HISTCONTROL=ignoreboth:erasedups
 
-if [ ! -z "$WSL_DISTRO_NAME" -o "$OSTYPE" == cygwin -o "$OSTYPE" == msys ]; then
+if [ ! -z "$WSL_DISTRO_NAME" ] \
+    || [ "$OSTYPE" == cygwin ] \
+    || [ "$OSTYPE" == msys ]; then
     export WINDOWS=1
     # Assume there's an X server running
     if [ -z "$DISPLAY" ]; then
@@ -42,6 +44,9 @@ alias rgrep='grep -Iirn'
 alias more='less'
 alias gdb='gdb -q'
 alias preview='feh --scale -d . &'
+
+# I never remember xxd
+alias hex='xxd -g 1'
 
 if [[ $OSTYPE == *darwin* ]]; then
     alias ls='ls -F'
