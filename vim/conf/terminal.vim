@@ -1,11 +1,22 @@
 " Load terminal colorscheme values
 runtime conf/terminal_colors.vim
 
+function! TermFocused()
+    if b:term_mode
+        sil! exec 'norm i | redraw!'
+    endif
+endfunc
+
 function! InitializeTerm()
     " Unlist terminals so we don't hit them with bprev / bnext
     silent set nobuflisted
-    " Automatically enter terminal mode when focusing the terminal window
-    autocmd BufEnter <buffer> sil! exec 'norm i | redraw!'
+    " This buffer variable will remember if we want to auto-enter
+    " terminal mode when we re-focus the buffer.
+    " This is set to false by the <esc><esc> keybind in maps.vim
+    " and reset to true the next time we enter terminal mode
+    let b:term_mode = v:true
+    autocmd BufEnter <buffer> call TermFocused()
+    autocmd TermEnter <buffer> let b:term_mode = v:true
 endfunc
 
 " If we're in Neovim, redirect to Neovim-specific setup.
@@ -17,7 +28,8 @@ endif
 command! -nargs=* -complete=file Terminal terminal <args>
 command! -nargs=* -complete=file TTerminal terminal <args>
 
-set termwinkey=<ins>
+" Commenting this out because I'm getting used to Ctrl+W to switch panes
+"set termwinkey=<ins>
 let g:terminal_ansi_colors = [
         \ g:term_black,
         \ g:term_red,

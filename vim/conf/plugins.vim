@@ -33,7 +33,7 @@ let g:sneak#absolute_dir = v:true
 call plug#begin()
     Plug 'austinthresher/vim-lyra'
     Plug 'google/vim-searchindex'
-    "Plug 'tpope/vim-unimpaired'
+    Plug 'tpope/vim-unimpaired'
     Plug 'tpope/vim-eunuch'
     Plug 'tpope/vim-fugitive'
     Plug 'tpope/vim-surround'
@@ -48,6 +48,7 @@ call plug#begin()
     Plug 'luochen1990/rainbow'
     Plug 'kana/vim-altr'
     Plug 'jpalardy/vim-slime'
+    Plug 'junegunn/vim-easy-align'
     if has('nvim')
         runtime conf/nvim_plugins.vim
     endif
@@ -88,4 +89,9 @@ let g:rainbow_active = 1
 " altr additional patterns to find related files
 call altr#define('%/%.c', '%/include/%.h')
 call altr#define('%/%.cpp', '%/include/%.h')
+
+" Easy align line continuations
+let g:easy_align_delimiters = {
+            \ '\': { 'pattern': '\\$' },
+            \ }
 

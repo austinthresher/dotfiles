@@ -46,8 +46,14 @@ xnoremap <silent> <c-l> <cmd>noh<cr><esc>
 " * Sets word under cursor to search term but doesn't go to the next match
 nnoremap * *N
 
+function! TermNormalMode()
+    " See terminal.vim
+    let b:term_mode = v:false
+    call feedkeys("\<c-\>\<c-n>")
+endfunc
+
 " Navigate out of terminal mode more easily
-tnoremap <esc><esc> <c-\><c-n>
+tnoremap <esc><esc> <cmd>call TermNormalMode()<cr>
 
 " Navigate across windows with Alt + hjkl in any mode
 inoremap <M-h> <C-\><C-N><C-w>h
@@ -74,9 +80,6 @@ tmap <M-n> <C-\><C-N>gt
 tmap <M-p> <C-\><C-N>gT
 tmap <S-space> <space>
 tmap <S-backspace> <backspace>
-
-nnoremap [c <Cmd>:cprev<cr>
-nnoremap ]c <Cmd>:cnext<cr>
 
 " Fast re-run
 nnoremap <leader>! :!!<cr>
@@ -161,10 +164,12 @@ nnoremap _ <Plug>(dirvish_up)
 nnoremap - _
 
 " switch between related files (.c -> .h, etc.)
-nnoremap <leader>a <Plug>(altr-forward)
+nnoremap <leader>A <Plug>(altr-forward)
 
 " save and return to normal mode if not already
 nnoremap <C-s> <Cmd>update<cr>
 inoremap <C-s> <Cmd>update<cr><esc>
 xnoremap <C-s> <Cmd>update<cr><esc>
 
+nmap <leader>a <Plug>(EasyAlign)
+xmap <leader>a <Plug>(EasyAlign)
