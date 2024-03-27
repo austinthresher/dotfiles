@@ -46,7 +46,8 @@ call plug#begin()
     Plug 'justinmk/vim-sneak'
     Plug 'vim-scripts/cmdalias.vim'
     Plug 'luochen1990/rainbow'
-    Plug 'kana/vim-altr'
+    " This was causing weird hangups, disabling for now
+    " Plug 'kana/vim-altr'
     Plug 'jpalardy/vim-slime'
     Plug 'junegunn/vim-easy-align'
     if has('nvim')
@@ -87,8 +88,8 @@ let g:rainbow_conf = {
 let g:rainbow_active = 1
 
 " altr additional patterns to find related files
-call altr#define('%/%.c', '%/include/%.h')
-call altr#define('%/%.cpp', '%/include/%.h')
+" call altr#define('%/%.c', '%/include/%.h')
+" call altr#define('%/%.cpp', '%/include/%.h')
 
 " Easy align line continuations
 let g:easy_align_delimiters = {

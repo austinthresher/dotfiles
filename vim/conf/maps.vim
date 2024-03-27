@@ -164,7 +164,7 @@ nnoremap _ <Plug>(dirvish_up)
 nnoremap - _
 
 " switch between related files (.c -> .h, etc.)
-nnoremap <leader>A <Plug>(altr-forward)
+" nnoremap <leader>A <Plug>(altr-forward)
 
 " save and return to normal mode if not already
 nnoremap <C-s> <Cmd>update<cr>
