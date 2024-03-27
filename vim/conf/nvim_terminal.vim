@@ -18,6 +18,9 @@ let g:terminal_color_15 = g:term_br_white
 " This is a bunch of ugly hacks to make Neovim's terminal
 " behave in a way that I find easier to work with
 
+" Let Ctrl+W swap windows / etc
+tnoremap <C-W> <C-\><C-N><C-W>
+
 " Keep a list of hidden terminals that were still running
 let s:hidden = get(s:, 'hidden', [])
 
