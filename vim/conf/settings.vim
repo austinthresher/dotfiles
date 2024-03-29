@@ -48,7 +48,7 @@ augroup NoNewlineComments
 augroup END
 
 if has('nvim')
-    set inccommand=nosplit
+    set inccommand=split
 else
     "set timeout ttimeout ttimeoutlen=100 timeoutlen=100
 endif
