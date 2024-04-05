@@ -1,3 +1,2 @@
 #!/bin/bash
 cp -r vim/* $LOCALAPPDATA/nvim/
-cp dot/wezterm.lua ~/.wezterm.lua
