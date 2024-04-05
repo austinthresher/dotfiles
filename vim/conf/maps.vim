@@ -163,9 +163,6 @@ nnoremap <leader>X <Cmd>call HexToDec(expand("<cexpr>"))<cr>
 nnoremap _ <Plug>(dirvish_up)
 nnoremap - _
 
-" switch between related files (.c -> .h, etc.)
-" nnoremap <leader>A <Plug>(altr-forward)
-
 " Toggle conceal
 function! ToggleConceal()
     if &conceallevel == 0
