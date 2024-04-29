@@ -13,6 +13,9 @@
     "coc.source.file.enable": false,
     "coc.source.around.enable": false,
     "coc.source.buffer.enable": false,
+    "[c][cpp]": {
+        "semanticTokens.enable": true
+    },
     "inlayHint.enable": false,
     "tree.key.activeFilter": "<S-f>",
     "tree.key.actions": "<cr>",
