@@ -41,7 +41,7 @@ inoremap <silent><expr> <Tab> coc#pum#visible() ? coc#pum#next(1) : "\<Tab>"
 inoremap <silent><expr> <S-Tab> coc#pum#visible() ? coc#pum#prev(1) : "\<C-h>"
 nnoremap <silent> <C-h> :call QuietCocAsync('doHover')<cr>
 inoremap <silent><expr> <C-Space> coc#refresh()
-nnoremap <silent> <leader>ca :call QuietCocAsync("codeAction", "cursor")<CR>
+nnoremap <silent> <leader>CA :call QuietCocAsync("codeAction", "cursor")<CR>
 
 " This isn't great, figure out a better way to do this
 function! CoCMenu() abort

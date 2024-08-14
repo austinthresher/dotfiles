@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Usage: docker-bash <name>
+# Opens an interactive bash session in the container matching <name>.
+# Checks container names first and then images if no results were found.
+
+CONTAINERS=$(docker ps -q -f "name=$1")
+CONTAINER_ARRAY=($CONTAINERS)
+
+if [ ${#CONTAINER_ARRAY[@]} -eq 0 ]; then
+    CONTAINERS=$(docker ps -q -f "ancestor=$1")
+    CONTAINER_ARRAY=($CONTAINERS)
+    if [ ${#CONTAINER_ARRAY[@]} -eq 0 ]; then
+        echo "No container names or images matched '$1'"
+    elif [ ${#CONTAINER_ARRAY[@]} -gt 1 ]; then
+        echo "Multiple matches for '$1' in images, be more specific:"
+        docker ps -f "ancestor=$1" --format '- {{.Image}} {{.Names}}'
+    else
+        echo "${CONTAINER_ARRAY[0]} image matched '$1', attaching"
+        docker exec -it "${CONTAINER_ARRAY[0]}" bash
+    fi
+elif [ ${#CONTAINER_ARRAY[@]} -gt 1 ]; then
+    echo "Multiple matches for '$1' in container names, be more specific:"
+    docker ps -f "name=$1" --format '- {{.Image}} {{.Names}}'
+else
+    echo "${CONTAINER_ARRAY[0]} container name matched '$1', attaching"
+    docker exec -it "${CONTAINER_ARRAY[0]}" bash
+fi

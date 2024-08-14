@@ -173,10 +173,32 @@ function! ToggleConceal()
 endfunction
 
 nnoremap <silent> <leader>C <Cmd>call ToggleConceal()<cr>
-" save and return to normal mode if not already
+" Save and return to normal mode if not already
 nnoremap <C-s> <Cmd>update<cr>
 inoremap <C-s> <Cmd>update<cr><esc>
 xnoremap <C-s> <Cmd>update<cr><esc>
 
 nmap <leader>a <Plug>(EasyAlign)
 xmap <leader>a <Plug>(EasyAlign)
+
+" Make E and Q symmetrical, record macro to Ctrl+q
+nnoremap q b
+nnoremap Q B
+xnoremap q b
+xnoremap Q B
+nnoremap <c-q> q
+xnoremap <c-q> q
+
+" Reformat C-style function prototypes to span multiple lines.
+" Uses equalprg to fix the formatting after.
+" Will get confused if commas exist anywhere except between arguments.
+function! MultiLinePrototype()
+    let l:line = getline(".")
+    let l:line = substitute(l:line, ",\s*", ",\r", "g")
+    let l:line = substitute(l:line, "(", "(\r", "")
+    let l:lines = split(l:line, "\r")
+    call setline(".", l:lines[0])
+    call append(".", l:lines[1:])
+    normal! =ip
+endfunction
+nnoremap <leader>c <Cmd>call MultiLinePrototype()<cr>

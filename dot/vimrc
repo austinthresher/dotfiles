@@ -1,0 +1,78 @@
+set nocompatible
+set hidden
+set mouse=a
+set ruler
+set termguicolors
+set expandtab
+set shiftwidth=4
+set softtabstop=4
+set autoindent
+set showcmd
+set showmatch
+set matchtime=1
+set backspace=indent,eol,start
+set wildmenu
+set breakindent
+set breakindentopt=sbr
+set display=lastline,uhex
+set noerrorbells
+set belloff=all
+set fileformats=unix,dos
+set laststatus=2
+set hlsearch
+set path+=**
+set shortmess=filmnrxOTI
+set sidescroll=1
+set sidescrolloff=1
+set ttyfast
+
+let &showbreak = '>>> '
+
+nnoremap <tab> >>
+nnoremap <s-tab> <<
+xnoremap <tab> >
+xnoremap <s-tab> <
+
+nnoremap <silent> <c-l> <cmd>noh<cr><c-l>
+inoremap <silent> <c-l> <cmd>noh<cr>
+xnoremap <silent> <c-l> <cmd>noh<cr><esc>
+
+nnoremap * *N
+
+nnoremap <silent> <leader>bd <cmd>set nobuflisted\|bp\|bd #<cr>
+nnoremap <silent> <leader>BD <cmd>set nobuflisted\|bp\|bd! #<cr>
+
+tnoremap <esc><esc> <c-\><c-n>
+
+nmap <silent> <c-j> <cmd>bn<cr>
+nmap <silent> <c-k> <cmd>bp<cr>
+
+nnoremap q b
+nnoremap Q B
+xnoremap q b
+xnoremap Q B
+nnoremap <c-q> q
+xnoremap <c-q> q
+
+" Change vim's working dir to the current file location
+command CD cd %:p:h
+
+" Netrw settings
+let g:netrw_sizestyle='H'
+let g:netrw_banner=0
+let g:netrw_list_hide='\.swp$'
+
+" Open Netrw in the current file's location
+nnoremap _ <cmd>Explore<cr>
+
+" Maps for Netrw buffers
+function! CustomizeNetrw()
+    nmap <buffer> _ <Plug>NetrwBrowseUpDir
+endfunction
+
+augroup RunCustomizeNetrw
+    autocmd!
+    autocmd filetype netrw call CustomizeNetrw()
+augroup END
+
+color desert

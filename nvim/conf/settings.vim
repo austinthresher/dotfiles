@@ -9,7 +9,6 @@ set hidden
 set hlsearch
 set ignorecase
 set incsearch
-set lazyredraw
 set listchars=tab:▹▹▷,extends:»,precedes:«,nbsp:∙,trail:❚
 set list
 set matchtime=1

@@ -25,24 +25,16 @@ link dot/profile    .profile
 link dot/tmux.conf  .tmux.conf
 link dot/inputrc    .inputrc
 link dot/gitignore  .gitignore
+link dot/vimrc      .vimrc
 
 mkdir -p $HOME/.config/nvim/autoload
-mkdir -p $HOME/.vim/{autoload,plugged}
 
-link vim/init.vim       .vimrc
-link vim/ginit.vim      .gvimrc
-link vim/filetype.vim   .vim/filetype.vim
-link vim/conf           .vim/conf
-link vim/syntax         .vim/syntax
-link vim/after          .vim/after
-link vim/ftplugin       .vim/ftplugin
-
-link vim/init.vim       .config/nvim/init.vim
-link vim/ginit.vim      .config/nvim/ginit.vim
-link vim/filetype.vim   .config/nvim/filetype.vim
-link vim/conf           .config/nvim/conf
-link vim/syntax         .config/nvim/syntax
-link vim/after          .config/nvim/after
-link vim/ftplugin       .config/nvim/ftplugin
-link vim/coc-settings.json .config/nvim/coc-settings.json
+link nvim/init.vim       .config/nvim/init.vim
+link nvim/ginit.vim      .config/nvim/ginit.vim
+link nvim/filetype.vim   .config/nvim/filetype.vim
+link nvim/conf           .config/nvim/conf
+link nvim/syntax         .config/nvim/syntax
+link nvim/after          .config/nvim/after
+link nvim/ftplugin       .config/nvim/ftplugin
+link nvim/coc-settings.json .config/nvim/coc-settings.json
 
