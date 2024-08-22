@@ -1,194 +1,288 @@
-;;; init.el -*- lexical-binding: t; -*-
+(setq gc-cons-threshold 10000000)
+(setq byte-compile-warnings '(not obsolete))
+(setq warning-suppress-log-types '((comp) (bytecomp)))
+(setq native-comp-async-report-warnings-errors 'silent)
+(setq inhibit-startup-echo-area-message (user-login-name))
+(when (window-system)
+  (set-frame-size (selected-frame) 120 35))
+(setq frame-resize-pixelwise t)
 
-;; This file controls what Doom modules are enabled and what order they load
-;; in. Remember to run 'doom sync' after modifying it!
+;; Prevent blinding startup window
+(add-to-list 'default-frame-alist '(foreground-color . "#CCCCCC"))
+(add-to-list 'default-frame-alist '(background-color . "#2E3440"))
+(add-to-list 'default-frame-alist '(width . 120))
+(add-to-list 'default-frame-alist '(height . 35))
+(set-foreground-color "#CCCCCC")
+(set-background-color "#2E3440")
 
-;; NOTE Press 'SPC h d h' (or 'C-h d h' for non-vim users) to access Doom's
-;;      documentation. There you'll find a link to Doom's Module Index where all
-;;      of our modules are listed, including what flags they support.
+(set-face-attribute 'default nil :font "JetBrainsMono NF 12")
+(set-face-attribute 'mode-line nil :font "JetBrainsMono NF 10")
+(set-face-attribute 'mode-line-inactive nil :font "JetBrainsMono NF 10")
 
-;; NOTE Move your cursor over a module's name (or its flags) and press 'K' (or
-;;      'C-c c k' for non-vim users) to view its documentation. This works on
-;;      flags as well (those symbols that start with a plus).
-;;
-;;      Alternatively, press 'gd' (or 'C-c c d') on a module to browse its
-;;      directory (for easy access to its source code).
+(setq custom-file (expand-file-name "custom.el" user-emacs-directory))
+(load custom-file)
 
-(doom! :input
-       ;;bidi              ; (tfel ot) thgir etirw uoy gnipleh
-       ;;chinese
-       ;;japanese
-       ;;layout            ; auie,ctsrnm is the superior home row
+(setq inhibit-startup-message t)
+(setopt display-time-default-load-average nil)
 
-       :completion
-       company           ; the ultimate code completion backend
-       ;;helm              ; the *other* search engine for love and life
-       ;;ido               ; the other *other* search engine...
-       ;;ivy               ; a search engine for love and life
-       vertico           ; the search engine of the future
+(setopt auto-revert-avoid-polling t)
+(setopt auto-revert-interval 5)
+(setopt auto-revert-check-vc-info t)
+(global-auto-revert-mode)
 
-       :ui
-       ;;deft              ; notational velocity for Emacs
-       doom              ; what makes DOOM look the way it does
-       doom-dashboard    ; a nifty splash screen for Emacs
-       ;;doom-quit         ; DOOM quit-message prompts when you quit Emacs
-       ;;(emoji +unicode)  ; 🙂
-       hl-todo           ; highlight TODO/FIXME/NOTE/DEPRECATED/HACK/REVIEW
-       ;;hydra
-       ;;indent-guides     ; highlighted indent columns
-       ;;ligatures         ; ligatures and symbols to make your code pretty again
-       ;;minimap           ; show a map of the code on the side
-       modeline          ; snazzy, Atom-inspired modeline, plus API
-       ;;nav-flash         ; blink cursor line after big motions
-       ;;neotree           ; a project drawer, like NERDTree for vim
-       ophints           ; highlight the region an operation acts on
-       (popup +defaults)   ; tame sudden yet inevitable temporary windows
-       ;;tabs              ; a tab bar for Emacs
-       ;;treemacs          ; a project drawer, like neotree but cooler
-       ;;unicode           ; extended unicode support for various languages
-       (vc-gutter +pretty) ; vcs diff in the fringe
-       vi-tilde-fringe   ; fringe tildes to mark beyond EOB
-       ;;window-select     ; visually switch windows
-       workspaces        ; tab emulation, persistence & separate workspaces
-       ;;zen               ; distraction-free coding or writing
+(savehist-mode)
 
-       :editor
-       (evil +everywhere); come to the dark side, we have cookies
-       file-templates    ; auto-snippets for empty files
-       fold              ; (nigh) universal code folding
-       ;;(format +onsave)  ; automated prettiness
-       ;;god               ; run Emacs commands without modifier keys
-       ;;lispy             ; vim for lisp, for people who don't like vim
-       ;;multiple-cursors  ; editing in many places at once
-       ;;objed             ; text object editing for the innocent
-       ;;parinfer          ; turn lisp into python, sort of
-       ;;rotate-text       ; cycle region at point between text candidates
-       snippets          ; my elves. They type so I don't have to
-       ;;word-wrap         ; soft wrapping with language-aware indent
+(windmove-default-keybindings 'meta)
+(setopt sentence-end-double-space nil)
+(setopt resize-mini-windows nil)
+(setopt vc-follow-symlinks t)
+;; Without leading dots, to match the versions in my dotfiles repo
+(add-to-list 'auto-mode-alist '("bashrc" . sh-mode))
 
-       :emacs
-       dired             ; making dired pretty [functional]
-       electric          ; smarter, keyword-based electric-indent
-       ;;ibuffer         ; interactive buffer management
-       undo              ; persistent, smarter undo for your inevitable mistakes
-       vc                ; version-control and Emacs, sitting in a tree
+(scroll-bar-mode -1)
+(tool-bar-mode -1)
+(menu-bar-mode -1)
+(indent-tabs-mode -1) ; always use spaces
 
-       :term
-       ;;eshell            ; the elisp shell that works everywhere
-       ;;shell             ; simple shell REPL for Emacs
-       ;;term              ; basic terminal emulator for Emacs
-       vterm             ; the best terminal emulation in Emacs
+(when (display-graphic-p) (context-menu-mode t))
 
-       :checkers
-       syntax              ; tasing you for every semicolon you forget
-       ;;(spell +flyspell) ; tasing you for misspelling mispelling
-       ;;grammar           ; tasing grammar mistake every you make
+;; Taken directly from emacs-bedrock.
+;; Don't litter file system with *~ backup files; put them all inside
+;; ~/.emacs.d/backup or wherever
+(defun bedrock--backup-file-name (fpath)
+  (let* ((backupRootDir (concat user-emacs-directory "emacs-backup/"))
+         (filePath (replace-regexp-in-string "[A-Za-z]:" "" fpath ))
+         (backupFilePath (replace-regexp-in-string
+			  "//" "/" (concat backupRootDir filePath "~"))))
+    (make-directory (file-name-directory backupFilePath)
+		    (file-name-directory backupFilePath))
+    backupFilePath))
+(setopt make-backup-file-name-function 'bedrock--backup-file-name)
 
-       :tools
-       ;;ansible
-       ;;biblio            ; Writes a PhD for you (citation needed)
-       ;;debugger          ; FIXME stepping through code, to help you add bugs
-       ;;direnv
-       ;;docker
-       ;;editorconfig      ; let someone else argue about tabs vs spaces
-       ;;ein               ; tame Jupyter notebooks with emacs
-       (eval +overlay)     ; run code, run (also, repls)
-       ;;gist              ; interacting with github gists
-       lookup              ; navigate your code and its documentation
-       ;;lsp               ; M-x vscode
-       magit             ; a git porcelain for Emacs
-       ;;make              ; run make tasks from Emacs
-       ;;pass              ; password manager for nerds
-       ;;pdf               ; pdf enhancements
-       ;;prodigy           ; FIXME managing external services & code builders
-       ;;rgb               ; creating color strings
-       ;;taskrunner        ; taskrunner for all your projects
-       ;;terraform         ; infrastructure as code
-       ;;tmux              ; an API for interacting with tmux
-       ;;tree-sitter       ; syntax and parsing, sitting in a tree...
-       ;;upload            ; map local to remote projects via ssh/ftp
+(add-to-list 'completion-ignored-extensions "__pycache__/")
 
-       :os
-       (:if IS-MAC macos)  ; improve compatibility with macOS
-       tty               ; improve the terminal Emacs experience
+;; Allow ESC to quit prompts / etc, but customized to not close splits.
+(defun +keyboard-escape-quit-adv (fun)
+  "Around advice for `keyboard-escape-quit` FUN.
+Preserve window configuration when pressing ESC."
+  (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
+    (funcall fun)))
+(advice-add #'keyboard-escape-quit :around #'+keyboard-escape-quit-adv)
 
-       :lang
-       ;;agda              ; types of types of types of types...
-       ;;beancount         ; mind the GAAP
-       (cc +lsp)         ; C > C++ == 1
-       ;;clojure           ; java with a lisp
-       common-lisp       ; if you've seen one lisp, you've seen them all
-       ;;coq               ; proofs-as-programs
-       ;;crystal           ; ruby at the speed of c
-       ;;csharp            ; unity, .NET, and mono shenanigans
-       data              ; config/data formats
-       ;;(dart +flutter)   ; paint ui and not much else
-       ;;dhall
-       ;;elixir            ; erlang done right
-       ;;elm               ; care for a cup of TEA?
-       emacs-lisp        ; drown in parentheses
-       ;;erlang            ; an elegant language for a more civilized age
-       ;;ess               ; emacs speaks statistics
-       ;;factor
-       ;;faust             ; dsp, but you get to keep your soul
-       ;;fortran           ; in FORTRAN, GOD is REAL (unless declared INTEGER)
-       ;;fsharp            ; ML stands for Microsoft's Language
-       ;;fstar             ; (dependent) types and (monadic) effects and Z3
-       ;;gdscript          ; the language you waited for
-       ;;(go +lsp)         ; the hipster dialect
-       ;;(graphql +lsp)    ; Give queries a REST
-       ;;(haskell +lsp)    ; a language that's lazier than I am
-       ;;hy                ; readability of scheme w/ speed of python
-       ;;idris             ; a language you can depend on
-       json              ; At least it ain't XML
-       ;;(java +lsp)       ; the poster child for carpal tunnel syndrome
-       ;;javascript        ; all(hope(abandon(ye(who(enter(here))))))
-       ;;julia             ; a better, faster MATLAB
-       ;;kotlin            ; a better, slicker Java(Script)
-       ;;latex             ; writing papers in Emacs has never been so fun
-       ;;lean              ; for folks with too much to prove
-       ;;ledger            ; be audit you can be
-       ;;lua               ; one-based indices? one-based indices
-       markdown          ; writing docs for people to ignore
-       ;;nim               ; python + lisp at the speed of c
-       ;;nix               ; I hereby declare "nix geht mehr!"
-       ;;ocaml             ; an objective camel
-       org               ; organize your plain life in plain text
-       ;;php               ; perl's insecure younger brother
-       ;;plantuml          ; diagrams for confusing people more
-       ;;purescript        ; javascript, but functional
-       python            ; beautiful is better than ugly
-       ;;qt                ; the 'cutest' gui framework ever
-       ;;racket            ; a DSL for DSLs
-       ;;raku              ; the artist formerly known as perl6
-       ;;rest              ; Emacs as a REST client
-       ;;rst               ; ReST in peace
-       ;;(ruby +rails)     ; 1.step {|i| p "Ruby is #{i.even? ? 'love' : 'life'}"}
-       ;;(rust +lsp)       ; Fe2O3.unwrap().unwrap().unwrap().unwrap()
-       ;;scala             ; java, but good
-       (scheme +guile)   ; a fully conniving family of lisps
-       sh                ; she sells {ba,z,fi}sh shells on the C xor
-       ;;sml
-       ;;solidity          ; do you need a blockchain? No.
-       ;;swift             ; who asked for emoji variables?
-       ;;terra             ; Earth and Moon in alignment for performance.
-       ;;web               ; the tubes
-       yaml              ; JSON, but readable
-       ;;zig               ; C, but simpler
+(global-set-key (kbd "<escape>") 'keyboard-escape-quit)
 
-       :email
-       ;;(mu4e +org +gmail)
-       ;;notmuch
-       ;;(wanderlust +gmail)
+;; I keep accidentally hitting this when trying to exit which-key
+(global-unset-key (kbd "C-x ESC"))
 
-       :app
-       ;;calendar
-       ;;emms
-       ;;everywhere        ; *leave* Emacs!? You must be joking
-       ;;irc               ; how neckbeards socialize
-       ;;(rss +org)        ; emacs as an RSS reader
-       ;;twitter           ; twitter client https://twitter.com/vnought
 
-       :config
-       ;;literate
-       (default +bindings +smartparens))
+(require 'package)
+(add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
+
+(package-initialize)
+(unless package-archive-contents (package-refresh-contents))
+(unless (package-installed-p 'use-package) (package-install 'use-package))
+
+(use-package rainbow-delimiters
+  :ensure t
+  :hook (prog-mode . rainbow-delimiters-mode))
+
+(use-package all-the-icons
+  :ensure t
+  :if (display-graphic-p))
+
+(use-package doom-modeline
+  :ensure t
+  :init (doom-modeline-mode t)
+  :custom ((doom-modeline-height 36)
+	   (doom-modeline-icon t)))
+
+(use-package which-key
+  :ensure t
+  :diminish which-key-mode
+  :init (which-key-mode)
+  :config (progn
+	    (setq which-key-dont-use-unicode nil)
+	    (setq which-key-add-column-padding 2)
+	    (setq which-key-min-display-lines 8)
+	    (setq which-key-max-description-length 100)
+	    (setq which-key-max-display-columns 1)
+	    (setq which-key-max-description-length 1.0)
+	    (setq which-key-idle-delay 0.5)
+	    (keymap-global-set "C-h h" 'which-key-show-major-mode)
+    	    (keymap-global-set "C-h H" 'which-key-show-top-level)
+	    ))
+
+(use-package which-key-posframe
+  :ensure t
+  :after which-key
+  :config (setq which-key-posframe-poshandler 'posframe-poshandler-frame-top-right-corner)
+  :init (which-key-posframe-mode))
+
+
+(use-package solaire-mode
+  :ensure t
+  :config (solaire-global-mode t))
+
+;; Close runner-up, looks pretty nice
+;(use-package nano-theme
+;  :ensure t
+;  :config (progn
+;	    (setq nano-theme-light/dark 'dark)
+;	    (load-theme 'nano t)))
+
+(use-package modus-themes
+  :ensure t
+  :config (progn
+	    (setq modus-themes-italic-constructs t)
+	    (setq modus-themes-bold-constructs t)
+	    (load-theme 'modus-vivendi-tinted t)))
+
+(use-package swiper
+  :ensure t
+  :bind (("C-s" . swiper))
+  :config (progn
+	    (setq ivy-use-virtual-buffers t)
+ 	    (setq ivy-use-selectable-prompt t)))
+
+(use-package vertico
+  :ensure t
+  :bind (:map vertico-map ("TAB" . #'minibuffer-complete))
+  :custom ((vertico-resize t)
+	   (vertico-cycle t)
+	   (vertico-count 8))
+  :init (vertico-mode))
+
+(use-package vertico-reverse
+  :ensure nil
+  :after vertico
+  :init (vertico-reverse-mode t))
+
+(use-package marginalia
+  :ensure t
+  :bind (:map minibuffer-local-map ("M-A" . marginalia-cycle)
+         :map completion-list-mode-map ("M-A" . marginalia-cycle))
+  :init (marginalia-mode))
+
+(use-package all-the-icons-completion
+  :ensure t
+  :after marginalia
+  :config (progn
+	    (all-the-icons-completion-mode)
+	    (add-hook 'marginalia-mode-hook #'all-the-icons-completion-marginalia-setup)))
+
+(use-package corfu
+  :ensure t
+  :custom ((corfu-cycle t)
+	   ;(corfu-auto t)
+	   (corfu-quit-no-match t)
+	   )
+  :init (global-corfu-mode)
+  :config (progn
+	    (global-set-key (kbd "C-S-SPC") 'set-mark-command)
+	    (global-set-key (kbd "C-SPC") 'completion-at-point)
+	    (keymap-set corfu-map
+		      "RET" `(menu-item "" nil :filter
+					,(lambda (&optional _)
+					   (and (derived-mode-p 'eshell-mode
+								'comint-mode)
+						#'corfu-send))))))
+
+(use-package corfu-popupinfo
+  :ensure nil
+  :after corfu
+  :hook (corfu-mode . corfu-popupinfo-mode)
+  :custom ((corfu-popupinfo-delay '(0.25 . 0.1))
+	   (corfu-popupinfo-hide nil))
+  :config (corfu-popupinfo-mode))
+
+(use-package corfu-candidate-overlay
+  :ensure t
+  :after corfu
+  :init (defun complete-corfu-or-tab (&optional arg)
+	  (interactive "P")
+	  (let ((str (condition-case nil
+	 (corfu-candidate-overlay--get-overlay-property 'after-string)
+		       (error ""))))
+	    (if (string= "" str)
+      		(indent-for-tab-command arg)
+	      (corfu-candidate-overlay-complete-at-point))))
+  :config (progn
+	    (corfu-candidate-overlay-mode t)
+	    (global-set-key "\t" 'complete-corfu-or-tab)))
+
+(use-package kind-icon
+  :ensure t
+  :after corfu
+  :config (progn
+	    (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
+	    (let ((k (assoc 'keyword kind-icon-mapping)))
+	      (setcdr k '("kw" :icon "rhombus-medium" :face font-lock-keyword-face))
+	    )))
+
+(use-package consult
+  :ensure t
+  :bind (("C-x b" . consult-buffer)
+	 ("M-y" . consult-yank-pop)
+	 ("M-s r" . consult-ripgrep)
+	 ("M-s l" . consult-line)
+	 ("M-s L" . consult-line-multi)
+	 ("M-s o" . consult-outline)
+	 :map isearch-mode-map
+	 ("M-e" . consult-isearch-history)
+	 ("M-s e" . consult-isearch-history)
+	 ("M-s l" . consult-line)
+	 ("M-s L" . consult-line-multi))
+  :config (setq consult-narrow-key "<"))
+
+(use-package embark-consult
+  :ensure t)
+
+(use-package embark
+  :ensure t
+  :demand t
+  :bind (("C-c a" . embark-act)))
+
+(use-package eshell
+  :ensure t
+  :init (defun setup-eshell () (keymap-set eshell-mode-map "C-r" 'consult-history))
+  :hook ((eshell-mode . setup-eshell)))
+
+(use-package eat
+  :ensure t
+  :custom (eat-term-name "xterm-256color")
+  :config (progn (eat-eshell-mode)
+		 (eat-eshell-visual-command-mode)))
+
+(use-package magit
+  :ensure t
+  :bind (("C-x g" . magit-status)
+	 ("C-x G" . magit-dispatch)
+	 :map transient-map ("<escape>" . transient-quit-one))
+  :custom (global-unset-key (kbd "C-x M-g")))
+
+
+;; Built-in completion options. I don't think these are active with
+;; vertico and corfu, but just in case.
+(setopt enable-recursive-minibuffers t)
+(setopt completion-cycle-threshold 1)
+(setopt completions-detailed t)
+(setopt tab-always-indent 'complete)
+(setopt completion-styles '(basic initials substring))
+(setopt completion-auto-help 'always)
+(setopt completions-max-height 10)
+(setopt completions-detailed t)
+(setopt completions-format 'one-column)
+(setopt completions-group t)
+(setopt completion-auto-select 'second-tab)
+
+(keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
+
+(setopt x-underline-at-descent-line nil)
+(setopt switch-to-buffer-obey-display-actions t)
+(setopt column-number-mode t)
+
+(setq show-trailing-whitespace t)
+(add-hook 'eat-mode-hook (lambda () (setq show-trailing-whitespace nil)))
+(setopt show-trailing-whitespace t)
+(pixel-scroll-precision-mode)
+
