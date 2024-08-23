@@ -4,7 +4,7 @@
 
 sudo apt install \
     libgtk-3-dev libgtk-3-0 \
-    libxpm-dev libgif-dev gnutls-dev \
+    libtool libtool-bin libxpm-dev libgif-dev gnutls-dev \
     libjansson4 libjansson-dev librsvg2-dev \
     libtree-sitter-dev libgccjit-11-dev \
     libgpm-dev libsqlite3-dev libotf-dev libxft-dev \

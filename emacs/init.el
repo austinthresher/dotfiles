@@ -1,55 +1,37 @@
+;;;; Early / system settings
+;;;; =========================================================================
 (setq gc-cons-threshold 10000000)
 (setq byte-compile-warnings '(not obsolete))
 (setq warning-suppress-log-types '((comp) (bytecomp)))
 (setq native-comp-async-report-warnings-errors 'silent)
 (setq inhibit-startup-echo-area-message (user-login-name))
-(when (window-system)
-  (set-frame-size (selected-frame) 120 35))
 (setq frame-resize-pixelwise t)
 
 ;; Prevent blinding startup window
-(add-to-list 'default-frame-alist '(foreground-color . "#CCCCCC"))
-(add-to-list 'default-frame-alist '(background-color . "#2E3440"))
 (add-to-list 'default-frame-alist '(width . 120))
 (add-to-list 'default-frame-alist '(height . 35))
+(add-to-list 'default-frame-alist '(cursor-type . bar))
 (set-foreground-color "#CCCCCC")
-(set-background-color "#2E3440")
+(set-background-color "#000000")
 
-(set-face-attribute 'default nil :font "JetBrainsMono NF 12")
-(set-face-attribute 'mode-line nil :font "JetBrainsMono NF 10")
-(set-face-attribute 'mode-line-inactive nil :font "JetBrainsMono NF 10")
+(add-hook 'server-after-make-frame-hook
+	  (lambda ()
+	    (set-frame-size (selected-frame) 120 35)
+	    (set-face-attribute 'default nil :font "JetBrainsMono NF 12")
+	    (set-face-attribute 'mode-line nil :font "JetBrainsMono NF 10")
+	    (set-face-attribute 'mode-line-inactive nil :font "JetBrainsMono NF 10")
+	    (set-face-attribute 'variable-pitch nil :font "Roboto 12")))
 
 (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
 (load custom-file)
 
-(setq inhibit-startup-message t)
+(setopt inhibit-startup-message t)
 (setopt display-time-default-load-average nil)
-
-(setopt auto-revert-avoid-polling t)
-(setopt auto-revert-interval 5)
-(setopt auto-revert-check-vc-info t)
-(global-auto-revert-mode)
-
-(savehist-mode)
-
-(windmove-default-keybindings 'meta)
-(setopt sentence-end-double-space nil)
-(setopt resize-mini-windows nil)
-(setopt vc-follow-symlinks t)
-;; Without leading dots, to match the versions in my dotfiles repo
-(add-to-list 'auto-mode-alist '("bashrc" . sh-mode))
-
-(scroll-bar-mode -1)
-(tool-bar-mode -1)
-(menu-bar-mode -1)
-(indent-tabs-mode -1) ; always use spaces
-
-(when (display-graphic-p) (context-menu-mode t))
 
 ;; Taken directly from emacs-bedrock.
 ;; Don't litter file system with *~ backup files; put them all inside
 ;; ~/.emacs.d/backup or wherever
-(defun bedrock--backup-file-name (fpath)
+(defun get-backup-file-name (fpath)
   (let* ((backupRootDir (concat user-emacs-directory "emacs-backup/"))
          (filePath (replace-regexp-in-string "[A-Za-z]:" "" fpath ))
          (backupFilePath (replace-regexp-in-string
@@ -57,23 +39,32 @@
     (make-directory (file-name-directory backupFilePath)
 		    (file-name-directory backupFilePath))
     backupFilePath))
-(setopt make-backup-file-name-function 'bedrock--backup-file-name)
-
+(setopt make-backup-file-name-function 'get-backup-file-name)
 (add-to-list 'completion-ignored-extensions "__pycache__/")
 
-;; Allow ESC to quit prompts / etc, but customized to not close splits.
-(defun +keyboard-escape-quit-adv (fun)
-  "Around advice for `keyboard-escape-quit` FUN.
-Preserve window configuration when pressing ESC."
-  (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
-    (funcall fun)))
-(advice-add #'keyboard-escape-quit :around #'+keyboard-escape-quit-adv)
 
-(global-set-key (kbd "<escape>") 'keyboard-escape-quit)
+;;;; Global minor modes and related options
+;;;; =========================================================================
 
-;; I keep accidentally hitting this when trying to exit which-key
-(global-unset-key (kbd "C-x ESC"))
+(setopt auto-revert-avoid-polling t)
+(setopt auto-revert-interval 5)
+(setopt auto-revert-check-vc-info t)
+(global-auto-revert-mode)
 
+(savehist-mode)
+(pixel-scroll-precision-mode)
+(scroll-bar-mode -1)
+(tool-bar-mode -1)
+(menu-bar-mode -1)
+(indent-tabs-mode -1) ; always use spaces
+
+(context-menu-mode t)
+(unless (display-graphic-p)
+  (xterm-mouse-mode t))
+
+
+;;;; Packages
+;;;; =========================================================================
 
 (require 'package)
 (add-to-list 'package-archives '("melpa" . "https://melpa.org/packages/") t)
@@ -105,19 +96,19 @@ Preserve window configuration when pressing ESC."
 	    (setq which-key-add-column-padding 2)
 	    (setq which-key-min-display-lines 8)
 	    (setq which-key-max-description-length 100)
-	    (setq which-key-max-display-columns 1)
+	    (setq which-key-max-display-columns (if (display-graphic-p) 1 nil))
 	    (setq which-key-max-description-length 1.0)
 	    (setq which-key-idle-delay 0.5)
 	    (keymap-global-set "C-h h" 'which-key-show-major-mode)
-    	    (keymap-global-set "C-h H" 'which-key-show-top-level)
-	    ))
+    	    (keymap-global-set "C-h H" 'which-key-show-top-level)))
 
 (use-package which-key-posframe
   :ensure t
   :after which-key
-  :config (setq which-key-posframe-poshandler 'posframe-poshandler-frame-top-right-corner)
+  :if (display-graphic-p)
+  :config (setq which-key-posframe-poshandler
+                'posframe-poshandler-frame-top-right-corner)
   :init (which-key-posframe-mode))
-
 
 (use-package solaire-mode
   :ensure t
@@ -147,8 +138,7 @@ Preserve window configuration when pressing ESC."
 (use-package vertico
   :ensure t
   :bind (:map vertico-map ("TAB" . #'minibuffer-complete))
-  :custom ((vertico-resize t)
-	   (vertico-cycle t)
+  :custom ((vertico-cycle t)
 	   (vertico-count 8))
   :init (vertico-mode))
 
@@ -166,30 +156,30 @@ Preserve window configuration when pressing ESC."
 (use-package all-the-icons-completion
   :ensure t
   :after marginalia
+  :if (display-graphic-p)
   :config (progn
 	    (all-the-icons-completion-mode)
-	    (add-hook 'marginalia-mode-hook #'all-the-icons-completion-marginalia-setup)))
+	    (add-hook 'marginalia-mode-hook
+                      #'all-the-icons-completion-marginalia-setup)))
 
 (use-package corfu
   :ensure t
   :custom ((corfu-cycle t)
-	   ;(corfu-auto t)
-	   (corfu-quit-no-match t)
-	   )
+	   (corfu-quit-no-match t))
   :init (global-corfu-mode)
   :config (progn
-	    (global-set-key (kbd "C-S-SPC") 'set-mark-command)
-	    (global-set-key (kbd "C-SPC") 'completion-at-point)
+	    (global-set-key (kbd "C-S-SPC") 'completion-at-point)
 	    (keymap-set corfu-map
-		      "RET" `(menu-item "" nil :filter
-					,(lambda (&optional _)
-					   (and (derived-mode-p 'eshell-mode
-								'comint-mode)
-						#'corfu-send))))))
+		        "RET" `(menu-item "" nil :filter
+					  ,(lambda (&optional _)
+					     (and (derived-mode-p 'eshell-mode
+								  'comint-mode)
+						  #'corfu-send))))))
 
 (use-package corfu-popupinfo
   :ensure nil
   :after corfu
+  :if (display-graphic-p)
   :hook (corfu-mode . corfu-popupinfo-mode)
   :custom ((corfu-popupinfo-delay '(0.25 . 0.1))
 	   (corfu-popupinfo-hide nil))
@@ -210,14 +200,21 @@ Preserve window configuration when pressing ESC."
 	    (corfu-candidate-overlay-mode t)
 	    (global-set-key "\t" 'complete-corfu-or-tab)))
 
+(use-package corfu-terminal
+  :ensure t
+  :if (not (display-graphic-p))
+  :after corfu
+  :init (corfu-terminal-mode t))
+
 (use-package kind-icon
   :ensure t
   :after corfu
   :config (progn
-	    (add-to-list 'corfu-margin-formatters #'kind-icon-margin-formatter)
+	    (add-to-list 'corfu-margin-formatters
+                         #'kind-icon-margin-formatter)
 	    (let ((k (assoc 'keyword kind-icon-mapping)))
-	      (setcdr k '("kw" :icon "rhombus-medium" :face font-lock-keyword-face))
-	    )))
+	      (setcdr k '("kw" :icon "rhombus-medium"
+                          :face font-lock-keyword-face)))))
 
 (use-package consult
   :ensure t
@@ -244,7 +241,8 @@ Preserve window configuration when pressing ESC."
 
 (use-package eshell
   :ensure t
-  :init (defun setup-eshell () (keymap-set eshell-mode-map "C-r" 'consult-history))
+  :init (defun setup-eshell ()
+          (keymap-set eshell-mode-map "C-r" 'consult-history))
   :hook ((eshell-mode . setup-eshell)))
 
 (use-package eat
@@ -258,31 +256,92 @@ Preserve window configuration when pressing ESC."
   :bind (("C-x g" . magit-status)
 	 ("C-x G" . magit-dispatch)
 	 :map transient-map ("<escape>" . transient-quit-one))
-  :custom (global-unset-key (kbd "C-x M-g")))
+  :config (global-unset-key (kbd "C-x M-g")))
 
+(use-package yaml-mode :ensure t)
+(use-package json-mode :ensure t)
+(use-package transpose-frame :ensure t)
 
-;; Built-in completion options. I don't think these are active with
-;; vertico and corfu, but just in case.
+(use-package dired-sidebar
+  :ensure t
+  :bind (("C-x C-d" . dired-sidebar-toggle-sidebar)
+	 ("C-x d" . dired-sidebar-jump-to-sidebar))
+  :custom-face
+  (dired-sidebar-custom-face ((t (:font "JetBrainsMono NF 10"))))
+  :config
+  (push 'toggle-window-split dired-sidebar-toggle-hidden-commands)
+  (push 'rotate-windows dired-sidebar-toggle-hidden-commands)
+  (setopt dired-sidebar-display-remote-icons t)
+  (setopt dired-sidebar-follow-file-at-point-on-toggle-open t)
+  (setopt dired-sidebar-follow-file-idle-delay 1.0)
+  (setopt dired-sidebar-should-follow-file t)
+  (setopt dired-sidebar-theme 'nerd)
+  (setopt dired-sidebar-resize-on-open nil)
+  (setopt dired-sidebar-pop-to-sidebar-on-toggle-open nil)
+  (setopt dired-sidebar-use-one-instance t)
+  (setopt dired-sidebar-window-fixed nil)
+  (setopt dired-sidebar-use-custom-font t)
+  (setopt dired-sidebar-face 'dired-sidebar-custom-face))
+
+;;;; Options
+;;;; =========================================================================
+
+;; Built-in completion options (corfu doesn't support terminal mode)
 (setopt enable-recursive-minibuffers t)
 (setopt completion-cycle-threshold 1)
 (setopt completions-detailed t)
 (setopt tab-always-indent 'complete)
 (setopt completion-styles '(basic initials substring))
-(setopt completion-auto-help 'always)
 (setopt completions-max-height 10)
-(setopt completions-detailed t)
 (setopt completions-format 'one-column)
 (setopt completions-group t)
 (setopt completion-auto-select 'second-tab)
 
-(keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
+(setopt sentence-end-double-space nil)
+(setopt vc-follow-symlinks t)
 
 (setopt x-underline-at-descent-line nil)
 (setopt switch-to-buffer-obey-display-actions t)
 (setopt column-number-mode t)
+(setopt line-move-visual nil)
+(setopt cursor-in-non-selected-windows nil)
+(setopt show-trailing-whitespace nil)
+(add-hook 'prog-mode-hook (lambda () (setq show-trailing-whitespace t)))
 
-(setq show-trailing-whitespace t)
-(add-hook 'eat-mode-hook (lambda () (setq show-trailing-whitespace nil)))
-(setopt show-trailing-whitespace t)
-(pixel-scroll-precision-mode)
 
+;;;; Key Customization
+;;;; =========================================================================
+
+;; Change windows with Alt + Arrow Keys
+(windmove-default-keybindings 'meta)
+
+;; Allow ESC to quit prompts / etc, but customized to not close splits.
+(defun +keyboard-escape-quit-adv (fun)
+  "Around advice for `keyboard-escape-quit` FUN.
+Preserve window configuration when pressing ESC."
+  (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
+    (funcall fun)))
+(advice-add #'keyboard-escape-quit :around #'+keyboard-escape-quit-adv)
+(global-set-key (kbd "<escape>") 'keyboard-escape-quit)
+
+;; I keep accidentally hitting this when trying to exit which-key
+(global-unset-key (kbd "C-x ESC"))
+
+(when (display-graphic-p) ; fix awful default GUI behavior
+  (global-unset-key (kbd "C-z"))
+  (global-unset-key (kbd "C-x C-z")))
+
+(keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
+
+
+;;;; Language-specific configuration
+;;;; =========================================================================
+
+(setopt python-indent-guess-indent-offset nil)
+
+
+;;;; Misc
+;;;; =========================================================================
+
+;; File-type mode detection special cases
+(add-to-list 'auto-mode-alist '("bashrc" . sh-mode)) ; no leading '.'
