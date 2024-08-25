@@ -1,31 +1,37 @@
 ;;;; Early / system settings
 ;;;; =========================================================================
 (setq gc-cons-threshold 10000000)
+(setq read-process-output-max (* 1024 1024))
 (setq byte-compile-warnings '(not obsolete))
-(setq warning-suppress-log-types '((comp) (bytecomp)))
-(setq native-comp-async-report-warnings-errors 'silent)
-(setq inhibit-startup-echo-area-message (user-login-name))
-(setq frame-resize-pixelwise t)
+(setq inhibit-startup-message t)
+(put 'inhibit-startup-echo-area-message 'saved-value
+     (setq inhibit-startup-echo-area-message (user-login-name)))
+(setopt warning-suppress-log-types '((comp) (bytecomp)))
+(setopt native-comp-async-report-warnings-errors 'silent)
 
 ;; Prevent blinding startup window
+(set-foreground-color "#CCCCCC")
+(set-background-color "#000000")
 (add-to-list 'default-frame-alist '(width . 120))
 (add-to-list 'default-frame-alist '(height . 35))
 (add-to-list 'default-frame-alist '(cursor-type . bar))
-(set-foreground-color "#CCCCCC")
-(set-background-color "#000000")
 
-(add-hook 'server-after-make-frame-hook
-	  (lambda ()
-	    (set-frame-size (selected-frame) 120 35)
-	    (set-face-attribute 'default nil :font "JetBrainsMono NF 12")
-	    (set-face-attribute 'mode-line nil :font "JetBrainsMono NF 10")
-	    (set-face-attribute 'mode-line-inactive nil :font "JetBrainsMono NF 10")
-	    (set-face-attribute 'variable-pitch nil :font "Roboto 12")))
+(defvar font-mono "JetBrainsMono NF 12")
+(defvar font-variable-pitch "Roboto 12")
+(when (eq system-type 'windows-nt)
+  (setq font-mono "JetBrainsMonoNL NFM-12"
+	font-variable-pitch "Segoe UI-12"))
+
+(defun setup-fonts ()
+  (set-face-attribute 'default nil :font font-mono)
+  (set-face-attribute 'fixed-pitch nil :font font-mono)
+  (set-face-attribute 'variable-pitch nil :font font-variable-pitch))
+(add-hook 'after-make-frame-functions #'setup-fonts)
+(setup-fonts)
 
 (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
-(load custom-file)
+(load custom-file t t)
 
-(setopt inhibit-startup-message t)
 (setopt display-time-default-load-average nil)
 
 ;; Taken directly from emacs-bedrock.
@@ -50,17 +56,14 @@
 (setopt auto-revert-interval 5)
 (setopt auto-revert-check-vc-info t)
 (global-auto-revert-mode)
-
 (savehist-mode)
-(pixel-scroll-precision-mode)
 (scroll-bar-mode -1)
 (tool-bar-mode -1)
 (menu-bar-mode -1)
 (indent-tabs-mode -1) ; always use spaces
-
 (context-menu-mode t)
-(unless (display-graphic-p)
-  (xterm-mouse-mode t))
+(unless (display-graphic-p) (xterm-mouse-mode t))
+(delete-selection-mode t)
 
 
 ;;;; Packages
@@ -77,15 +80,27 @@
   :ensure t
   :hook (prog-mode . rainbow-delimiters-mode))
 
-(use-package all-the-icons
+(use-package all-the-icons :ensure t)
+
+(use-package kaolin-themes
+  :after all-the-icons
   :ensure t
-  :if (display-graphic-p))
+  :config
+  (load-theme 'kaolin-dark t)
+  (kaolin-treemacs-theme))
+
+;; (use-package modus-themes
+;;   :ensure t
+;;   :config (progn
+;; 	    (setq modus-themes-italic-constructs t)
+;; 	    (setq modus-themes-bold-constructs t)
+;; 	    (load-theme 'modus-vivendi-tinted t)))
+;; (use-package solaire-mode :ensure t :config (solaire-global-mode t))
 
 (use-package doom-modeline
   :ensure t
   :init (doom-modeline-mode t)
-  :custom ((doom-modeline-height 36)
-	   (doom-modeline-icon t)))
+  :custom ((doom-modeline-icon t)))
 
 (use-package which-key
   :ensure t
@@ -110,24 +125,6 @@
                 'posframe-poshandler-frame-top-right-corner)
   :init (which-key-posframe-mode))
 
-(use-package solaire-mode
-  :ensure t
-  :config (solaire-global-mode t))
-
-;; Close runner-up, looks pretty nice
-;(use-package nano-theme
-;  :ensure t
-;  :config (progn
-;	    (setq nano-theme-light/dark 'dark)
-;	    (load-theme 'nano t)))
-
-(use-package modus-themes
-  :ensure t
-  :config (progn
-	    (setq modus-themes-italic-constructs t)
-	    (setq modus-themes-bold-constructs t)
-	    (load-theme 'modus-vivendi-tinted t)))
-
 (use-package swiper
   :ensure t
   :bind (("C-s" . swiper))
@@ -147,74 +144,33 @@
   :after vertico
   :init (vertico-reverse-mode t))
 
-(use-package marginalia
-  :ensure t
-  :bind (:map minibuffer-local-map ("M-A" . marginalia-cycle)
-         :map completion-list-mode-map ("M-A" . marginalia-cycle))
-  :init (marginalia-mode))
+(use-package nerd-icons :ensure t)
 
-(use-package all-the-icons-completion
+(use-package company
   :ensure t
-  :after marginalia
-  :if (display-graphic-p)
-  :config (progn
-	    (all-the-icons-completion-mode)
-	    (add-hook 'marginalia-mode-hook
-                      #'all-the-icons-completion-marginalia-setup)))
+  :defines company-in-string-or-comment
+  :bind (("C-S-SPC" . company-complete))
+  :config
+  (global-company-mode t)
+  (company-tng-mode t)
+  (setopt company-idle-delay
+          (lambda () (if (company-in-string-or-comment) nil 0.2)))
+  ;; (setopt company-global-modes '(not <add modes here>))
+  (setopt company-selection-wrap-around t)
+  (setopt company-tooltip-align-annotations t))
 
-(use-package corfu
+(use-package company-quickhelp
   :ensure t
-  :custom ((corfu-cycle t)
-	   (corfu-quit-no-match t))
-  :init (global-corfu-mode)
-  :config (progn
-	    (global-set-key (kbd "C-S-SPC") 'completion-at-point)
-	    (keymap-set corfu-map
-		        "RET" `(menu-item "" nil :filter
-					  ,(lambda (&optional _)
-					     (and (derived-mode-p 'eshell-mode
-								  'comint-mode)
-						  #'corfu-send))))))
+  :after company
+  :config (company-quickhelp-mode t))
 
-(use-package corfu-popupinfo
-  :ensure nil
-  :after corfu
-  :if (display-graphic-p)
-  :hook (corfu-mode . corfu-popupinfo-mode)
-  :custom ((corfu-popupinfo-delay '(0.25 . 0.1))
-	   (corfu-popupinfo-hide nil))
-  :config (corfu-popupinfo-mode))
-
-(use-package corfu-candidate-overlay
+(use-package company-quickhelp-terminal
   :ensure t
-  :after corfu
-  :init (defun complete-corfu-or-tab (&optional arg)
-	  (interactive "P")
-	  (let ((str (condition-case nil
-	 (corfu-candidate-overlay--get-overlay-property 'after-string)
-		       (error ""))))
-	    (if (string= "" str)
-      		(indent-for-tab-command arg)
-	      (corfu-candidate-overlay-complete-at-point))))
-  :config (progn
-	    (corfu-candidate-overlay-mode t)
-	    (global-set-key "\t" 'complete-corfu-or-tab)))
-
-(use-package corfu-terminal
-  :ensure t
-  :if (not (display-graphic-p))
-  :after corfu
-  :init (corfu-terminal-mode t))
-
-(use-package kind-icon
-  :ensure t
-  :after corfu
-  :config (progn
-	    (add-to-list 'corfu-margin-formatters
-                         #'kind-icon-margin-formatter)
-	    (let ((k (assoc 'keyword kind-icon-mapping)))
-	      (setcdr k '("kw" :icon "rhombus-medium"
-                          :face font-lock-keyword-face)))))
+  :after company-quickhelp
+  :init (add-hook 'after-make-frame-functions
+		  (lambda ()
+		    (unless (window-system)
+		      (company-quickhelp-terminal-mode t)))))
 
 (use-package consult
   :ensure t
@@ -231,8 +187,7 @@
 	 ("M-s L" . consult-line-multi))
   :config (setq consult-narrow-key "<"))
 
-(use-package embark-consult
-  :ensure t)
+(use-package embark-consult :ensure t)
 
 (use-package embark
   :ensure t
@@ -241,6 +196,7 @@
 
 (use-package eshell
   :ensure t
+  :defines eshell-mode-map
   :init (defun setup-eshell ()
           (keymap-set eshell-mode-map "C-r" 'consult-history))
   :hook ((eshell-mode . setup-eshell)))
@@ -253,6 +209,7 @@
 
 (use-package magit
   :ensure t
+  :defines transient-map
   :bind (("C-x g" . magit-status)
 	 ("C-x G" . magit-dispatch)
 	 :map transient-map ("<escape>" . transient-quit-one))
@@ -262,26 +219,81 @@
 (use-package json-mode :ensure t)
 (use-package transpose-frame :ensure t)
 
-(use-package dired-sidebar
+(use-package projectile
   :ensure t
-  :bind (("C-x C-d" . dired-sidebar-toggle-sidebar)
-	 ("C-x d" . dired-sidebar-jump-to-sidebar))
-  :custom-face
-  (dired-sidebar-custom-face ((t (:font "JetBrainsMono NF 10"))))
+  :init (projectile-mode t)
+  :bind (:map projectile-mode-map ("C-c p" . projectile-command-map))
   :config
-  (push 'toggle-window-split dired-sidebar-toggle-hidden-commands)
-  (push 'rotate-windows dired-sidebar-toggle-hidden-commands)
-  (setopt dired-sidebar-display-remote-icons t)
-  (setopt dired-sidebar-follow-file-at-point-on-toggle-open t)
-  (setopt dired-sidebar-follow-file-idle-delay 1.0)
-  (setopt dired-sidebar-should-follow-file t)
-  (setopt dired-sidebar-theme 'nerd)
-  (setopt dired-sidebar-resize-on-open nil)
-  (setopt dired-sidebar-pop-to-sidebar-on-toggle-open nil)
-  (setopt dired-sidebar-use-one-instance t)
-  (setopt dired-sidebar-window-fixed nil)
-  (setopt dired-sidebar-use-custom-font t)
-  (setopt dired-sidebar-face 'dired-sidebar-custom-face))
+  (projectile-register-project-type 'godot '("project.godot")
+				    :project-file "project.godot"))
+
+(use-package treemacs
+  :ensure t
+  :bind (("C-x C-d" . treemacs)
+	 ("C-x d" . treemacs-select-window)
+	 :map treemacs-mode-map
+	 ([mouse-1] . treemacs-single-click-expand-action))
+  :init (add-hook 'window-setup-hook 'treemacs-start-on-boot)
+  :config
+  (treemacs-follow-mode t)
+  (setopt treemacs-width 24)
+  (set-face-attribute 'treemacs-root-face nil :font font-variable-pitch :height 1.2)
+  (set-face-attribute 'treemacs-directory-face nil :font font-variable-pitch)
+  (set-face-attribute 'treemacs-file-face nil :font font-variable-pitch)
+  (set-face-attribute 'treemacs-window-background-face nil :background "#0C0C0D")
+  )
+
+(use-package treemacs-projectile
+  :ensure t
+  :after (treemacs projectile))
+
+(use-package hydra :ensure t)
+
+(use-package flycheck
+  :ensure t
+  :init (global-flycheck-mode)
+  :bind (("C-c e" . flycheck-next-error)
+	 ("C-c E" . flycheck-previous-error)
+	 ("C-c C-e" . flycheck-list-errors))
+  :config (setq-default flycheck-disabled-checkers '(emacs-lisp-checkdoc)))
+
+(use-package lsp-mode
+  :ensure t
+  :init (setq lsp-keymap-prefix "C-c l")
+  :hook (lsp-mode . lsp-enable-which-key-integration))
+
+(use-package dap-mode :ensure t)
+
+(use-package gdscript-mode
+  :ensure t
+  :after lsp-mode
+  :if (eq system-type 'windows-nt)
+  :bind (:map gdscript-mode-map ("<F5>" . gdscript-godot-run-project))
+  :config
+  (setq gdscript-use-tab-indents nil)
+  (setq gdscript-godot-executable "C:/Programs/Executables/godot.exe"))
+
+(use-package gdscript-hydra
+  :ensure nil
+  :after gdscript-mode)
+
+;; The lsp client in lsp-gdscript doesn't know what to do with the
+;; gdscript/capabilities notification. This ignores it.
+(use-package lsp-gdscript
+  :ensure nil
+  :after gdscript-mode
+  :defines lsp-register-client make-lsp-client lsp-gdscript-tcp-connect-to-port lsp-activate-on
+  :config
+  (lsp-register-client
+   (make-lsp-client :new-connection (lsp-gdscript-tcp-connect-to-port)
+		    :activation-fn (lsp-activate-on "gdscript")
+		    :server-id 'gdscript
+		    :notification-handlers (ht ("gdscript/capabilities" 'ignore)))))
+
+(use-package server
+  :ensure nil
+  :defines server-running-p
+  :config (unless (server-running-p) (server-start)))
 
 ;;;; Options
 ;;;; =========================================================================
@@ -294,11 +306,12 @@
 (setopt completion-styles '(basic initials substring))
 (setopt completions-max-height 10)
 (setopt completions-format 'one-column)
-(setopt completions-group t)
-(setopt completion-auto-select 'second-tab)
 
 (setopt sentence-end-double-space nil)
 (setopt vc-follow-symlinks t)
+
+(setopt mouse-wheel-progressive-speed nil)
+(setopt mouse-wheel-scroll-amount '(0.25))
 
 (setopt x-underline-at-descent-line nil)
 (setopt switch-to-buffer-obey-display-actions t)
@@ -308,6 +321,7 @@
 (setopt show-trailing-whitespace nil)
 (add-hook 'prog-mode-hook (lambda () (setq show-trailing-whitespace t)))
 
+(setq-default buffer-file-coding-system 'utf-8-unix)
 
 ;;;; Key Customization
 ;;;; =========================================================================
