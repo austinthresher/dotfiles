@@ -16,18 +16,38 @@
 (add-to-list 'default-frame-alist '(height . 35))
 (add-to-list 'default-frame-alist '(cursor-type . bar))
 
-(defvar font-mono "JetBrainsMono NF 12")
-(defvar font-variable-pitch "Roboto 12")
-(when (eq system-type 'windows-nt)
-  (setq font-mono "JetBrainsMonoNL NFM-12"
-	font-variable-pitch "Segoe UI-12"))
+(defun windows-p () (eq system-type 'windows-nt))
+(defun font-available-p (name) (member name (font-family-list)))
+
+(defvar font-mono (face-attribute 'default :family))
+(defvar font-variable-pitch (face-attribute 'variable-pitch :family))
 
 (defun setup-fonts ()
-  (set-face-attribute 'default nil :font font-mono)
-  (set-face-attribute 'fixed-pitch nil :font font-mono)
-  (set-face-attribute 'variable-pitch nil :font font-variable-pitch))
-(add-hook 'after-make-frame-functions #'setup-fonts)
-(setup-fonts)
+  (when (display-graphic-p)
+    (cond
+     ((windows-p)
+      (when (font-available-p "JetBrainsMonoNL NFM")
+	(setq font-mono "JetBrainsMonoNL NFM"))
+      (when (font-available-p "Segoe UI")
+	(setq font-variable-pitch "Segoe UI")))
+     (t
+      (cond ((font-available-p "Iosevka Nerd Font")
+	     (setq font-mono "Iosevka Nerd Font"))
+	    ((font-available-p "JetBrainsMono Nerd Font")
+	     (setq font-mono "JetBrainsMono Nerd Font")))
+      (cond ((font-available-p "Roboto")
+	     (setq font-variable-pitch "Roboto")))))
+
+    (set-face-attribute 'default nil :family font-mono)
+    (set-face-attribute 'fixed-pitch nil :family font-mono)
+    (set-face-attribute 'variable-pitch nil :family font-variable-pitch)
+    (when (facep 'treemacs-root-face)
+      (set-face-attribute 'treemacs-root-face nil :font font-variable-pitch :height 1.2)
+      (set-face-attribute 'treemacs-directory-face nil :font font-variable-pitch)
+      (set-face-attribute 'treemacs-file-face nil :font font-variable-pitch))))
+
+(add-hook 'server-after-make-frame-hook #'setup-fonts)
+(add-hook 'window-setup-hook #'setup-fonts)
 
 (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
 (load custom-file t t)
@@ -82,25 +102,24 @@
 
 (use-package all-the-icons :ensure t)
 
-(use-package kaolin-themes
-  :after all-the-icons
+
+(use-package modus-themes
   :ensure t
   :config
-  (load-theme 'kaolin-dark t)
-  (kaolin-treemacs-theme))
+  (setopt modus-themes-italic-constructs t)
+  (setopt modus-themes-bold-constructs t)
+  (setopt modus-themes-variable-pitch-ui nil)
+  (setopt modus-themes-mixed-fonts t)
+  (setopt modus-themes-common-palette-overrides
+	  '((bg-main "#202028")
+	    ))
+  (load-theme 'modus-vivendi t))
 
-;; (use-package modus-themes
+;; (use-package doom-modeline
 ;;   :ensure t
-;;   :config (progn
-;; 	    (setq modus-themes-italic-constructs t)
-;; 	    (setq modus-themes-bold-constructs t)
-;; 	    (load-theme 'modus-vivendi-tinted t)))
-;; (use-package solaire-mode :ensure t :config (solaire-global-mode t))
-
-(use-package doom-modeline
-  :ensure t
-  :init (doom-modeline-mode t)
-  :custom ((doom-modeline-icon t)))
+;;   :disabled
+;;   :init (doom-modeline-mode t)
+;;   :custom ((doom-modeline-icon t)))
 
 (use-package which-key
   :ensure t
@@ -149,7 +168,8 @@
 (use-package company
   :ensure t
   :defines company-in-string-or-comment
-  :bind (("C-S-SPC" . company-complete))
+  :bind (("C-S-SPC" . company-complete)
+	 :map company-active-map ("ESC" . company-abort))
   :config
   (global-company-mode t)
   (company-tng-mode t)
@@ -234,18 +254,36 @@
 	 :map treemacs-mode-map
 	 ([mouse-1] . treemacs-single-click-expand-action))
   :init (add-hook 'window-setup-hook 'treemacs-start-on-boot)
+  :defines treemacs-follow-mode
   :config
+;  (treemacs-resize-icons 16)
   (treemacs-follow-mode t)
   (setopt treemacs-width 24)
-  (set-face-attribute 'treemacs-root-face nil :font font-variable-pitch :height 1.2)
-  (set-face-attribute 'treemacs-directory-face nil :font font-variable-pitch)
-  (set-face-attribute 'treemacs-file-face nil :font font-variable-pitch)
-  (set-face-attribute 'treemacs-window-background-face nil :background "#0C0C0D")
-  )
+  (setopt treemacs-is-never-other-window t)
+  (set-face-attribute 'treemacs-window-background-face nil :background "#0A0A0A")
+  (add-hook 'treemacs-mode-hook (lambda ()
+				  (setq-local mode-line-format nil)
+				  (set-fringe-mode 1)))
+  ;; Play nice with transpose-frame by forcing treemacs to hide
+  (defun treemacs-ensure-hidden (&rest unused)
+    (let ((visible (progn (treemacs--select-visible-window)
+			  (treemacs-is-treemacs-window? (selected-window)))))
+      (when visible (treemacs))))
+  (advice-add 'transpose-frame :before #'treemacs-ensure-hidden)
+  (advice-add 'flip-frame :before #'treemacs-ensure-hidden)
+  (advice-add 'flop-frame :before #'treemacs-ensure-hidden)
+  (advice-add 'rotate-frame :before #'treemacs-ensure-hidden)
+  (advice-add 'rotate-frame-clockwise :before #'treemacs-ensure-hidden)
+  (advice-add 'rotate-frame-anticlockwise :before #'treemacs-ensure-hidden))
 
 (use-package treemacs-projectile
   :ensure t
   :after (treemacs projectile))
+
+(use-package treemacs-nerd-icons
+  :ensure t
+  :after treemacs
+  :config (treemacs-load-theme "nerd-icons"))
 
 (use-package hydra :ensure t)
 
@@ -273,9 +311,7 @@
   (setq gdscript-use-tab-indents nil)
   (setq gdscript-godot-executable "C:/Programs/Executables/godot.exe"))
 
-(use-package gdscript-hydra
-  :ensure nil
-  :after gdscript-mode)
+(use-package gdscript-hydra :ensure nil :after gdscript-mode)
 
 ;; The lsp client in lsp-gdscript doesn't know what to do with the
 ;; gdscript/capabilities notification. This ignores it.
@@ -293,6 +329,7 @@
 (use-package server
   :ensure nil
   :defines server-running-p
+  :if (eq system-type 'windows-nt)
   :config (unless (server-running-p) (server-start)))
 
 ;;;; Options
