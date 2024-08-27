@@ -1,17 +1,18 @@
-;;;; Early / system settings
+;;; Early / system settings
 ;;;; =========================================================================
 (setq gc-cons-threshold 10000000)
 (setq read-process-output-max (* 1024 1024))
 (setq byte-compile-warnings '(not obsolete))
 (setq inhibit-startup-message t)
-(put 'inhibit-startup-echo-area-message 'saved-value
-     (setq inhibit-startup-echo-area-message (user-login-name)))
+;; This worked but gave an error when trying to save custom.el
+;; (put 'inhibit-startup-echo-area-message 'saved-value
+;; (setq inhibit-startup-echo-area-message (user-login-name)))
 (setopt warning-suppress-log-types '((comp) (bytecomp)))
 (setopt native-comp-async-report-warnings-errors 'silent)
 
 ;; Prevent blinding startup window
 (set-foreground-color "#CCCCCC")
-(set-background-color "#000000")
+(set-background-color "#111111")
 (add-to-list 'default-frame-alist '(width . 120))
 (add-to-list 'default-frame-alist '(height . 35))
 (add-to-list 'default-frame-alist '(cursor-type . bar))
@@ -20,6 +21,7 @@
 (defun font-available-p (name) (member name (font-family-list)))
 
 (defvar font-mono (face-attribute 'default :family))
+(defvar font-fixed-serif (face-attribute 'fixed-pitch-serif :family))
 (defvar font-variable-pitch (face-attribute 'variable-pitch :family))
 
 (defun setup-fonts ()
@@ -27,24 +29,28 @@
     (cond
      ((windows-p)
       (when (font-available-p "JetBrainsMonoNL NFM")
-	(setq font-mono "JetBrainsMonoNL NFM"))
-      (when (font-available-p "Segoe UI")
-	(setq font-variable-pitch "Segoe UI")))
+	(setq font-mono "JetBrainsMonoNL NFM")
+	(setq font-fixed-serif font-mono)
+	(when (font-available-p "Segoe UI")
+	  (setq font-variable-pitch "Segoe UI"))))
      (t
-      (cond ((font-available-p "Iosevka Nerd Font")
-	     (setq font-mono "Iosevka Nerd Font"))
+      (cond ((font-available-p "Iosevka Nerd Font Propo")
+	     (setq font-mono "Iosevka Nerd Font Propo")
+	     (setq font-fixed-serif font-mono))
 	    ((font-available-p "JetBrainsMono Nerd Font")
-	     (setq font-mono "JetBrainsMono Nerd Font")))
-      (cond ((font-available-p "Roboto")
-	     (setq font-variable-pitch "Roboto")))))
+	     (setq font-mono "JetBrainsMono Nerd Font")
+	     (setq font-fixed-serif font-mono)))
+      (when (font-available-p "IosevkaTermSlab Nerd Font Propo")
+	(setq font-fixed-serif "IosevkaTermSlab Nerd Font Propo"))
+      (cond
+       ((font-available-p "Asap SemiCondensed")
+	(setq font-variable-pitch "Asap SemiCondensed"))
+       ((font-available-p "Roboto") (setq font-variable-pitch "Roboto")))))
 
     (set-face-attribute 'default nil :family font-mono)
     (set-face-attribute 'fixed-pitch nil :family font-mono)
-    (set-face-attribute 'variable-pitch nil :family font-variable-pitch)
-    (when (facep 'treemacs-root-face)
-      (set-face-attribute 'treemacs-root-face nil :font font-variable-pitch :height 1.2)
-      (set-face-attribute 'treemacs-directory-face nil :font font-variable-pitch)
-      (set-face-attribute 'treemacs-file-face nil :font font-variable-pitch))))
+    (set-face-attribute 'fixed-pitch-serif nil :family font-fixed-serif)
+    (set-face-attribute 'variable-pitch nil :family font-variable-pitch)))
 
 (add-hook 'server-after-make-frame-hook #'setup-fonts)
 (add-hook 'window-setup-hook #'setup-fonts)
@@ -100,26 +106,34 @@
   :ensure t
   :hook (prog-mode . rainbow-delimiters-mode))
 
-(use-package all-the-icons :ensure t)
-
-
-(use-package modus-themes
+(use-package catppuccin-theme
   :ensure t
   :config
-  (setopt modus-themes-italic-constructs t)
-  (setopt modus-themes-bold-constructs t)
-  (setopt modus-themes-variable-pitch-ui nil)
-  (setopt modus-themes-mixed-fonts t)
-  (setopt modus-themes-common-palette-overrides
-	  '((bg-main "#202028")
-	    ))
-  (load-theme 'modus-vivendi t))
+  (setopt catppuccin-flavor 'frappe)
+  (setopt catppuccin-italic-comments t)
+  (load-theme 'catppuccin t))
 
-;; (use-package doom-modeline
-;;   :ensure t
-;;   :disabled
-;;   :init (doom-modeline-mode t)
-;;   :custom ((doom-modeline-icon t)))
+(use-package doom-modeline
+  :ensure t
+  :custom ((doom-modeline-icon t))
+  :config
+  (defun custom-buffer-info ()
+    (concat
+     (doom-modeline-spc)
+     (doom-modeline--buffer-mode-icon)
+     (doom-modeline--buffer-state-icon)
+     (propertize (doom-modeline--buffer-simple-name)
+		 'help-echo "Buffer name"
+		 'local-map (let ((map (make-sparse-keymap)))
+			      (define-key map [mode-line mouse-1] 'mouse-buffer-menu)
+			      (define-key map [mode-line mouse-2] 'mouse-buffer-menu)
+			      (define-key map [mode-line mouse-3] 'mouse-buffer-menu)
+			      map))))
+  ;; Overwrite the built-in buffer info segments with my
+  ;; customized version.
+  (doom-modeline-def-segment buffer-info (custom-buffer-info))
+  (doom-modeline-def-segment buffer-info-simple (custom-buffer-info))
+  (doom-modeline-mode t))
 
 (use-package which-key
   :ensure t
@@ -143,13 +157,6 @@
   :config (setq which-key-posframe-poshandler
                 'posframe-poshandler-frame-top-right-corner)
   :init (which-key-posframe-mode))
-
-(use-package swiper
-  :ensure t
-  :bind (("C-s" . swiper))
-  :config (progn
-	    (setq ivy-use-virtual-buffers t)
- 	    (setq ivy-use-selectable-prompt t)))
 
 (use-package vertico
   :ensure t
@@ -254,16 +261,21 @@
 	 :map treemacs-mode-map
 	 ([mouse-1] . treemacs-single-click-expand-action))
   :init (add-hook 'window-setup-hook 'treemacs-start-on-boot)
-  :defines treemacs-follow-mode
   :config
-;  (treemacs-resize-icons 16)
-  (treemacs-follow-mode t)
   (setopt treemacs-width 24)
   (setopt treemacs-is-never-other-window t)
-  (set-face-attribute 'treemacs-window-background-face nil :background "#0A0A0A")
-  (add-hook 'treemacs-mode-hook (lambda ()
-				  (setq-local mode-line-format nil)
-				  (set-fringe-mode 1)))
+  (defun setup-treemacs-fonts (&rest _)
+    (dolist (face '(treemacs-root-face treemacs-root-remote-face
+		    treemacs-root-remote-disconnected-face
+		    treemacs-root-remote-unreadable-face))
+      (set-face-attribute face nil :inherit 'variable-pitch :height 1.25))
+    (dolist (face '(treemacs-directory-face treemacs-file-face  treemacs-git-unmodified-face))
+      (set-face-attribute face nil :inherit 'variable-pitch :height 1.0))
+    (set-face-attribute 'treemacs-window-background-face nil :background "#232634")
+    (setq mode-line-format nil)
+    (set-fringe-mode 1))
+  (advice-add 'treemacs :after #'setup-treemacs-fonts)
+  (advice-add 'treemacs-select-window :after #'setup-treemacs-fonts)
   ;; Play nice with transpose-frame by forcing treemacs to hide
   (defun treemacs-ensure-hidden (&rest unused)
     (let ((visible (progn (treemacs--select-visible-window)
@@ -362,16 +374,17 @@
 
 ;;;; Key Customization
 ;;;; =========================================================================
-
 ;; Change windows with Alt + Arrow Keys
 (windmove-default-keybindings 'meta)
-
 ;; Allow ESC to quit prompts / etc, but customized to not close splits.
 (defun +keyboard-escape-quit-adv (fun)
   "Around advice for `keyboard-escape-quit` FUN.
 Preserve window configuration when pressing ESC."
-  (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
-    (funcall fun)))
+  (cond (company-mode
+	 (let ((buffer-quit-function (or buffer-quit-function #'company-abort)))
+	   (funcall fun)))
+	(t (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
+	     (funcall fun)))))
 (advice-add #'keyboard-escape-quit :around #'+keyboard-escape-quit-adv)
 (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
 
