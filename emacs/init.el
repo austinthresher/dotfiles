@@ -1,4 +1,6 @@
-;;; Early / system settings
+;; -*- lexical-binding: t -*-
+
+;;;; Early / system settings
 ;;;; =========================================================================
 (setq gc-cons-threshold 10000000)
 (setq read-process-output-max (* 1024 1024))
@@ -109,6 +111,7 @@
 
 (use-package rainbow-delimiters
   :ensure t
+  :after catppuccin-theme
   :hook (prog-mode . rainbow-delimiters-mode))
 
 (use-package catppuccin-theme
@@ -116,24 +119,43 @@
   :config
   (setopt catppuccin-flavor 'frappe)
   (setopt catppuccin-italic-comments t)
-  (load-theme 'catppuccin t))
+  (load-theme 'catppuccin t)
+  ;; Default colors are too easy to mix up
+  (custom-set-faces
+   `(rainbow-delimiters-depth-1-face ((t (:foreground ,(catppuccin-color 'text)))))
+   `(rainbow-delimiters-depth-2-face ((t (:foreground ,(catppuccin-color 'blue)))))
+   `(rainbow-delimiters-depth-3-face ((t (:foreground ,(catppuccin-color 'yellow)))))
+   `(rainbow-delimiters-depth-4-face ((t (:foreground ,(catppuccin-color 'green)))))
+   `(rainbow-delimiters-depth-5-face ((t (:foreground ,(catppuccin-color 'peach)))))
+   `(rainbow-delimiters-depth-6-face ((t (:foreground ,(catppuccin-color 'teal)))))
+   `(rainbow-delimiters-depth-7-face ((t (:foreground ,(catppuccin-color 'mauve)))))
+   `(rainbow-delimiters-depth-8-face ((t (:foreground ,(catppuccin-color 'rosewater)))))
+   `(rainbow-delimiters-depth-9-face ((t (:foreground ,(catppuccin-color 'green)))))
+   `(rainbow-delimiters-unmatched-face ((t (:foreground ,(catppuccin-color 'red)
+                                            :background ,(catppuccin-color 'crust)))))
+   `(show-paren-match ((t (:foreground ,(catppuccin-color 'pink)
+                           :background ,(catppuccin-color 'surface1)
+                           :weight bold))))))
+
 
 (use-package doom-modeline
   :ensure t
   :custom ((doom-modeline-icon t))
   :config
   (defun custom-buffer-info ()
-    (concat
-     (doom-modeline-spc)
-     (doom-modeline--buffer-mode-icon)
-     (doom-modeline--buffer-state-icon)
-     (propertize (doom-modeline--buffer-simple-name)
-		 'help-echo "Buffer name"
-		 'local-map (let ((map (make-sparse-keymap)))
-			      (define-key map [mode-line mouse-1] 'mouse-buffer-menu)
-			      (define-key map [mode-line mouse-2] 'mouse-buffer-menu)
-			      (define-key map [mode-line mouse-3] 'mouse-buffer-menu)
-			      map))))
+    (or
+     (ignore-errors
+       (concat
+	(doom-modeline-spc)
+	(doom-modeline--buffer-mode-icon)
+	(doom-modeline--buffer-state-icon)
+	(propertize (doom-modeline--buffer-simple-name)
+		    'help-echo "Buffer name"
+		    'local-map (let ((map (make-sparse-keymap)))
+				 (define-key map [mode-line mouse-1] 'mouse-buffer-menu)
+				 (define-key map [mode-line mouse-2] 'mouse-buffer-menu)
+				 (define-key map [mode-line mouse-3] 'mouse-buffer-menu)
+				 map)))) ""))
   ;; Overwrite the built-in buffer info segments with my
   ;; customized version.
   (doom-modeline-def-segment buffer-info (custom-buffer-info))
@@ -209,9 +231,7 @@
   :bind (("C-x b" . consult-buffer)
 	 ("M-y" . consult-yank-pop)
 	 ("M-s r" . consult-ripgrep)
-	 ("M-s l" . consult-line)
-	 ("M-s L" . consult-line-multi)
-	 ("M-s o" . consult-outline)
+	 ("C-S-s" . consult-line)
 	 :map isearch-mode-map
 	 ("M-e" . consult-isearch-history)
 	 ("M-s e" . consult-isearch-history)
@@ -235,9 +255,13 @@
 
 (use-package eat
   :ensure t
-  :custom (eat-term-name "xterm-256color")
-  :config (progn (eat-eshell-mode)
-		 (eat-eshell-visual-command-mode)))
+  :config
+  (eat-eshell-mode)
+  (eat-eshell-visual-command-mode)
+  (setopt eat-term-name "xterm-256color")
+  (setopt eat-default-cursor-type '(box 0.5 hollow))
+  (add-hook 'eat-mode-hook
+	    (lambda () (face-remap-add-relative 'default :background "#222228"))))
 
 (use-package magit
   :ensure t
@@ -269,6 +293,9 @@
   :config
   (setopt treemacs-width 24)
   (setopt treemacs-is-never-other-window t)
+  (setopt imenu-auto-rescan t)
+  (setopt treemacs-tag-follow-delay 1.0)
+  (treemacs-tag-follow-mode t)
   (defun setup-treemacs-fonts (&rest _)
     (dolist (face '(treemacs-root-face treemacs-root-remote-face
 		    treemacs-root-remote-disconnected-face
@@ -278,12 +305,13 @@
     (dolist (face '(treemacs-directory-face treemacs-file-face  treemacs-git-unmodified-face))
       (set-face-attribute face nil :inherit 'variable-pitch :height 1.0))
     (set-face-attribute 'treemacs-window-background-face nil :background "#232634")
-    (setq mode-line-format nil)
-    (set-fringe-mode 1))
+    (when (treemacs-is-treemacs-window? (selected-window))
+      (setq mode-line-format nil)
+      (set-fringe-mode 1)))
   (advice-add 'treemacs :after #'setup-treemacs-fonts)
   (advice-add 'treemacs-select-window :after #'setup-treemacs-fonts)
   ;; Play nice with transpose-frame by forcing treemacs to hide
-  (defun treemacs-ensure-hidden (&rest unused)
+  (defun treemacs-ensure-hidden (&rest _)
     (let ((visible (progn (treemacs--select-visible-window)
 			  (treemacs-is-treemacs-window? (selected-window)))))
       (when visible (treemacs))))
@@ -354,7 +382,7 @@
 ;;;; =========================================================================
 
 ;; Built-in completion options (corfu doesn't support terminal mode)
-(setopt enable-recursive-minibuffers t)
+;(setopt enable-recursive-minibuffers t)
 (setopt completion-cycle-threshold 1)
 (setopt completions-detailed t)
 (setopt tab-always-indent 'complete)
@@ -380,18 +408,22 @@
 
 ;;;; Key Customization
 ;;;; =========================================================================
+
 ;; Change windows with Alt + Arrow Keys
 (windmove-default-keybindings 'meta)
+
+;; TODO: Rewrite to support lexical binding
 ;; Allow ESC to quit prompts / etc, but customized to not close splits.
-(defun +keyboard-escape-quit-adv (fun)
-  "Around advice for `keyboard-escape-quit` FUN.
-Preserve window configuration when pressing ESC."
-  (cond (company-mode
-	 (let ((buffer-quit-function (or buffer-quit-function #'company-abort)))
-	   (funcall fun)))
-	(t (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
-	     (funcall fun)))))
-(advice-add #'keyboard-escape-quit :around #'+keyboard-escape-quit-adv)
+;; (defun +keyboard-escape-quit-adv (fun)
+;;   "Around advice for `keyboard-escape-quit` FUN.
+;; Preserve window configuration when pressing ESC."
+;;   (cond (company-mode
+;; 	 (let ((buffer-quit-function (or buffer-quit-function #'company-abort)))
+;; 	   (funcall fun)))
+;; 	(t (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
+;; 	     (funcall fun)))))
+;; (advice-add #'keyboard-escape-quit :around #'+keyboard-escape-quit-adv)
+
 (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
 
 ;; I keep accidentally hitting this when trying to exit which-key
@@ -400,6 +432,26 @@ Preserve window configuration when pressing ESC."
 (when (display-graphic-p) ; fix awful default GUI behavior
   (global-unset-key (kbd "C-z"))
   (global-unset-key (kbd "C-x C-z")))
+
+;; Cycle file buffers, skipping others
+(defun previous-file-buffer ()
+  (interactive)
+  (let ((old-switch-to-prev-buffer-skip switch-to-prev-buffer-skip))
+    (setq switch-to-prev-buffer-skip
+	  (lambda (_ buf _) (eq nil (buffer-file-name buf))))
+    (previous-buffer)
+    (setq switch-to-prev-buffer-skip old-switch-to-prev-buffer-skip)))
+
+(defun next-file-buffer ()
+  (interactive)
+  (let ((old-switch-to-prev-buffer-skip switch-to-prev-buffer-skip))
+    (setq switch-to-prev-buffer-skip
+	  (lambda (_ buf _) (eq nil (buffer-file-name buf))))
+    (next-buffer)
+    (setq switch-to-prev-buffer-skip old-switch-to-prev-buffer-skip)))
+
+(global-set-key (kbd "C-<tab>") 'previous-file-buffer)
+(global-set-key (kbd "C-<iso-lefttab>") 'next-file-buffer)
 
 (keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
 
