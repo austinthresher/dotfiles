@@ -2,75 +2,62 @@
 
 ;;;; Early / system settings
 ;;;; =========================================================================
-(setq gc-cons-threshold 10000000)
-(setq read-process-output-max (* 1024 1024))
-(setq byte-compile-warnings '(not obsolete))
-(setq inhibit-startup-message t)
-;; This worked but gave an error when trying to save custom.el
-;; (put 'inhibit-startup-echo-area-message 'saved-value
-;; (setq inhibit-startup-echo-area-message (user-login-name)))
 (setopt warning-suppress-log-types '((comp) (bytecomp)))
 (setopt native-comp-async-report-warnings-errors 'silent)
+(setopt display-time-default-load-average nil)
+(setq debug-on-error t)
+(add-hook 'after-init-hook (lambda () (setq debug-on-error nil)))
 
-;; Prevent blinding startup window
-(set-foreground-color "#CCCCCC")
-(set-background-color "#111111")
-(add-to-list 'default-frame-alist '(width . 120))
-(add-to-list 'default-frame-alist '(height . 35))
-(add-to-list 'default-frame-alist '(cursor-type . bar))
-
-(defun windows-p () (eq system-type 'windows-nt))
-(defun font-available-p (name) (member name (font-family-list)))
+(defun my/windows-p () (eq system-type 'windows-nt))
+(defun my/font-available-p (name) (member name (font-family-list)))
 
 (defvar font-mono (face-attribute 'default :family))
 (defvar font-fixed-serif (face-attribute 'fixed-pitch-serif :family))
 (defvar font-variable-pitch (face-attribute 'variable-pitch :family))
 
-(defun setup-fonts ()
+(defun my/setup-fonts ()
   (when (display-graphic-p)
     (cond
-     ((windows-p)
-      (cond ((font-available-p "Iosevka NF")
+     ((my/windows-p)
+      (cond ((my/font-available-p "Iosevka NF")
 	     (setq font-mono "Iosevka NF")
 	     (setq font-fixed-serif font-mono))
-	    ((font-available-p "JetBrainsMono NF")
+	    ((my/font-available-p "JetBrainsMono NF")
 	     (setq font-mono "JetBrainsMono NF")
 	     (setq font-fixed-serif font-mono)))
-      (when (font-available-p "Segoe UI")
+      (when (my/font-available-p "Segoe UI")
 	(setq font-variable-pitch "Segoe UI"))
-      (when (font-available-p "IosevkaTermSlab NF")
+      (when (my/font-available-p "IosevkaTermSlab NF")
 	(setq font-fixed-serif "IosevkaTermSlab NF")))
      (t
-      (cond ((font-available-p "Iosevka Nerd Font Propo")
+      (cond ((my/font-available-p "Iosevka Nerd Font Propo")
 	     (setq font-mono "Iosevka Nerd Font Propo")
 	     (setq font-fixed-serif font-mono))
-	    ((font-available-p "JetBrainsMono Nerd Font")
+	    ((my/font-available-p "JetBrainsMono Nerd Font")
 	     (setq font-mono "JetBrainsMono Nerd Font")
 	     (setq font-fixed-serif font-mono)))
-      (when (font-available-p "IosevkaTermSlab Nerd Font Propo")
+      (when (my/font-available-p "IosevkaTermSlab Nerd Font Propo")
 	(setq font-fixed-serif "IosevkaTermSlab Nerd Font Propo"))
       (cond
-       ((font-available-p "Asap SemiCondensed")
+       ((my/font-available-p "Asap SemiCondensed")
 	(setq font-variable-pitch "Asap SemiCondensed"))
-       ((font-available-p "Roboto") (setq font-variable-pitch "Roboto")))))
+       ((my/font-available-p "Roboto") (setq font-variable-pitch "Roboto")))))
 
     (set-face-attribute 'default nil :family font-mono :height 130)
     (set-face-attribute 'fixed-pitch nil :family font-mono :height 130)
     (set-face-attribute 'fixed-pitch-serif nil :family font-fixed-serif :height 130)
     (set-face-attribute 'variable-pitch nil :family font-variable-pitch :height 130)))
 
-(add-hook 'server-after-make-frame-hook #'setup-fonts)
-(add-hook 'window-setup-hook #'setup-fonts)
+(add-hook 'server-after-make-frame-hook #'my/setup-fonts)
+(add-hook 'window-setup-hook #'my/setup-fonts)
 
 (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
 (load custom-file t t)
 
-(setopt display-time-default-load-average nil)
-
 ;; Taken directly from emacs-bedrock.
 ;; Don't litter file system with *~ backup files; put them all inside
 ;; ~/.emacs.d/backup or wherever
-(defun get-backup-file-name (fpath)
+(defun my/get-backup-file-name (fpath)
   (let* ((backupRootDir (concat user-emacs-directory "emacs-backup/"))
          (filePath (replace-regexp-in-string "[A-Za-z]:" "" fpath ))
          (backupFilePath (replace-regexp-in-string
@@ -78,7 +65,7 @@
     (make-directory (file-name-directory backupFilePath)
 		    (file-name-directory backupFilePath))
     backupFilePath))
-(setopt make-backup-file-name-function 'get-backup-file-name)
+(setopt make-backup-file-name-function 'my/get-backup-file-name)
 (add-to-list 'completion-ignored-extensions "__pycache__/")
 
 
@@ -88,15 +75,15 @@
 (setopt auto-revert-avoid-polling t)
 (setopt auto-revert-interval 5)
 (setopt auto-revert-check-vc-info t)
-(global-auto-revert-mode)
-(savehist-mode)
-(scroll-bar-mode -1)
+(global-auto-revert-mode t)
+(savehist-mode t)
 (tool-bar-mode -1)
 (menu-bar-mode -1)
 (indent-tabs-mode -1) ; always use spaces
 (context-menu-mode t)
 (unless (display-graphic-p) (xterm-mouse-mode t))
 (delete-selection-mode t)
+(set-fringe-mode 8)
 
 
 ;;;; Packages
@@ -108,6 +95,8 @@
 (package-initialize)
 (unless package-archive-contents (package-refresh-contents))
 (unless (package-installed-p 'use-package) (package-install 'use-package))
+(with-eval-after-load 'use-package
+  (setopt use-package-enable-imenu-support t))
 
 (use-package rainbow-delimiters
   :ensure t
@@ -120,8 +109,9 @@
   (setopt catppuccin-flavor 'frappe)
   (setopt catppuccin-italic-comments t)
   (load-theme 'catppuccin t)
-  ;; Default colors are too easy to mix up
   (custom-set-faces
+   `(cursor ((t (:background ,(catppuccin-color 'surface0 'latte)))))
+   ;; Default rainbow colors are too easy to mix up when side-by-side
    `(rainbow-delimiters-depth-1-face ((t (:foreground ,(catppuccin-color 'text)))))
    `(rainbow-delimiters-depth-2-face ((t (:foreground ,(catppuccin-color 'blue)))))
    `(rainbow-delimiters-depth-3-face ((t (:foreground ,(catppuccin-color 'yellow)))))
@@ -131,18 +121,18 @@
    `(rainbow-delimiters-depth-7-face ((t (:foreground ,(catppuccin-color 'mauve)))))
    `(rainbow-delimiters-depth-8-face ((t (:foreground ,(catppuccin-color 'rosewater)))))
    `(rainbow-delimiters-depth-9-face ((t (:foreground ,(catppuccin-color 'green)))))
+   ;; Make unmatched delimiters much more noticable
    `(rainbow-delimiters-unmatched-face ((t (:foreground ,(catppuccin-color 'red)
                                             :background ,(catppuccin-color 'crust)))))
    `(show-paren-match ((t (:foreground ,(catppuccin-color 'pink)
                            :background ,(catppuccin-color 'surface1)
                            :weight bold))))))
 
-
 (use-package doom-modeline
   :ensure t
   :custom ((doom-modeline-icon t))
   :config
-  (defun custom-buffer-info ()
+  (defun my/buffer-info ()
     (or
      (ignore-errors
        (concat
@@ -158,14 +148,12 @@
 				 map)))) ""))
   ;; Overwrite the built-in buffer info segments with my
   ;; customized version.
-  (doom-modeline-def-segment buffer-info (custom-buffer-info))
-  (doom-modeline-def-segment buffer-info-simple (custom-buffer-info))
+  (doom-modeline-def-segment buffer-info (my/buffer-info))
+  (doom-modeline-def-segment buffer-info-simple (my/buffer-info))
   (doom-modeline-mode t))
 
 (use-package which-key
   :ensure t
-  :diminish which-key-mode
-  :init (which-key-mode)
   :config (progn
 	    (setq which-key-dont-use-unicode nil)
 	    (setq which-key-add-column-padding 2)
@@ -173,9 +161,12 @@
 	    (setq which-key-max-description-length 100)
 	    (setq which-key-max-display-columns (if (display-graphic-p) 1 nil))
 	    (setq which-key-max-description-length 1.0)
-	    (setq which-key-idle-delay 0.5)
+	    (setq which-key-idle-delay 10000)
+	    (setq which-key-show-early-on-C-h t)
+	    (setq which-key-idle-secondary-delay 0.05)
 	    (keymap-global-set "C-h h" 'which-key-show-major-mode)
-    	    (keymap-global-set "C-h H" 'which-key-show-top-level)))
+    	    (keymap-global-set "C-h H" 'which-key-show-top-level)
+	    (which-key-mode t)))
 
 (use-package which-key-posframe
   :ensure t
@@ -249,9 +240,9 @@
 (use-package eshell
   :ensure t
   :defines eshell-mode-map
-  :init (defun setup-eshell ()
+  :init (defun my/setup-eshell ()
           (keymap-set eshell-mode-map "C-r" 'consult-history))
-  :hook ((eshell-mode . setup-eshell)))
+  :hook ((eshell-mode . my/setup-eshell)))
 
 (use-package eat
   :ensure t
@@ -260,8 +251,13 @@
   (eat-eshell-visual-command-mode)
   (setopt eat-term-name "xterm-256color")
   (setopt eat-default-cursor-type '(box 0.5 hollow))
-  (add-hook 'eat-mode-hook
-	    (lambda () (face-remap-add-relative 'default :background "#222228"))))
+  (defun my/customize-eat ()
+    (face-remap-add-relative 'default :background "#222228")
+    (face-remap-add-relative 'fringe :background "#222228")
+    (setq cursor-type 'box)
+    (setq cursor-in-non-selected-windows t)
+    (set-window-fringes (selected-window) 0))
+  (add-hook 'eat-mode-hook #'my/customize-eat))
 
 (use-package magit
   :ensure t
@@ -289,14 +285,14 @@
 	 ("C-x d" . treemacs-select-window)
 	 :map treemacs-mode-map
 	 ([mouse-1] . treemacs-single-click-expand-action))
-  :init (add-hook 'window-setup-hook 'treemacs-start-on-boot)
+  :init (add-hook 'window-setup-hook #'treemacs-start-on-boot)
   :config
   (setopt treemacs-width 24)
   (setopt treemacs-is-never-other-window t)
   (setopt imenu-auto-rescan t)
   (setopt treemacs-tag-follow-delay 1.0)
   (treemacs-tag-follow-mode t)
-  (defun setup-treemacs-fonts (&rest _)
+  (defun my/setup-treemacs-fonts (&rest _)
     (dolist (face '(treemacs-root-face treemacs-root-remote-face
 		    treemacs-root-remote-disconnected-face
 		    treemacs-root-remote-unreadable-face))
@@ -307,20 +303,20 @@
     (set-face-attribute 'treemacs-window-background-face nil :background "#232634")
     (when (treemacs-is-treemacs-window? (selected-window))
       (setq mode-line-format nil)
-      (set-fringe-mode 1)))
-  (advice-add 'treemacs :after #'setup-treemacs-fonts)
-  (advice-add 'treemacs-select-window :after #'setup-treemacs-fonts)
+      (set-window-fringes (selected-window) 8 1)))
+  (advice-add 'treemacs :after #'my/setup-treemacs-fonts)
+  (advice-add 'treemacs-select-window :after #'my/setup-treemacs-fonts)
   ;; Play nice with transpose-frame by forcing treemacs to hide
-  (defun treemacs-ensure-hidden (&rest _)
+  (defun my/treemacs-ensure-hidden (&rest _)
     (let ((visible (progn (treemacs--select-visible-window)
 			  (treemacs-is-treemacs-window? (selected-window)))))
       (when visible (treemacs))))
-  (advice-add 'transpose-frame :before #'treemacs-ensure-hidden)
-  (advice-add 'flip-frame :before #'treemacs-ensure-hidden)
-  (advice-add 'flop-frame :before #'treemacs-ensure-hidden)
-  (advice-add 'rotate-frame :before #'treemacs-ensure-hidden)
-  (advice-add 'rotate-frame-clockwise :before #'treemacs-ensure-hidden)
-  (advice-add 'rotate-frame-anticlockwise :before #'treemacs-ensure-hidden))
+  (advice-add 'transpose-frame :before #'my/treemacs-ensure-hidden)
+  (advice-add 'flip-frame :before #'my/treemacs-ensure-hidden)
+  (advice-add 'flop-frame :before #'my/treemacs-ensure-hidden)
+  (advice-add 'rotate-frame :before #'my/treemacs-ensure-hidden)
+  (advice-add 'rotate-frame-clockwise :before #'my/treemacs-ensure-hidden)
+  (advice-add 'rotate-frame-anticlockwise :before #'my/treemacs-ensure-hidden))
 
 (use-package treemacs-projectile
   :ensure t
@@ -335,7 +331,7 @@
 
 (use-package flycheck
   :ensure t
-  :init (global-flycheck-mode)
+  :init (add-hook 'prog-mode-hook #'flycheck-mode)
   :bind (("C-c e" . flycheck-next-error)
 	 ("C-c E" . flycheck-previous-error)
 	 ("C-c C-e" . flycheck-list-errors))
@@ -381,7 +377,7 @@
 ;;;; Options
 ;;;; =========================================================================
 
-;; Built-in completion options (corfu doesn't support terminal mode)
+;; Built-in completion options
 ;(setopt enable-recursive-minibuffers t)
 (setopt completion-cycle-threshold 1)
 (setopt completions-detailed t)
@@ -394,7 +390,8 @@
 (setopt vc-follow-symlinks t)
 
 (setopt mouse-wheel-progressive-speed nil)
-(setopt mouse-wheel-scroll-amount '(0.25))
+(setopt mouse-wheel-scroll-amount '(0.2))
+(setopt scroll-step 1) ; Allow scrolling line-by-line, particularly for terms
 
 (setopt x-underline-at-descent-line nil)
 (setopt switch-to-buffer-obey-display-actions t)
@@ -412,17 +409,16 @@
 ;; Change windows with Alt + Arrow Keys
 (windmove-default-keybindings 'meta)
 
-;; TODO: Rewrite to support lexical binding
 ;; Allow ESC to quit prompts / etc, but customized to not close splits.
-;; (defun +keyboard-escape-quit-adv (fun)
-;;   "Around advice for `keyboard-escape-quit` FUN.
-;; Preserve window configuration when pressing ESC."
-;;   (cond (company-mode
-;; 	 (let ((buffer-quit-function (or buffer-quit-function #'company-abort)))
-;; 	   (funcall fun)))
-;; 	(t (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
-;; 	     (funcall fun)))))
-;; (advice-add #'keyboard-escape-quit :around #'+keyboard-escape-quit-adv)
+(defun my/keyboard-escape-quit-adv (fun)
+  "Around advice for `keyboard-escape-quit` FUN.
+Preserve window configuration when pressing ESC."
+  (let ((old-buffer-quit-function buffer-quit-function))
+    (setq buffer-quit-function
+	  (or buffer-quit-function (if company-mode #'company-abort #'keyboard-quit)))
+    (funcall fun)
+    (setq buffer-quit-function old-buffer-quit-function)))
+(advice-add #'keyboard-escape-quit :around #'my/keyboard-escape-quit-adv)
 
 (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
 
@@ -434,7 +430,7 @@
   (global-unset-key (kbd "C-x C-z")))
 
 ;; Cycle file buffers, skipping others
-(defun previous-file-buffer ()
+(defun my/previous-file-buffer ()
   (interactive)
   (let ((old-switch-to-prev-buffer-skip switch-to-prev-buffer-skip))
     (setq switch-to-prev-buffer-skip
@@ -442,7 +438,7 @@
     (previous-buffer)
     (setq switch-to-prev-buffer-skip old-switch-to-prev-buffer-skip)))
 
-(defun next-file-buffer ()
+(defun my/next-file-buffer ()
   (interactive)
   (let ((old-switch-to-prev-buffer-skip switch-to-prev-buffer-skip))
     (setq switch-to-prev-buffer-skip
@@ -450,8 +446,8 @@
     (next-buffer)
     (setq switch-to-prev-buffer-skip old-switch-to-prev-buffer-skip)))
 
-(global-set-key (kbd "C-<tab>") 'previous-file-buffer)
-(global-set-key (kbd "C-<iso-lefttab>") 'next-file-buffer)
+(global-set-key (kbd "C-<tab>") 'my/previous-file-buffer)
+(global-set-key (kbd "C-<iso-lefttab>") 'my/next-file-buffer)
 
 (keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
 
