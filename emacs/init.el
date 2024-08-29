@@ -154,19 +154,19 @@
 
 (use-package which-key
   :ensure t
-  :config (progn
-	    (setq which-key-dont-use-unicode nil)
-	    (setq which-key-add-column-padding 2)
-	    (setq which-key-min-display-lines 8)
-	    (setq which-key-max-description-length 100)
-	    (setq which-key-max-display-columns (if (display-graphic-p) 1 nil))
-	    (setq which-key-max-description-length 1.0)
-	    (setq which-key-idle-delay 10000)
-	    (setq which-key-show-early-on-C-h t)
-	    (setq which-key-idle-secondary-delay 0.05)
-	    (keymap-global-set "C-h h" 'which-key-show-major-mode)
-    	    (keymap-global-set "C-h H" 'which-key-show-top-level)
-	    (which-key-mode t)))
+  :config
+  (setq which-key-dont-use-unicode nil)
+  (setq which-key-add-column-padding 2)
+  (setq which-key-min-display-lines 8)
+  (setq which-key-max-description-length 100)
+  (setq which-key-max-display-columns (if (display-graphic-p) 1 nil))
+  (setq which-key-max-description-length 1.0)
+  (setq which-key-idle-delay 10000)
+  (setq which-key-show-early-on-C-h t)
+  (setq which-key-idle-secondary-delay 0.05)
+  (keymap-global-set "C-h h" 'which-key-show-major-mode)
+  (keymap-global-set "C-h H" 'which-key-show-top-level)
+  (which-key-mode t))
 
 (use-package which-key-posframe
   :ensure t
@@ -234,7 +234,6 @@
 
 (use-package embark
   :ensure t
-  :demand t
   :bind (("C-c a" . embark-act)))
 
 (use-package eshell
@@ -261,15 +260,40 @@
 
 (use-package magit
   :ensure t
+  :defer t
   :defines transient-map
   :bind (("C-x g" . magit-status)
 	 ("C-x G" . magit-dispatch)
 	 :map transient-map ("<escape>" . transient-quit-one))
   :config (global-unset-key (kbd "C-x M-g")))
 
-(use-package yaml-mode :ensure t)
-(use-package json-mode :ensure t)
 (use-package transpose-frame :ensure t)
+(use-package yaml-mode :ensure t :defer t)
+(use-package json-mode :ensure t :defer t)
+(use-package ca65-mode :ensure t :defer t)
+(use-package cmake-mode :ensure t :defer t)
+(use-package csv-mode :ensure t :defer t)
+(use-package sml-mode :ensure t :defer t)
+(use-package tmux-mode :ensure t :defer t)
+(use-package nasm-mode :ensure t :defer t)
+(use-package lua-mode :ensure t :defer t)
+(use-package ini-mode :ensure t :defer t)
+(use-package glsl-mode :ensure t :defer t)
+(use-package markdown-mode :ensure t :defer t)
+(use-package haskell-mode :ensure t :defer t)
+(use-package pip-requirements :ensure t :defer t)
+(use-package koopa-mode
+  :ensure t
+  :config (add-to-list 'auto-mode-alist '("\\.ps1\\'" . koopa-mode)))
+
+(use-package docker-compose-mode :ensure t :defer t)
+(use-package dockerfile-mode :ensure t :defer t)
+(use-package docker
+  :ensure t
+  :defer t
+  :config
+  (setopt docker-show-status nil)
+  (setopt docker-compose-command "docker compose"))
 
 (use-package projectile
   :ensure t
@@ -327,7 +351,7 @@
   :after treemacs
   :config (treemacs-load-theme "nerd-icons"))
 
-(use-package hydra :ensure t)
+(use-package hydra :ensure t :defer t)
 
 (use-package flycheck
   :ensure t
@@ -342,18 +366,19 @@
   :init (setq lsp-keymap-prefix "C-c l")
   :hook (lsp-mode . lsp-enable-which-key-integration))
 
-(use-package dap-mode :ensure t)
+(use-package dap-mode :ensure t :defer t)
 
 (use-package gdscript-mode
   :ensure t
   :after lsp-mode
+  :defer t
   :if (eq system-type 'windows-nt)
   :bind (:map gdscript-mode-map ("<F5>" . gdscript-godot-run-project))
   :config
   (setq gdscript-use-tab-indents nil)
   (setq gdscript-godot-executable "C:/Programs/Executables/godot.exe"))
 
-(use-package gdscript-hydra :ensure nil :after gdscript-mode)
+(use-package gdscript-hydra :ensure nil :after gdscript-mode :defer t)
 
 ;; The lsp client in lsp-gdscript doesn't know what to do with the
 ;; gdscript/capabilities notification. This ignores it.
