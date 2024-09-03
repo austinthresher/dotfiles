@@ -48,7 +48,7 @@
     (set-face-attribute 'default nil :family font-mono :height 130)
     (set-face-attribute 'fixed-pitch nil :family font-mono :height 130)
     (set-face-attribute 'fixed-pitch-serif nil :family font-fixed-serif :height 130)
-    (set-face-attribute 'variable-pitch nil :family font-variable-pitch :height 130)))
+    (set-face-attribute 'variable-pitch nil :family font-variable-pitch :height 130 :weight 'medium)))
 
 (add-hook 'server-after-make-frame-hook #'my/setup-fonts)
 (add-hook 'window-setup-hook #'my/setup-fonts)
@@ -56,6 +56,27 @@
 (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
 (load custom-file t t)
 
+(setq frame-background-mode 'dark)
+
+(defface my/term-bg
+  '((default :inherit default))
+  "term background color")
+(defface my/treemacs-bg
+  '((default :inherit default))
+  "treemacs background color")
+(defface my/treemacs-face
+  '((default :inherit variable-pitch :height 1.0))
+  "treemacs files")
+(defface my/treemacs-big-face
+  '((default :inherit variable-pitch
+             :height 1.2))
+  "treemacs projects")
+(defface my/help-bg
+  '((default :inherit default))
+  "help background color")
+(defface my/minibuffer-bg
+  '((default :inherit default))
+  "minibuffer background color")
 
 ;;;; Packages
 ;;;; =========================================================================
@@ -89,8 +110,7 @@
   (setopt tab-bar-auto-width-max '(320 100))
   (setopt tab-bar-close-button-show nil)
   (defun my/tab-bar-name-padded (tab i)
-    (propertize (concat "  " (tab-bar-tab-name-format-default tab i) "  ")
-                'face (funcall tab-bar-tab-face-function tab)))
+    (propertize (concat "  " (tab-bar-tab-name-format-default tab i) "  ")))
   (setopt tab-bar-tab-name-format-function #'my/tab-bar-name-padded)
   (global-set-key (kbd "C-S-t") 'tab-bar-new-tab-to)
   (tab-bar-mode t))
@@ -108,13 +128,26 @@
 
 (use-package catppuccin-theme
   :ensure t
+  :defines catppuccin-lighten catppuccin-darken catppuccin-color
   :config
   (setopt catppuccin-flavor 'frappe)
   (setopt catppuccin-italic-comments t)
+  (defun my/adjust-bg (color amount)
+    (if (eq frame-background-mode 'light)
+        (catppuccin-lighten color amount)
+      (catppuccin-darken color amount)))
+  (defun my/adjust-fg (color amount)
+    (if (eq frame-background-mode 'light)
+        (catppuccin-darken color amount)
+      (catppuccin-lighten color amount)))
   (defun my/customize-catppuccin ()
-    (set-face-attribute 'cursor nil :background (catppuccin-color 'surface0 'latte))
-    (set-face-attribute 'mode-line-active nil :background "#151520")
-    (set-face-attribute 'mode-line-inactive nil :background "#202030")
+    (set-face-attribute 'cursor nil
+                        :background (my/adjust-fg (catppuccin-color 'text) 20))
+    (set-face-attribute 'mode-line-active nil
+                        :background (catppuccin-darken (catppuccin-color 'mantle) 5))
+    (set-face-attribute 'mode-line-inactive nil
+                        :background (catppuccin-lighten (catppuccin-color 'mantle) 5))
+;    (set-face-attribute 'mode-line-inactive nil :background "#202030")
     ;; Default rainbow colors are too easy to mix up when side-by-side
     (dolist (pair '((rainbow-delimiters-depth-1-face . text)
                     (rainbow-delimiters-depth-2-face . blue)
@@ -143,7 +176,17 @@
     (set-face-attribute 'tab-bar-tab nil
                         :background (catppuccin-color 'base)
                         :family font-variable-pitch
-                        :weight 'bold))
+                        :weight 'bold)
+    (set-face-attribute 'my/term-bg nil
+                        :background (catppuccin-darken (catppuccin-color 'base) 10))
+    (set-face-attribute 'my/help-bg nil
+                        :background (catppuccin-darken (catppuccin-color 'base) 5))
+    (set-face-attribute 'my/minibuffer-bg nil
+                        :background (my/adjust-bg (catppuccin-color 'surface0) 5))
+    (set-face-attribute 'my/treemacs-bg nil
+                        :background (my/adjust-bg (catppuccin-color 'mantle) 10))
+    (set-face-attribute 'my/treemacs-big-face nil
+                        :background (my/adjust-bg (catppuccin-color 'mantle) 10)))
   (add-hook 'after-load-theme-hook #'my/customize-catppuccin)
   (load-theme 'catppuccin t))
 
@@ -151,6 +194,17 @@
   :ensure t
   :custom ((doom-modeline-icon t))
   :config
+  ;; Format buffers as "dirname/filename" instead of "filename<dirname>".
+  ;; Keeps the original formatting if the buffer isn't visiting a real file.
+  (defun my/buffer-name ()
+    (if (not (buffer-file-name))
+        (buffer-name)
+      (let ((name (buffer-name)))
+        (save-match-data
+          (rx-let ((name-exp (group (1+ (not (in "<>"))))))
+            (if (string-match (rx bos name-exp "<" name-exp ">" eos) name)
+                (concat (match-string 2 name) "/" (match-string 1 name))
+            name))))))
   (defun my/buffer-info ()
     (or
      (ignore-errors
@@ -158,8 +212,9 @@
         (doom-modeline-spc)
         (doom-modeline--buffer-mode-icon)
         (doom-modeline--buffer-state-icon)
-        (propertize (doom-modeline--buffer-simple-name)
+        (propertize (my/buffer-name)
                     'help-echo "Buffer name"
+                    'face 'doom-modeline-buffer-file
                     'local-map (let ((map (make-sparse-keymap)))
                                  (define-key map [mode-line mouse-1] 'mouse-buffer-menu)
                                  (define-key map [mode-line mouse-2] 'mouse-buffer-menu)
@@ -290,8 +345,8 @@
   (setopt eat-term-name "xterm-256color")
   (setopt eat-default-cursor-type '(box 0.5 hollow))
   (defun my/customize-eat ()
-    (face-remap-add-relative 'default :background "#222228")
-    (face-remap-add-relative 'fringe :background "#222228")
+    (face-remap-add-relative 'default 'my/term-bg)
+    (face-remap-add-relative 'fringe 'my/term-bg)
     (setq cursor-type 'box)
     (setq cursor-in-non-selected-windows t)
     (set-window-fringes (selected-window) 0))
@@ -353,33 +408,33 @@
   (setopt imenu-auto-rescan t)
   (setopt treemacs-tag-follow-delay 2.0)
   (treemacs-tag-follow-mode t)
-  (defun my/setup-treemacs-fonts (&rest _)
+  (defun my/treemacs-hide-modeline (&rest _)
+    (when (treemacs-is-treemacs-window-selected?)
+      (setq mode-line-format nil)
+      (set-window-fringes (selected-window) 8 1)))
+  (defun my/customize-treemacs ()
     (dolist (face '(treemacs-root-face treemacs-root-remote-face
                     treemacs-root-remote-disconnected-face
                     treemacs-root-remote-unreadable-face))
-      (set-face-attribute face nil :inherit 'variable-pitch :height 1.25))
-    (set-face-attribute 'treemacs-root-face nil :background 'unspecified)
-    (dolist (face '(treemacs-directory-face treemacs-file-face  treemacs-git-unmodified-face))
-      (set-face-attribute face nil :inherit 'variable-pitch :height 1.0))
-    (set-face-attribute 'treemacs-window-background-face nil :background "#232634")
-    (when (treemacs-is-treemacs-window? (selected-window))
-      (setq mode-line-format nil)
-      (set-window-fringes (selected-window) 8 1)))
-  (advice-add 'treemacs :after #'my/setup-treemacs-fonts)
-  (advice-add 'treemacs-select-window :after #'my/setup-treemacs-fonts)
+      (face-remap-add-relative face 'my/treemacs-big-face))
+    (dolist (face '(treemacs-directory-face treemacs-file-face
+                    treemacs-git-unmodified-face))
+      (face-remap-add-relative face 'my/treemacs-face))
+    (face-remap-add-relative 'treemacs-window-background-face 'my/treemacs-bg))
   ;; Play nice with transpose-frame by forcing treemacs to hide
   (defun my/treemacs-ensure-hidden (&rest _)
     (let ((visible (progn (treemacs--select-visible-window)
                           (treemacs-is-treemacs-window? (selected-window)))))
       (when visible (treemacs))
       visible))
+  (add-hook 'treemacs-select-functions #'my/treemacs-hide-modeline)
   (advice-add 'transpose-frame :before #'my/treemacs-ensure-hidden)
   (advice-add 'flip-frame :before #'my/treemacs-ensure-hidden)
   (advice-add 'flop-frame :before #'my/treemacs-ensure-hidden)
   (advice-add 'rotate-frame :before #'my/treemacs-ensure-hidden)
   (advice-add 'rotate-frame-clockwise :before #'my/treemacs-ensure-hidden)
   (advice-add 'rotate-frame-anticlockwise :before #'my/treemacs-ensure-hidden)
-  (add-hook 'after-load-theme-hook #'my/treemacs-ensure-hidden))
+  (add-hook 'treemacs-mode-hook #'my/customize-treemacs))
 
 (use-package treemacs-tab-bar
   :ensure t
@@ -459,15 +514,18 @@
   (add-to-list 'recentf-exclude "/su:")
   (add-to-list 'recentf-exclude "/doas:"))
 
+;;;; Customize built-in modes (use-package didn't work)
+;;;; =========================================================================
+
 (defun my/customize-help ()
-  (face-remap-add-relative 'default :background "#343442")
-  (face-remap-add-relative 'fringe :background "#343442"))
+  (face-remap-add-relative 'default 'my/help-bg)
+  (face-remap-add-relative 'fringe 'my/help-bg))
 (add-hook 'help-mode-hook #'my/customize-help)
 (add-hook 'apropos-mode-hook #'my/customize-help)
 
 (defun my/customize-minibuffer ()
-  (face-remap-add-relative 'default :background "#2A2A32")
-  (face-remap-add-relative 'fringe :background "#2A2A32"))
+  (face-remap-add-relative 'default 'my/minibuffer-bg)
+  (face-remap-add-relative 'fringe 'my/minibuffer-bg))
 (add-hook 'minibuffer-mode-hook #'my/customize-minibuffer)
 
 
@@ -517,6 +575,12 @@
 
 (setq-default buffer-file-coding-system 'utf-8-unix)
 
+(setopt disabled-command-function 'ignore)
+(setopt isearch-allow-scroll 'unlimited)
+(setopt isearch-repeat-on-direction-change t)
+(setopt isearch-wrap-pause 'no-ding)
+(setopt search-default-mode t)
+
 
 ;; EXPERIMENTAL, not quite working yet
 (when (my/windows-p)
@@ -552,6 +616,20 @@ Preserve window configuration when pressing ESC."
 
 ;;; Style note: not including the my/ prefix for interactive commands.
 
+(defun theme-dark ()
+  (interactive)
+  (setq frame-background-mode 'dark)
+  (mapc 'frame-set-background-mode (frame-list))
+  (setopt catppuccin-flavor 'frappe)
+  (load-theme 'catppuccin t))
+
+(defun theme-light ()
+  (interactive)
+  (setq frame-background-mode 'light)
+  (mapc 'frame-set-background-mode (frame-list))
+  (setopt catppuccin-flavor 'latte)
+  (load-theme 'catppuccin t))
+
 ;; Cycle file buffers, skipping others
 (defun previous-file-buffer ()
   (interactive)
@@ -569,8 +647,41 @@ Preserve window configuration when pressing ESC."
     (next-buffer)
     (setq switch-to-prev-buffer-skip old-switch-to-prev-buffer-skip)))
 
+(defun my/get-window-under-mouse ()
+  (let ((mpos (mouse-position)))
+    (or (window-at (cadr mpos) (cddr mpos) (car mpos))
+        (selected-window))))
+
+(defun my/call-in-window-under-mouse (fn &rest args)
+  (let ((selected-window (selected-window))
+        (target-window (my/get-window-under-mouse)))
+    (unless (eq selected-window target-window)
+      (select-window target-window 'mark-for-redisplay))
+    (ignore-errors (apply fn args))
+    (unless (eq selected-window target-window)
+      (select-window selected-window t))))
+
+(defmacro my/in-window-under-mouse (&rest body)
+  `(my/call-in-window-under-mouse (lambda () ,@body)))
+
+(defun back-or-previous-buffer ()
+  (interactive)
+  (my/in-window-under-mouse
+   (or (and (eq major-mode 'help-mode)
+            (ignore-errors (help-go-back) t))
+       (previous-buffer))))
+
+(defun forward-or-next-buffer ()
+  (interactive)
+  (my/in-window-under-mouse
+   (or (and (eq major-mode 'help-mode)
+            (ignore-errors (help-go-forward) t))
+                  (next-buffer))))
+
 (global-set-key (kbd "M-[") 'previous-file-buffer)
 (global-set-key (kbd "M-]") 'next-file-buffer)
+(global-set-key [mouse-8] 'back-or-previous-buffer)
+(global-set-key [mouse-9] 'forward-or-next-buffer)
 
 (keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
 

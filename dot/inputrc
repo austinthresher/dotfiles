@@ -1,3 +1,5 @@
+$if term=dumb
+$else
 set bell-style none
 set blink-matching-paren on
 set colored-completion-prefix on
@@ -28,3 +30,5 @@ Control-w: unix-filename-rubout
 
 # Shift+backspace
 "\e[127;2u": "\b"
+
+$endif
