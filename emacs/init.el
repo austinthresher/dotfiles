@@ -88,9 +88,11 @@
   (setopt tab-bar-separator "")
   (setopt tab-bar-auto-width-max '(320 100))
   (setopt tab-bar-close-button-show nil)
-  (defun my/tab-bar-name-padded ()
-    (concat "  " (buffer-name (window-buffer (minibuffer-selected-window)))))
-  (setopt tab-bar-tab-name-function #'my/tab-bar-name-padded)
+  (defun my/tab-bar-name-padded (tab i)
+    (propertize (concat "  " (tab-bar-tab-name-format-default tab i) "  ")
+                'face (funcall tab-bar-tab-face-function tab)))
+  (setopt tab-bar-tab-name-format-function #'my/tab-bar-name-padded)
+  (global-set-key (kbd "C-S-t") 'tab-bar-new-tab-to)
   (tab-bar-mode t))
 
 (use-package whitespace
@@ -111,6 +113,8 @@
   (setopt catppuccin-italic-comments t)
   (defun my/customize-catppuccin ()
     (set-face-attribute 'cursor nil :background (catppuccin-color 'surface0 'latte))
+    (set-face-attribute 'mode-line-active nil :background "#151520")
+    (set-face-attribute 'mode-line-inactive nil :background "#202030")
     ;; Default rainbow colors are too easy to mix up when side-by-side
     (dolist (pair '((rainbow-delimiters-depth-1-face . text)
                     (rainbow-delimiters-depth-2-face . blue)
@@ -126,7 +130,7 @@
      ;; Make unmatched delimiters much more noticable
     (face-spec-set 'rainbow-delimiters-unmatched-face
                    `((t (:background ,(catppuccin-color 'red)
-                         :foreground ,(catppuccin-color 'crust)
+                         :foreground unspecified
                          :weight bold))))
     (set-face-attribute 'show-paren-match nil
                         :background (catppuccin-color 'crust)
@@ -377,6 +381,10 @@
   (advice-add 'rotate-frame-anticlockwise :before #'my/treemacs-ensure-hidden)
   (add-hook 'after-load-theme-hook #'my/treemacs-ensure-hidden))
 
+(use-package treemacs-tab-bar
+  :ensure t
+  :after treemacs)
+
 (use-package treemacs-projectile
   :ensure t
   :after (treemacs projectile))
@@ -451,6 +459,17 @@
   (add-to-list 'recentf-exclude "/su:")
   (add-to-list 'recentf-exclude "/doas:"))
 
+(defun my/customize-help ()
+  (face-remap-add-relative 'default :background "#343442")
+  (face-remap-add-relative 'fringe :background "#343442"))
+(add-hook 'help-mode-hook #'my/customize-help)
+(add-hook 'apropos-mode-hook #'my/customize-help)
+
+(defun my/customize-minibuffer ()
+  (face-remap-add-relative 'default :background "#2A2A32")
+  (face-remap-add-relative 'fringe :background "#2A2A32"))
+(add-hook 'minibuffer-mode-hook #'my/customize-minibuffer)
+
 
 ;;;; Global minor modes and related options
 ;;;; =========================================================================
@@ -466,6 +485,7 @@
 (unless (display-graphic-p) (xterm-mouse-mode t))
 (delete-selection-mode t)
 (set-fringe-mode 8)
+
 
 ;;;; Options
 ;;;; =========================================================================
@@ -498,6 +518,13 @@
 (setq-default buffer-file-coding-system 'utf-8-unix)
 
 
+;; EXPERIMENTAL, not quite working yet
+(when (my/windows-p)
+  (setq explicit-shell-file-name "C:/Program Files/Git/bin/bash.exe")
+  (setq shell-file-name explicit-shell-file-name)
+  (add-to-list 'exec-path "C:/Program Files/Git/bin"))
+
+
 ;;;; Key Customization
 ;;;; =========================================================================
 
@@ -523,8 +550,10 @@ Preserve window configuration when pressing ESC."
   (global-unset-key (kbd "C-z"))
   (global-unset-key (kbd "C-x C-z")))
 
+;;; Style note: not including the my/ prefix for interactive commands.
+
 ;; Cycle file buffers, skipping others
-(defun my/previous-file-buffer ()
+(defun previous-file-buffer ()
   (interactive)
   (let ((old-switch-to-prev-buffer-skip switch-to-prev-buffer-skip))
     (setq switch-to-prev-buffer-skip
@@ -532,7 +561,7 @@ Preserve window configuration when pressing ESC."
     (previous-buffer)
     (setq switch-to-prev-buffer-skip old-switch-to-prev-buffer-skip)))
 
-(defun my/next-file-buffer ()
+(defun next-file-buffer ()
   (interactive)
   (let ((old-switch-to-prev-buffer-skip switch-to-prev-buffer-skip))
     (setq switch-to-prev-buffer-skip
@@ -540,8 +569,8 @@ Preserve window configuration when pressing ESC."
     (next-buffer)
     (setq switch-to-prev-buffer-skip old-switch-to-prev-buffer-skip)))
 
-(global-set-key (kbd "M-[") 'my/previous-file-buffer)
-(global-set-key (kbd "M-]") 'my/next-file-buffer)
+(global-set-key (kbd "M-[") 'previous-file-buffer)
+(global-set-key (kbd "M-]") 'next-file-buffer)
 
 (keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
 
