@@ -3,8 +3,7 @@
 ;;;; Early / system settings
 ;;;; =========================================================================
 (setopt display-time-default-load-average nil)
-(setq debug-on-error t)
-(add-hook 'after-init-hook (lambda () (setq debug-on-error nil)))
+;; (setq debug-on-error t)
 
 (defvar after-load-theme-hook nil)
 (defadvice load-theme (after run-after-load-theme-hook activate)
@@ -89,6 +88,7 @@
 (setopt package-native-compile t)
 (unless (package-installed-p 'use-package) (package-install 'use-package))
 (setopt use-package-enable-imenu-support t)
+(add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
 
 (use-package no-littering
   :ensure t
@@ -110,10 +110,13 @@
   (setopt tab-bar-auto-width-max '(320 100))
   (setopt tab-bar-close-button-show nil)
   (defun my/tab-bar-name-padded (tab i)
-    (propertize (concat "  " (tab-bar-tab-name-format-default tab i) "  ")))
+    (let ((txt (tab-bar-tab-name-format-default tab i)))
+      (propertize (concat "  " txt "  ")
+                  'face (funcall tab-bar-tab-face-function tab))))
   (setopt tab-bar-tab-name-format-function #'my/tab-bar-name-padded)
   (global-set-key (kbd "C-S-t") 'tab-bar-new-tab-to)
-  (tab-bar-mode t))
+  (tab-bar-mode t)
+  (setq tab-bar-menu-bar-button (propertize " 󰍜 " 'face 'tab-bar)))
 
 (use-package whitespace
   :ensure nil
@@ -128,7 +131,6 @@
 
 (use-package catppuccin-theme
   :ensure t
-  :defines catppuccin-lighten catppuccin-darken catppuccin-color
   :config
   (setopt catppuccin-flavor 'frappe)
   (setopt catppuccin-italic-comments t)
@@ -190,9 +192,14 @@
   (add-hook 'after-load-theme-hook #'my/customize-catppuccin)
   (load-theme 'catppuccin t))
 
+(use-package minions
+  :ensure t
+  :config (minions-mode t))
+
 (use-package doom-modeline
   :ensure t
-  :custom ((doom-modeline-icon t))
+  :custom ((doom-modeline-icon t)
+           (doom-modeline-minor-modes t))
   :config
   ;; Format buffers as "dirname/filename" instead of "filename<dirname>".
   ;; Keeps the original formatting if the buffer isn't visiting a real file.
@@ -245,7 +252,6 @@
 
 (use-package which-key-posframe
   :ensure t
-
   :after which-key
   :if (display-graphic-p)
   :config (setq which-key-posframe-poshandler
@@ -272,7 +278,8 @@
          ("<backtab>" . corfu-previous))
   :config
   (setopt corfu-cycle t)
-  (setopt corfu-preselect 'first))
+  (setopt corfu-preselect 'first)
+  (setopt corfu-preview-current 'insert))
 
 (use-package corfu-history
   :ensure nil
@@ -332,7 +339,6 @@
 
 (use-package eshell
   :ensure t
-  :defines eshell-mode-map
   :init (defun my/setup-eshell ()
           (keymap-set eshell-mode-map "C-r" 'consult-history))
   :hook ((eshell-mode . my/setup-eshell)))
@@ -355,7 +361,6 @@
 (use-package magit
   :ensure t
   :defer t
-  :defines transient-map
   :bind (("C-x g" . magit-status)
          ("C-x G" . magit-dispatch)
          :map transient-map ("<escape>" . transient-quit-one))
@@ -406,8 +411,7 @@
   (setopt treemacs-width 24)
   (setopt treemacs-is-never-other-window t)
   (setopt imenu-auto-rescan t)
-  (setopt treemacs-tag-follow-delay 2.0)
-  (treemacs-tag-follow-mode t)
+  (treemacs-follow-mode -1)
   (defun my/treemacs-hide-modeline (&rest _)
     (when (treemacs-is-treemacs-window-selected?)
       (setq mode-line-format nil)
@@ -417,8 +421,19 @@
                     treemacs-root-remote-disconnected-face
                     treemacs-root-remote-unreadable-face))
       (face-remap-add-relative face 'my/treemacs-big-face))
-    (dolist (face '(treemacs-directory-face treemacs-file-face
-                    treemacs-git-unmodified-face))
+    (dolist (face '(treemacs-directory-face
+                    treemacs-file-face
+                    treemacs-git-unmodified-face
+                    treemacs-git-modified-face
+                    treemacs-git-added-face
+                    treemacs-git-conflict-face
+                    treemacs-git-renamed-face
+                    treemacs-git-untracked-face
+                    treemacs-tags-face
+                    treemacs-term-node-face
+                    treemacs-marked-file-face
+                    treemacs-git-commit-diff-face
+                    treemacs-async-loading-face))
       (face-remap-add-relative face 'my/treemacs-face))
     (face-remap-add-relative 'treemacs-window-background-face 'my/treemacs-bg))
   ;; Play nice with transpose-frame by forcing treemacs to hide
@@ -448,6 +463,10 @@
   :ensure t
   :after treemacs
   :config (treemacs-load-theme "nerd-icons"))
+
+(use-package buffer-tree
+  :ensure nil
+  :after treemacs)
 
 (use-package hydra :ensure t :defer t)
 
@@ -505,7 +524,6 @@
   :if (eq system-type 'windows-nt)
   :config (unless (server-running-p) (server-start)))
 
-
 (use-package recentf
   :ensure nil
   :config
@@ -513,6 +531,11 @@
   (add-to-list 'recentf-exclude "/sudoedit:")
   (add-to-list 'recentf-exclude "/su:")
   (add-to-list 'recentf-exclude "/doas:"))
+
+(use-package browse-url
+  :ensure nil
+  :config
+  (setopt browse-url-browser-function 'eww-browse-url))
 
 ;;;; Customize built-in modes (use-package didn't work)
 ;;;; =========================================================================
@@ -522,6 +545,7 @@
   (face-remap-add-relative 'fringe 'my/help-bg))
 (add-hook 'help-mode-hook #'my/customize-help)
 (add-hook 'apropos-mode-hook #'my/customize-help)
+(add-hook 'Custom-mode-hook #'my/customize-help)
 
 (defun my/customize-minibuffer ()
   (face-remap-add-relative 'default 'my/minibuffer-bg)
@@ -537,11 +561,12 @@
 (setopt auto-revert-check-vc-info t)
 (global-auto-revert-mode t)
 (tool-bar-mode -1)
-(menu-bar-mode -1)
+(menu-bar-mode -1) ; shown in tab bar instead
 (indent-tabs-mode -1) ; always use spaces
 (context-menu-mode t)
 (unless (display-graphic-p) (xterm-mouse-mode t))
 (delete-selection-mode t)
+(undelete-frame-mode t) ; allow restoring closed frames
 (set-fringe-mode 8)
 
 
@@ -569,6 +594,9 @@
 (setopt switch-to-buffer-obey-display-actions t)
 (setopt column-number-mode t)
 (setopt line-move-visual nil)
+(setopt show-paren-delay 0.0)
+(setopt show-paren-when-point-in-periphery t)
+(setopt show-paren-when-point-inside-paren t)
 (setopt cursor-in-non-selected-windows nil)
 (setopt show-trailing-whitespace nil)
 (add-hook 'prog-mode-hook (lambda () (setq show-trailing-whitespace t)))
@@ -694,6 +722,21 @@ Preserve window configuration when pressing ESC."
 
 ;;;; Misc
 ;;;; =========================================================================
+
+;; Close scratch once we open a file
+(defun my/close-scratch ()
+  (let ((buf (current-buffer)))
+    (when (get-buffer "*scratch*")
+      (when (kill-buffer "*scratch*")
+        (switch-to-buffer buf nil t)))))
+(add-hook 'find-file-hook #'my/close-scratch)
+
+(defun hide-buffer (name)
+  (interactive "bBuffer to hide: ")
+  (let ((b (get-buffer name)))
+    (unless (string-match-p "^ " (buffer-name b))
+      (with-current-buffer b
+        (rename-buffer (concat " " (buffer-name b)))))))
 
 ;; File-type mode detection special cases
 (add-to-list 'auto-mode-alist '("bashrc" . sh-mode)) ; no leading '.'
