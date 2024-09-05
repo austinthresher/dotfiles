@@ -1,5 +1,13 @@
 ;; -*- lexical-binding: t -*-
 
+;; TODO:
+;; - Figure out how to show corfu help pop-up even when there is only
+;;   one match
+;; - Make tabs insert spaces in comments / non-syntax areas
+;; - Make shift-tab unindent too
+;; - Use keymap-global-set instead of global-set-key
+;; - Try adding a preview to string-insert-rectangle
+
 ;;;; Early / system settings
 ;;;; =========================================================================
 (setopt display-time-default-load-average nil)
@@ -111,7 +119,7 @@
   (setopt tab-bar-close-button-show nil)
   (defun my/tab-bar-name-padded (tab i)
     (let ((txt (tab-bar-tab-name-format-default tab i)))
-      (propertize (concat "  " txt "  ")
+      (propertize (concat "  "  "  ")
                   'face (funcall tab-bar-tab-face-function tab))))
   (setopt tab-bar-tab-name-format-function #'my/tab-bar-name-padded)
   (global-set-key (kbd "C-S-t") 'tab-bar-new-tab-to)
@@ -235,17 +243,16 @@
 (use-package which-key
   :ensure t
   :config
-  (setq which-key-dont-use-unicode nil)
-  (setq which-key-add-column-padding 2)
-  (setq which-key-min-display-lines 8)
-  (setq which-key-max-description-length 100)
-  (setq which-key-max-display-columns (if (display-graphic-p) 1 nil))
-  (setq which-key-max-description-length 1.0)
-  (setq which-key-idle-delay 10000)
-  (setq which-key-show-early-on-C-h t)
-  (setq which-key-idle-secondary-delay 0.05)
-  (keymap-global-set "C-h h" 'which-key-show-major-mode)
-  (keymap-global-set "C-h H" 'which-key-show-top-level)
+  (setopt which-key-dont-use-unicode nil)
+  (setopt which-key-add-column-padding 2)
+  (setopt which-key-min-display-lines 8)
+  (setopt which-key-max-description-length 100)
+  (setopt which-key-max-display-columns (if (display-graphic-p) 1 nil))
+  (setopt which-key-max-description-length 1.0)
+  (setopt which-key-idle-delay 10000.0)
+  (setopt which-key-show-early-on-C-h t)
+  (setopt which-key-idle-secondary-delay 0.05)
+  (setopt which-key-preserve-window-configuration t)
   (which-key-mode t))
 
 (use-package nerd-icons :ensure t)
@@ -354,8 +361,7 @@
     (face-remap-add-relative 'default 'my/term-bg)
     (face-remap-add-relative 'fringe 'my/term-bg)
     (setq cursor-type 'box)
-    (setq cursor-in-non-selected-windows t)
-    (set-window-fringes (selected-window) 0))
+    (setq cursor-in-non-selected-windows t))
   (add-hook 'eat-mode-hook #'my/customize-eat))
 
 (use-package magit
@@ -415,7 +421,7 @@
   (defun my/treemacs-hide-modeline (&rest _)
     (when (treemacs-is-treemacs-window-selected?)
       (setq mode-line-format nil)
-      (set-window-fringes (selected-window) 8 1)))
+      (set-window-fringes (selected-window) 10 1)))
   (defun my/customize-treemacs ()
     (dolist (face '(treemacs-root-face treemacs-root-remote-face
                     treemacs-root-remote-disconnected-face
@@ -518,6 +524,18 @@
                     :server-id 'gdscript
                     :notification-handlers (ht ("gdscript/capabilities" 'ignore)))))
 
+(use-package adaptive-wrap
+  :ensure t
+  :config
+  (setopt adaptive-wrap-extra-indent 1)
+  (add-hook 'prog-mode 'adaptive-wrap-prefix-mode)
+  (set-fringe-bitmap-face 'right-curly-arrow 'ansi-color-magenta)
+  (set-fringe-bitmap-face 'left-curly-arrow 'ansi-color-magenta))
+
+(use-package slime
+  :ensure t
+  :config (setopt inferior-lisp-program "sbcl"))
+
 (use-package server
   :ensure nil
   :defines server-running-p
@@ -532,20 +550,38 @@
   (add-to-list 'recentf-exclude "/su:")
   (add-to-list 'recentf-exclude "/doas:"))
 
-(use-package browse-url
+(use-package rect
   :ensure nil
   :config
+  (keymap-set rectangle-mark-mode-map "C-i" 'string-insert-rectangle)
+  (keymap-set rectangle-mark-mode-map "C-r" 'replace-rectangle))
+
+(use-package browse-url
+  :ensure nil
+  :defer t
+  :config
   (setopt browse-url-browser-function 'eww-browse-url))
+
+(use-package apropos
+  :ensure nil
+  :defer t
+  :bind (:map apropos-mode-map ("q" . kill-current-buffer)))
+
 
 ;;;; Customize built-in modes (use-package didn't work)
 ;;;; =========================================================================
 
+(setopt custom-buffer-done-kill t)
+(setopt help-window-select t)
+(setopt help-downcase-arguments t)
+(setopt apropos-do-all t)
+(setopt apropos-compact-layout t)
 (defun my/customize-help ()
   (face-remap-add-relative 'default 'my/help-bg)
   (face-remap-add-relative 'fringe 'my/help-bg))
 (add-hook 'help-mode-hook #'my/customize-help)
-(add-hook 'apropos-mode-hook #'my/customize-help)
 (add-hook 'Custom-mode-hook #'my/customize-help)
+(add-hook 'apropos-mode-hook #'my/customize-help)
 
 (defun my/customize-minibuffer ()
   (face-remap-add-relative 'default 'my/minibuffer-bg)
@@ -567,7 +603,7 @@
 (unless (display-graphic-p) (xterm-mouse-mode t))
 (delete-selection-mode t)
 (undelete-frame-mode t) ; allow restoring closed frames
-(set-fringe-mode 8)
+(set-fringe-mode 20)
 
 
 ;;;; Options
@@ -710,6 +746,24 @@ Preserve window configuration when pressing ESC."
 (global-set-key (kbd "M-]") 'next-file-buffer)
 (global-set-key [mouse-8] 'back-or-previous-buffer)
 (global-set-key [mouse-9] 'forward-or-next-buffer)
+
+;; Make C-x k kill the current buffer without prompting to select a buffer
+(defun kill-current-buffer ()
+  (interactive)
+  (kill-buffer (current-buffer)))
+(keymap-global-set "C-x k" 'kill-current-buffer)
+
+(defun quick-describe-function ()
+  (interactive)
+  (describe-function (symbol-at-point)))
+
+(defun quick-describe-variable ()
+  (interactive)
+  (describe-variable (symbol-at-point)))
+
+(keymap-set help-mode-map "q" 'kill-current-buffer)
+(keymap-global-set "C-h C-f" 'quick-describe-function)
+(keymap-global-set "C-h C-v" 'quick-describe-variable)
 
 (keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
 

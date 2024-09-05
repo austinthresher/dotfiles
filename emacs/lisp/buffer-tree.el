@@ -3,7 +3,9 @@
 ;; https://github.com/Alexander-Miller/treemacs/blob/master/Extensions.org
 
 ;; TODO:
-;; - right click menu on buffers
+;; - Right click menu on buffers
+;; - Make buffers open in the previous window?
+;;   This might be working now but it wasn't working with a side-by-side split.
 
 (require 'dash)
 (require 'treemacs)
@@ -67,12 +69,15 @@
   :double-click-action #'treemacs-toggle-node)
 
 (treemacs-define-leaf-node-type buffertree-buffer-leaf
-  :icon (nerd-icons-icon-for-mode (buffer-local-value 'major-mode item))
-  :label (propertize (concat " " (or (buffer-name item) "#<killed buffer>"))
+  :icon (concat
+         (nerd-icons-icon-for-mode (buffer-local-value 'major-mode item))
+         " ")
+  :label (propertize (or (buffer-name item) "#<killed buffer>")
                      'face 'treemacs-file-face
-                     'help-echo (concat " " (symbol-name (buffer-local-value 'major-mode item)) " "
-                                        (or (buffer-file-name item)
-                                            "")))
+                     'help-echo
+                     (concat " " (symbol-name (buffer-local-value 'major-mode item)) " "
+                             (or (buffer-file-name item)
+                                 "")))
   :key item
   :more-properties `(:buffer ,item)
   :visit-action #'buffertree-visit-buffer-action
@@ -112,5 +117,7 @@
 
 (add-hook 'treemacs-after-visit-functions #'buffertree--goto-current-buffer)
 (add-hook 'window-configuration-change-hook #'buffertree--refresh-when-visible)
+(defadvice delete-buffer (after delete-buffer-refresh-advice)
+  (buffertree--refresh-when-visible))
 
 (provide 'buffer-tree)
