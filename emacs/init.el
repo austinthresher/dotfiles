@@ -3,10 +3,13 @@
 ;; TODO:
 ;; - Figure out how to show corfu help pop-up even when there is only
 ;;   one match
+;; - Figure out how to make corfu preview the current candidate when
+;;   the first candidate is selected.
 ;; - Make tabs insert spaces in comments / non-syntax areas
 ;; - Make shift-tab unindent too
 ;; - Use keymap-global-set instead of global-set-key
 ;; - Try adding a preview to string-insert-rectangle
+;;    OR checkout CUA mode's rectangle stuff, that might be better
 
 ;;;; Early / system settings
 ;;;; =========================================================================
@@ -78,6 +81,9 @@
   '((default :inherit variable-pitch
              :height 1.2))
   "treemacs projects")
+(defface my/ibuffer-face
+    '((default :inherit variable-pitch :height 1.0))
+  "ibuffer sidebar face")
 (defface my/help-bg
   '((default :inherit default))
   "help background color")
@@ -119,7 +125,7 @@
   (setopt tab-bar-close-button-show nil)
   (defun my/tab-bar-name-padded (tab i)
     (let ((txt (tab-bar-tab-name-format-default tab i)))
-      (propertize (concat "  "  "  ")
+      (propertize (concat "  " txt "  ")
                   'face (funcall tab-bar-tab-face-function tab))))
   (setopt tab-bar-tab-name-format-function #'my/tab-bar-name-padded)
   (global-set-key (kbd "C-S-t") 'tab-bar-new-tab-to)
@@ -192,11 +198,14 @@
     (set-face-attribute 'my/help-bg nil
                         :background (catppuccin-darken (catppuccin-color 'base) 5))
     (set-face-attribute 'my/minibuffer-bg nil
-                        :background (my/adjust-bg (catppuccin-color 'surface0) 5))
+                        :background (catppuccin-darken (catppuccin-color 'crust) 5))
     (set-face-attribute 'my/treemacs-bg nil
                         :background (my/adjust-bg (catppuccin-color 'mantle) 10))
     (set-face-attribute 'my/treemacs-big-face nil
-                        :background (my/adjust-bg (catppuccin-color 'mantle) 10)))
+                        :background (my/adjust-bg (catppuccin-color 'mantle) 10))
+    (set-face-attribute 'my/ibuffer-face nil
+                        :background (my/adjust-bg (catppuccin-color 'mantle) 10)
+                        :family font-variable-pitch))
   (add-hook 'after-load-theme-hook #'my/customize-catppuccin)
   (load-theme 'catppuccin t))
 
@@ -265,11 +274,12 @@
                 'posframe-poshandler-frame-top-right-corner)
   :init (which-key-posframe-mode))
 
+;; TODO: Take a look at vertico-unobtrusive and vertico-flat
 (use-package vertico
   :ensure t
   :bind (:map vertico-map ("TAB" . #'minibuffer-complete))
   :custom ((vertico-cycle t)
-           (vertico-count 8))
+           (vertico-count 5))
   :init (vertico-mode))
 
 (use-package vertico-reverse
@@ -285,8 +295,14 @@
          ("<backtab>" . corfu-previous))
   :config
   (setopt corfu-cycle t)
-  (setopt corfu-preselect 'first)
-  (setopt corfu-preview-current 'insert))
+  (setopt corfu-preselect 'valid)
+  (setopt corfu-preview-current 'insert)
+  (setopt corfu-on-exact-match 'insert)
+  ;; For some reason, Corfu is hard-coded to not show the preview for
+  ;; the first match in the list. This overrides the predicate to remove
+  ;; that check.
+  (defun corfu--preview-current-p ()
+    (and corfu-preview-current (>= corfu--index 0))))
 
 (use-package corfu-history
   :ensure nil
@@ -338,7 +354,8 @@
          ("M-s L" . consult-line-multi))
   :config (setq consult-narrow-key "<"))
 
-(use-package embark-consult :ensure t)
+(use-package embark-consult
+  :ensure t)
 
 (use-package embark
   :ensure t
@@ -406,6 +423,55 @@
   (projectile-register-project-type 'godot '("project.godot")
                                     :project-file "project.godot"))
 
+(use-package ibuffer-sidebar
+    :ensure t
+    :config
+    ;; setq is used here because I get type errors if I use setopt
+    (setq ibuffer-shrink-to-minimum-size t)
+    (setopt ibuffer-sidebar-refresh-timer 1)
+    (setopt ibuffer-default-shrink-to-minimum-size t)
+    (setq ibuffer-sidebar-mode-line-format '("     "))
+    (setq ibuffer-sidebar-face 'my/ibuffer-face)
+    (setopt ibuffer-use-header-line nil)
+    (setopt ibuffer-sidebar-use-custom-font t)
+    (setopt ibuffer-default-sorting-mode 'alphabetic)
+    (setq ibuffer-sidebar-display-alist
+          '((side . left) (slot . -1) (window-height . 0.2)))
+    (setq ibuffer-sidebar-special-refresh-commands
+            '((kill-buffer . 0)
+              (find-file . 0)
+              (delete-file . 0)
+              (kill-current-buffer . 0)))
+    (setopt ibuffer-show-empty-filter-groups nil)
+    ;; TODO: This doesn't seem to work
+    (setq ibuffer-saved-filter-groups
+            '(("Home"
+               ("Code" (mode . prog-mode)))))
+    (add-to-list 'ibuffer-sidebar-special-refresh-commands 'kill-current-buffer)
+    (keymap-set ibuffer-name-map "<mouse-1>" #'ibuffer-mouse-visit-buffer)
+    (keymap-set ibuffer-name-map "<mouse-2>" #'ibuffer-mouse-toggle-mark)
+    (defun my/customize-ibuffer ()
+      (face-remap-add-relative 'fringe 'my/treemacs-bg)
+      (face-remap-add-relative 'mode-line-active
+                               :underline
+                               `(:color ,(catppuccin-color 'base) :position 12)
+                               :box nil
+                               :foreground (catppuccin-color 'base)
+                               :background (catppuccin-color 'crust)
+                               )
+      (face-remap-add-relative 'mode-line-inactive
+                               :underline
+                               `(:color ,(catppuccin-color 'base) :position 12)
+                               :box nil
+                               :foreground (catppuccin-color 'base)
+                               :background (catppuccin-color 'crust))
+      (set-fringe-mode 10))
+    (add-hook 'ibuffer-sidebar-mode-hook #'my/customize-ibuffer))
+
+;(use-package nerd-icons-ibuffer
+;    :ensure t
+;    :hook (ibuffer-mode . nerd-icons-ibuffer-mode))
+
 (use-package treemacs
   :ensure t
   :bind (("C-x C-d" . treemacs)
@@ -469,10 +535,6 @@
   :ensure t
   :after treemacs
   :config (treemacs-load-theme "nerd-icons"))
-
-(use-package buffer-tree
-  :ensure nil
-  :after treemacs)
 
 (use-package hydra :ensure t :defer t)
 
@@ -565,7 +627,8 @@
 (use-package apropos
   :ensure nil
   :defer t
-  :bind (:map apropos-mode-map ("q" . kill-current-buffer)))
+  :bind (:map apropos-mode-map ("q" . kill-current-buffer))
+  :config (setopt apropos-do-all t))
 
 
 ;;;; Customize built-in modes (use-package didn't work)
@@ -574,8 +637,6 @@
 (setopt custom-buffer-done-kill t)
 (setopt help-window-select t)
 (setopt help-downcase-arguments t)
-(setopt apropos-do-all t)
-(setopt apropos-compact-layout t)
 (defun my/customize-help ()
   (face-remap-add-relative 'default 'my/help-bg)
   (face-remap-add-relative 'fringe 'my/help-bg))
@@ -604,27 +665,45 @@
 (delete-selection-mode t)
 (undelete-frame-mode t) ; allow restoring closed frames
 (set-fringe-mode 20)
-
+(minibuffer-depth-indicate-mode t)
 
 ;;;; Options
 ;;;; =========================================================================
 
+
+;; Fixes indentation of quoted lists
+(setopt lisp-indent-function 'common-lisp-indent-function)
+
 ;; Built-in completion options
-;(setopt enable-recursive-minibuffers t)
+(setopt enable-recursive-minibuffers t)
 (setopt completion-cycle-threshold nil)
 (setopt completions-detailed t)
 (setopt tab-always-indent 'complete)
-(setopt completion-styles '(basic substring flex))
-(setopt completions-max-height 10)
+(setopt completion-styles '(basic flex))
+(setopt completions-max-height 8)
 (setopt completions-format 'one-column)
+(setopt completions-header-format nil)
+(setopt completion-on-separator-character t)
+(setopt completion-show-help nil)
+
+(setopt history-delete-duplicates t)
+
+(setq minibuffer-beginning-of-buffer-movement t)
+(setq minibuffer-default-prompt-format "")
+(setq minibuffer-prompt-properties
+        '(read-only t
+          cursor-intangible t
+          face minibuffer-prompt))
+
 (add-to-list 'completion-ignored-extensions "__pycache__/")
-(setopt read-extended-command-predicate #'command-completion-default-include-p)
+(setopt read-extended-command-predicate
+        #'command-completion-default-include-p)
 (setopt sentence-end-double-space nil)
 (setopt vc-follow-symlinks t)
 
 (setopt mouse-wheel-progressive-speed nil)
 (setopt mouse-wheel-scroll-amount '(0.2))
-(setopt scroll-step 1) ; Allow scrolling line-by-line, particularly for terms
+(setopt scroll-step 1) ; Allow scrolling line-by-line, mainly for terms
 
 (setopt x-underline-at-descent-line nil)
 (setopt switch-to-buffer-obey-display-actions t)
@@ -761,7 +840,10 @@ Preserve window configuration when pressing ESC."
   (interactive)
   (describe-variable (symbol-at-point)))
 
+(keymap-global-set "C-S-s" 'isearch-backward)
 (keymap-set help-mode-map "q" 'kill-current-buffer)
+;(keymap-set backtrace-mode-map "q" 'kill-current-buffer)
+(keymap-set special-mode-map "q" 'kill-current-buffer)
 (keymap-global-set "C-h C-f" 'quick-describe-function)
 (keymap-global-set "C-h C-v" 'quick-describe-variable)
 
