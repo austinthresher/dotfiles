@@ -1,18 +1,24 @@
 ;; -*- lexical-binding: t -*-
 
-;; TODO:
+
+;;;; TODO:
+;;;; =========================================================================
 ;; - Figure out how to show corfu help pop-up even when there is only
 ;;   one match
-;; - Figure out how to make corfu preview the current candidate when
-;;   the first candidate is selected.
 ;; - Make tabs insert spaces in comments / non-syntax areas
 ;; - Make shift-tab unindent too
 ;; - Use keymap-global-set instead of global-set-key
 ;; - Try adding a preview to string-insert-rectangle
 ;;    OR checkout CUA mode's rectangle stuff, that might be better
+;; - Use advice :override instead of redefining functions
+;;   (currently doing this to customize doom-modeline and corfu, among others)
+;; - Precompute the extra theme colors made with darken / lighten to avoid
+;;   repeated calls
+
 
 ;;;; Early / system settings
 ;;;; =========================================================================
+
 (setopt display-time-default-load-average nil)
 ;; (setq debug-on-error t)
 
@@ -60,8 +66,8 @@
     (set-face-attribute 'fixed-pitch-serif nil :family font-fixed-serif :height 130)
     (set-face-attribute 'variable-pitch nil :family font-variable-pitch :height 130 :weight 'medium)))
 
-(add-hook 'server-after-make-frame-hook #'my/setup-fonts)
-(add-hook 'window-setup-hook #'my/setup-fonts)
+(add-hook 'server-after-make-frame-hook #'my/setup-fonts -90)
+(add-hook 'window-setup-hook #'my/setup-fonts -90)
 
 (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
 (load custom-file t t)
@@ -75,15 +81,21 @@
   '((default :inherit default))
   "treemacs background color")
 (defface my/treemacs-face
-  '((default :inherit variable-pitch :height 1.0))
+  '((default :inherit variable-pitch :height 0.9))
   "treemacs files")
 (defface my/treemacs-big-face
   '((default :inherit variable-pitch
-             :height 1.2))
+             :height 1.1))
   "treemacs projects")
 (defface my/ibuffer-face
     '((default :inherit variable-pitch :height 1.0))
   "ibuffer sidebar face")
+(defface my/ibuffer-modeline
+    '((default :box nil :height 1.0))
+  "ibuffer modeline (resize grab-bar)")
+(defface my/ibuffer-group
+    '((default :inherit variable-pitch :height 0.9))
+  "ibuffer filter group")
 (defface my/help-bg
   '((default :inherit default))
   "help background color")
@@ -101,6 +113,9 @@
 (unless package-archive-contents (package-refresh-contents))
 (setopt package-native-compile t)
 (unless (package-installed-p 'use-package) (package-install 'use-package))
+(require 'use-package)
+;; Uncomment to profile startup
+;; (setopt use-package-compute-statistics t)
 (setopt use-package-enable-imenu-support t)
 (add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
 
@@ -141,7 +156,9 @@
 
 (use-package rainbow-delimiters
   :ensure t
-  :hook (prog-mode . rainbow-delimiters-mode))
+  :hook (prog-mode . rainbow-delimiters-mode)
+  :config
+  (setopt rainbow-delimiters-outermost-only-face-count 1))
 
 (use-package catppuccin-theme
   :ensure t
@@ -163,7 +180,6 @@
                         :background (catppuccin-darken (catppuccin-color 'mantle) 5))
     (set-face-attribute 'mode-line-inactive nil
                         :background (catppuccin-lighten (catppuccin-color 'mantle) 5))
-;    (set-face-attribute 'mode-line-inactive nil :background "#202030")
     ;; Default rainbow colors are too easy to mix up when side-by-side
     (dolist (pair '((rainbow-delimiters-depth-1-face . text)
                     (rainbow-delimiters-depth-2-face . blue)
@@ -176,14 +192,21 @@
                     (rainbow-delimiters-depth-9-face . green)))
       (face-spec-set (car pair)
                      `((t (:foreground ,(catppuccin-color (cdr pair)))))))
-     ;; Make unmatched delimiters much more noticable
+    ;; Make unmatched delimiters much more noticable
     (face-spec-set 'rainbow-delimiters-unmatched-face
                    `((t (:background ,(catppuccin-color 'red)
-                         :foreground unspecified
-                         :weight bold))))
-    (set-face-attribute 'show-paren-match nil
-                        :background (catppuccin-color 'crust)
-                        :weight 'bold)
+                                     :foreground unspecified
+                                     :weight bold))))
+    (let ((match-border (catppuccin-darken (catppuccin-color 'crust)
+                                           (pcase catppuccin-flavor
+                                             ('latte 20)
+                                             (_ 40)))))
+      (set-face-attribute 'show-paren-match nil
+                          :background (catppuccin-color 'crust)
+                          :foreground 'unspecified
+                          :inverse-video nil
+                          :box `(:line-width (-2 . -2) :color ,match-border)
+                          :weight 'bold))
     (set-face-attribute 'tab-bar nil
                         :background (catppuccin-color 'mantle))
     (set-face-attribute 'tab-bar-tab-inactive nil
@@ -204,192 +227,197 @@
     (set-face-attribute 'my/treemacs-big-face nil
                         :background (my/adjust-bg (catppuccin-color 'mantle) 10))
     (set-face-attribute 'my/ibuffer-face nil
-                        :background (my/adjust-bg (catppuccin-color 'mantle) 10)
-                        :family font-variable-pitch))
-  (add-hook 'after-load-theme-hook #'my/customize-catppuccin)
-  (load-theme 'catppuccin t))
+                        :background (my/adjust-bg (catppuccin-color 'mantle) 10))
+    (set-face-attribute 'my/ibuffer-modeline nil
+                        :underline `(:color ,(catppuccin-color 'surface1) :position 12)
+                        :box nil
+                        :background (my/adjust-bg (catppuccin-color 'mantle) 10))
+    (set-face-attribute 'my/ibuffer-group nil
+                        :foreground (catppuccin-color 'teal)
+                        :weight 'normal)
+    )
+  (add-hook 'after-load-theme-hook #'my/customize-catppuccin))
 
 (use-package minions
-  :ensure t
-  :config (minions-mode t))
+    :ensure t
+    :config (minions-mode t))
 
 (use-package doom-modeline
-  :ensure t
-  :custom ((doom-modeline-icon t)
-           (doom-modeline-minor-modes t))
-  :config
-  ;; Format buffers as "dirname/filename" instead of "filename<dirname>".
-  ;; Keeps the original formatting if the buffer isn't visiting a real file.
-  (defun my/buffer-name ()
-    (if (not (buffer-file-name))
-        (buffer-name)
-      (let ((name (buffer-name)))
-        (save-match-data
-          (rx-let ((name-exp (group (1+ (not (in "<>"))))))
-            (if (string-match (rx bos name-exp "<" name-exp ">" eos) name)
-                (concat (match-string 2 name) "/" (match-string 1 name))
-            name))))))
-  (defun my/buffer-info ()
-    (or
-     (ignore-errors
-       (concat
-        (doom-modeline-spc)
-        (doom-modeline--buffer-mode-icon)
-        (doom-modeline--buffer-state-icon)
-        (propertize (my/buffer-name)
-                    'help-echo "Buffer name"
-                    'face 'doom-modeline-buffer-file
-                    'local-map (let ((map (make-sparse-keymap)))
-                                 (define-key map [mode-line mouse-1] 'mouse-buffer-menu)
-                                 (define-key map [mode-line mouse-2] 'mouse-buffer-menu)
-                                 (define-key map [mode-line mouse-3] 'mouse-buffer-menu)
-                                 map)))) ""))
-  ;; Overwrite the built-in buffer info segments
-  (doom-modeline-def-segment buffer-info (my/buffer-info))
-  (doom-modeline-def-segment buffer-info-simple (my/buffer-info))
-  (doom-modeline-mode t))
+    :ensure t
+    :custom ((doom-modeline-icon t)
+             (doom-modeline-minor-modes t))
+    :config
+    ;; Format buffers as "dirname/filename" instead of "filename<dirname>".
+    ;; Keeps the original formatting if the buffer isn't visiting a real file.
+    (defun my/buffer-name ()
+      (if (not (buffer-file-name))
+          (buffer-name)
+        (let ((name (buffer-name)))
+          (save-match-data
+            (rx-let ((name-exp (group (1+ (not (in "<>"))))))
+              (if (string-match (rx bos name-exp "<" name-exp ">" eos) name)
+                  (concat (match-string 2 name) "/" (match-string 1 name))
+                name))))))
+    (defun my/buffer-info ()
+      (or
+       (ignore-errors
+         (concat
+          (doom-modeline-spc)
+          (doom-modeline--buffer-mode-icon)
+          (doom-modeline--buffer-state-icon)
+          (propertize (my/buffer-name)
+                      'help-echo "Buffer name"
+                      'face 'doom-modeline-buffer-file
+                      'local-map (let ((map (make-sparse-keymap)))
+                                   (define-key map [mode-line mouse-1] 'mouse-buffer-menu)
+                                   (define-key map [mode-line mouse-2] 'mouse-buffer-menu)
+                                   (define-key map [mode-line mouse-3] 'mouse-buffer-menu)
+                                   map)))) ""))
+    ;; Overwrite the built-in buffer info segments
+    (doom-modeline-def-segment buffer-info (my/buffer-info))
+    (doom-modeline-def-segment buffer-info-simple (my/buffer-info))
+    (doom-modeline-mode t))
 
 (use-package which-key
-  :ensure t
-  :config
-  (setopt which-key-dont-use-unicode nil)
-  (setopt which-key-add-column-padding 2)
-  (setopt which-key-min-display-lines 8)
-  (setopt which-key-max-description-length 100)
-  (setopt which-key-max-display-columns (if (display-graphic-p) 1 nil))
-  (setopt which-key-max-description-length 1.0)
-  (setopt which-key-idle-delay 10000.0)
-  (setopt which-key-show-early-on-C-h t)
-  (setopt which-key-idle-secondary-delay 0.05)
-  (setopt which-key-preserve-window-configuration t)
-  (which-key-mode t))
+    :ensure t
+    :defer t
+    :config
+    (setopt which-key-dont-use-unicode nil)
+    (setopt which-key-add-column-padding 2)
+    (setopt which-key-min-display-lines 8)
+    (setopt which-key-max-description-length 100)
+    (setopt which-key-max-display-columns (if (display-graphic-p) 1 nil))
+    (setopt which-key-max-description-length 1.0)
+    (setopt which-key-idle-delay 10000.0)
+    (setopt which-key-show-early-on-C-h t)
+    (setopt which-key-idle-secondary-delay 0.05)
+    (setopt which-key-preserve-window-configuration t)
+    (which-key-mode t))
 
-(use-package nerd-icons :ensure t)
-
-(use-package which-key-posframe
-  :ensure t
-  :after which-key
-  :if (display-graphic-p)
-  :config (setq which-key-posframe-poshandler
-                'posframe-poshandler-frame-top-right-corner)
-  :init (which-key-posframe-mode))
+(use-package nerd-icons :ensure t :defer)
 
 ;; TODO: Take a look at vertico-unobtrusive and vertico-flat
 (use-package vertico
-  :ensure t
-  :bind (:map vertico-map ("TAB" . #'minibuffer-complete))
-  :custom ((vertico-cycle t)
-           (vertico-count 5))
-  :init (vertico-mode))
+    :ensure t
+    :defer t
+    :bind (:map vertico-map ("TAB" . #'minibuffer-complete))
+    :custom ((vertico-cycle t)
+             (vertico-count 5))
+    :init (vertico-mode))
 
 (use-package vertico-reverse
-  :ensure nil
-  :after vertico
-  :init (vertico-reverse-mode t))
+    :ensure nil
+    :after vertico
+    :init (vertico-reverse-mode t))
 
 (use-package corfu
-  :ensure t
-  :init (global-corfu-mode)
-  :bind (:map corfu-map
-         ("<tab>" . corfu-next)
-         ("<backtab>" . corfu-previous))
-  :config
-  (setopt corfu-cycle t)
-  (setopt corfu-preselect 'valid)
-  (setopt corfu-preview-current 'insert)
-  (setopt corfu-on-exact-match 'insert)
-  ;; For some reason, Corfu is hard-coded to not show the preview for
-  ;; the first match in the list. This overrides the predicate to remove
-  ;; that check.
-  (defun corfu--preview-current-p ()
-    (and corfu-preview-current (>= corfu--index 0))))
+    :ensure t
+    :defer t
+    :init (global-corfu-mode)
+    :bind (:map corfu-map
+                ("<tab>" . corfu-next)
+                ("<backtab>" . corfu-previous))
+    :config
+    (setopt corfu-cycle t)
+    (setopt corfu-preselect 'valid)
+    (setopt corfu-preview-current 'insert)
+    (setopt corfu-on-exact-match 'insert)
+    ;; For some reason, Corfu is hard-coded to not show the preview for
+    ;; the first match in the list. This overrides the predicate to remove
+    ;; that check.
+    (defun corfu--preview-current-p ()
+      (and corfu-preview-current (>= corfu--index 0))))
 
 (use-package corfu-history
-  :ensure nil
-  :after (corfu savehist)
-  :config
-  (add-to-list 'savehist-additional-variables 'corfu-history)
-  (corfu-history-mode t))
+    :ensure nil
+    :after (corfu savehist)
+    :config
+    (add-to-list 'savehist-additional-variables 'corfu-history)
+    (corfu-history-mode t))
 
 (use-package corfu-popupinfo
-  :ensure nil
-  :after corfu
-  :config
-  (corfu-popupinfo-mode t)
-  (setopt corfu-popupinfo-delay '(0.5 . 0.1)))
+    :ensure nil
+    :after corfu
+    :config
+    (corfu-popupinfo-mode t)
+    (setopt corfu-popupinfo-delay '(0.5 . 0.1)))
 
 (use-package corfu-candidate-overlay
-  :ensure t
-  :after corfu
-  :config
-  (corfu-candidate-overlay-mode t)
-  (global-set-key (kbd "C-S-<space>") 'completion-at-point))
+    :ensure t
+    :after corfu
+    :config
+    (corfu-candidate-overlay-mode t)
+    (global-set-key (kbd "C-S-<space>") 'completion-at-point))
 
 (use-package cape
-  :ensure t
-  :init
-  (add-hook 'completion-at-point-functions #'cape-dabbrev)
-  (add-hook 'completion-at-point-functions #'cape-file))
+    :ensure t
+    :defer t
+    :init
+    (add-hook 'completion-at-point-functions #'cape-dabbrev)
+    (add-hook 'completion-at-point-functions #'cape-file))
 
 (use-package dabbrev
-  :ensure nil
-  :bind (("M-/" . dabbrev-completion)
-         ("C-M-/" . dabbrev-expand))
-  :config
-  (add-to-list 'dabbrev-ignored-buffer-regexps "\\` ")
-  (add-to-list 'dabbrev-ignored-buffer-modes 'doc-view-mode)
-  (add-to-list 'dabbrev-ignored-buffer-modes 'pdf-view-mode)
-  (add-to-list 'dabbrev-ignored-buffer-modes 'tags-table-mode))
+    :ensure nil
+    :bind (("M-/" . dabbrev-completion)
+           ("C-M-/" . dabbrev-expand))
+    :config
+    (add-to-list 'dabbrev-ignored-buffer-regexps "\\` ")
+    (add-to-list 'dabbrev-ignored-buffer-modes 'doc-view-mode)
+    (add-to-list 'dabbrev-ignored-buffer-modes 'pdf-view-mode)
+    (add-to-list 'dabbrev-ignored-buffer-modes 'tags-table-mode))
 
 (use-package consult
-  :ensure t
-  :bind (("C-x b" . consult-buffer)
-         ("M-y" . consult-yank-pop)
-         ("M-s r" . consult-ripgrep)
-         ("M-s s" . consult-line)
-         :map isearch-mode-map
-         ("M-e" . consult-isearch-history)
-         ("M-s e" . consult-isearch-history)
-         ("M-s l" . consult-line)
-         ("M-s L" . consult-line-multi))
-  :config (setq consult-narrow-key "<"))
+    :ensure t
+    :defer t
+    :bind (("C-x b" . consult-buffer)
+           ("M-y" . consult-yank-pop)
+           ("M-s r" . consult-ripgrep)
+           ("M-s s" . consult-line)
+           :map isearch-mode-map
+           ("M-e" . consult-isearch-history)
+           ("M-s e" . consult-isearch-history)
+           ("M-s l" . consult-line)
+           ("M-s L" . consult-line-multi))
+    :config (setq consult-narrow-key "<"))
 
-(use-package embark-consult
-  :ensure t)
+(use-package embark-consult :ensure t :defer t)
 
 (use-package embark
-  :ensure t
-  :bind (("C-c a" . embark-act)))
+    :ensure t
+    :defer t
+    :bind (("C-c a" . embark-act)))
 
 (use-package eshell
-  :ensure t
-  :init (defun my/setup-eshell ()
-          (keymap-set eshell-mode-map "C-r" 'consult-history))
-  :hook ((eshell-mode . my/setup-eshell)))
+    :ensure t
+    :defer t
+    :init (defun my/setup-eshell ()
+            (keymap-set eshell-mode-map "C-r" 'consult-history))
+    :hook ((eshell-mode . my/setup-eshell)))
 
 (use-package eat
-  :ensure t
-  :config
-  (eat-eshell-mode)
-  (eat-eshell-visual-command-mode)
-  (setopt eat-term-name "xterm-256color")
-  (setopt eat-default-cursor-type '(box 0.5 hollow))
-  (defun my/customize-eat ()
-    (face-remap-add-relative 'default 'my/term-bg)
-    (face-remap-add-relative 'fringe 'my/term-bg)
-    (setq cursor-type 'box)
-    (setq cursor-in-non-selected-windows t))
-  (add-hook 'eat-mode-hook #'my/customize-eat))
+    :ensure t
+    :defer t
+    :config
+    (eat-eshell-mode)
+    (eat-eshell-visual-command-mode)
+    (setopt eat-term-name "xterm-256color")
+    (setopt eat-default-cursor-type '(box 0.5 hollow))
+    (defun my/customize-eat ()
+      (face-remap-add-relative 'default 'my/term-bg)
+      (face-remap-add-relative 'fringe 'my/term-bg)
+      (setq cursor-type 'box)
+      (setq cursor-in-non-selected-windows t))
+    (add-hook 'eat-mode-hook #'my/customize-eat))
 
 (use-package magit
-  :ensure t
-  :defer t
-  :bind (("C-x g" . magit-status)
-         ("C-x G" . magit-dispatch)
-         :map transient-map ("<escape>" . transient-quit-one))
-  :config (global-unset-key (kbd "C-x M-g")))
+    :ensure t
+    :defer t
+    :bind (("C-x g" . magit-status)
+           ("C-x G" . magit-dispatch)
+           :map transient-map ("<escape>" . transient-quit-one))
+    :config (global-unset-key (kbd "C-x M-g")))
 
-(use-package transpose-frame :ensure t)
+(use-package transpose-frame :ensure t :defer t)
 (use-package yaml-mode :ensure t :defer t)
 (use-package json-mode :ensure t :defer t)
 (use-package ca65-mode :ensure t :defer t)
@@ -408,168 +436,182 @@
 (use-package docker-compose-mode :ensure t :defer t)
 (use-package dockerfile-mode :ensure t :defer t)
 (use-package docker
-  :ensure t
-  :defer t
-  :config
-  (setopt docker-show-status nil)
-  (setopt docker-compose-command "docker compose"))
+    :ensure t
+    :defer t
+    :config
+    (setopt docker-show-status nil)
+    (setopt docker-compose-command "docker compose"))
 
 
 (use-package projectile
-  :ensure t
-  :init (projectile-mode t)
-  :bind (:map projectile-mode-map ("C-c p" . projectile-command-map))
-  :config
-  (projectile-register-project-type 'godot '("project.godot")
-                                    :project-file "project.godot"))
+    :ensure t
+    :defer t
+    :init (projectile-mode t)
+    :bind (:map projectile-mode-map ("C-c p" . projectile-command-map))
+    :config
+    (projectile-register-project-type 'godot '("project.godot")
+                                      :project-file "project.godot"))
 
 (use-package ibuffer-sidebar
     :ensure t
+    :demand
     :config
     ;; setq is used here because I get type errors if I use setopt
-    (setq ibuffer-shrink-to-minimum-size t)
-    (setopt ibuffer-sidebar-refresh-timer 1)
-    (setopt ibuffer-default-shrink-to-minimum-size t)
-    (setq ibuffer-sidebar-mode-line-format '("     "))
+    (setq ibuffer-sidebar-mode-line-format '(""))
+    (setq ibuffer-sidebar-width 24)
     (setq ibuffer-sidebar-face 'my/ibuffer-face)
-    (setopt ibuffer-use-header-line nil)
-    (setopt ibuffer-sidebar-use-custom-font t)
-    (setopt ibuffer-default-sorting-mode 'alphabetic)
+    (setq ibuffer-use-header-line nil)
+    (setq ibuffer-sidebar-use-custom-font t)
+    (setq ibuffer-default-sorting-mode 'alphabetic)
     (setq ibuffer-sidebar-display-alist
           '((side . left) (slot . -1) (window-height . 0.2)))
     (setq ibuffer-sidebar-special-refresh-commands
-            '((kill-buffer . 0)
-              (find-file . 0)
-              (delete-file . 0)
-              (kill-current-buffer . 0)))
-    (setopt ibuffer-show-empty-filter-groups nil)
-    ;; TODO: This doesn't seem to work
+          '((kill-buffer . 0)
+            (find-file . 0)
+            (delete-file . 0)
+            (kill-current-buffer . 0)))
+    (setq ibuffer-show-empty-filter-groups nil)
     (setq ibuffer-saved-filter-groups
-            '(("Home"
-               ("Code" (mode . prog-mode)))))
+          '(("Groups"
+             ("Files" (visiting-file))
+             ("Processes" (process))
+             ("Docs" (or (derived-mode . help-mode)
+                         (derived-mode . apropos-mode)
+                         (derived-mode . Info-mode)
+                         (derived-mode . helpful-mode)
+                         (derived-mode . shortdoc-mode)
+                         (derived-mode . eww-mode)
+                         (derived-mode . doc-view-mode)))
+             ("Customize" (derived-mode . Custom-mode))
+             ("Other" (name . "\\*"))
+             )))
+    (define-ibuffer-column icon (:name "Icon")
+      (with-current-buffer buffer
+        (nerd-icons-icon-for-buffer)))
+    (setq ibuffer-sidebar-formats '((" " mark " " icon " " name)))
+    (setq ibuffer-hidden-filter-groups '("Other"))
+    (defun my/ibuffer-load-groups ()
+      (ibuffer-switch-to-saved-filter-groups "Groups"))
+    (add-hook 'ibuffer-mode-hook #'my/ibuffer-load-groups)
     (add-to-list 'ibuffer-sidebar-special-refresh-commands 'kill-current-buffer)
     (keymap-set ibuffer-name-map "<mouse-1>" #'ibuffer-mouse-visit-buffer)
-    (keymap-set ibuffer-name-map "<mouse-2>" #'ibuffer-mouse-toggle-mark)
+    (defun my/ibuffer-kill-mouse-buffer (event)
+      (interactive "e")
+      (when-let ((win (ibuffer-sidebar-showing-sidebar-p)))
+        (with-selected-window win
+          (let ((pt (save-excursion
+                      (mouse-set-point event)
+                      (point))))
+            (goto-char pt)
+            (when-let ((buf (ignore-errors (ibuffer-current-buffer t))))
+              (kill-buffer buf))))))
+    (keymap-set ibuffer-name-map "<mouse-2>" #'my/ibuffer-kill-mouse-buffer)
+    (keymap-set ibuffer-mode-filter-group-map "<mouse-1>" #'ibuffer-mouse-toggle-filter-group)
+    (keymap-set ibuffer-mode-filter-group-map "<mouse-2>" #'ibuffer-mouse-toggle-mark)
     (defun my/customize-ibuffer ()
       (face-remap-add-relative 'fringe 'my/treemacs-bg)
-      (face-remap-add-relative 'mode-line-active
-                               :underline
-                               `(:color ,(catppuccin-color 'base) :position 12)
-                               :box nil
-                               :foreground (catppuccin-color 'base)
-                               :background (catppuccin-color 'crust)
-                               )
-      (face-remap-add-relative 'mode-line-inactive
-                               :underline
-                               `(:color ,(catppuccin-color 'base) :position 12)
-                               :box nil
-                               :foreground (catppuccin-color 'base)
-                               :background (catppuccin-color 'crust))
+      ;; "underline" the empty modeline to act as a draggable resize handle
+      (dolist (face '(mode-line-active mode-line-inactive))
+        (face-remap-add-relative face 'my/ibuffer-modeline))
+      (face-remap-add-relative ibuffer-filter-group-name-face 'my/ibuffer-group)
       (set-fringe-mode 10))
-    (add-hook 'ibuffer-sidebar-mode-hook #'my/customize-ibuffer))
+    (add-hook 'ibuffer-sidebar-mode-hook #'my/customize-ibuffer)
+    (defun my/ibuffer-remove-header (_)
+      (save-excursion
+        (when-let ((buf (ibuffer-sidebar-buffer)))
+          (with-current-buffer buf
+            (let ((ro buffer-read-only))
+              (setq-local buffer-read-only nil)
+              (unwind-protect
+                   (progn
+                     (goto-char 1)
+                     (search-forward "-\n" nil t)
+                     (delete-region 1 (point)))
+                (setq-local buffer-read-only ro)))))))
+    (advice-add 'ibuffer-update-title-and-summary :after #'my/ibuffer-remove-header))
 
-;(use-package nerd-icons-ibuffer
-;    :ensure t
-;    :hook (ibuffer-mode . nerd-icons-ibuffer-mode))
 
 (use-package treemacs
-  :ensure t
-  :bind (("C-x C-d" . treemacs)
-         ("C-x d" . treemacs-select-window)
-         :map treemacs-mode-map
-         ([mouse-1] . treemacs-single-click-expand-action))
-  :init (add-hook 'window-setup-hook #'treemacs-start-on-boot)
-  :config
-  (setopt treemacs-width 24)
-  (setopt treemacs-is-never-other-window t)
-  (setopt imenu-auto-rescan t)
-  (treemacs-follow-mode -1)
-  (defun my/treemacs-hide-modeline (&rest _)
-    (when (treemacs-is-treemacs-window-selected?)
-      (setq mode-line-format nil)
-      (set-window-fringes (selected-window) 10 1)))
-  (defun my/customize-treemacs ()
-    (dolist (face '(treemacs-root-face treemacs-root-remote-face
-                    treemacs-root-remote-disconnected-face
-                    treemacs-root-remote-unreadable-face))
-      (face-remap-add-relative face 'my/treemacs-big-face))
-    (dolist (face '(treemacs-directory-face
-                    treemacs-file-face
-                    treemacs-git-unmodified-face
-                    treemacs-git-modified-face
-                    treemacs-git-added-face
-                    treemacs-git-conflict-face
-                    treemacs-git-renamed-face
-                    treemacs-git-untracked-face
-                    treemacs-tags-face
-                    treemacs-term-node-face
-                    treemacs-marked-file-face
-                    treemacs-git-commit-diff-face
-                    treemacs-async-loading-face))
-      (face-remap-add-relative face 'my/treemacs-face))
-    (face-remap-add-relative 'treemacs-window-background-face 'my/treemacs-bg))
-  ;; Play nice with transpose-frame by forcing treemacs to hide
-  (defun my/treemacs-ensure-hidden (&rest _)
-    (let ((visible (progn (treemacs--select-visible-window)
-                          (treemacs-is-treemacs-window? (selected-window)))))
-      (when visible (treemacs))
-      visible))
-  (add-hook 'treemacs-select-functions #'my/treemacs-hide-modeline)
-  (advice-add 'transpose-frame :before #'my/treemacs-ensure-hidden)
-  (advice-add 'flip-frame :before #'my/treemacs-ensure-hidden)
-  (advice-add 'flop-frame :before #'my/treemacs-ensure-hidden)
-  (advice-add 'rotate-frame :before #'my/treemacs-ensure-hidden)
-  (advice-add 'rotate-frame-clockwise :before #'my/treemacs-ensure-hidden)
-  (advice-add 'rotate-frame-anticlockwise :before #'my/treemacs-ensure-hidden)
-  (add-hook 'treemacs-mode-hook #'my/customize-treemacs))
+    :ensure t
+    :demand
+    :config
+    (setopt treemacs-is-never-other-window t)
+    (setopt treemacs-select-when-already-in-treemacs 'move-back)
+    (setopt treemacs-width-is-initially-locked nil)
+    (setopt treemacs-width 24)
+    (treemacs-follow-mode -1)
+    (defun my/treemacs-hide-modeline (&rest _)
+      (when (treemacs-is-treemacs-window-selected?)
+        (setq mode-line-format nil)
+        (set-window-fringes (selected-window) 10 1)))
+    (defun my/customize-treemacs ()
+      (keymap-set treemacs-mode-map "<mouse-1>" #'treemacs-single-click-expand-action)
+      (face-remap-add-relative 'treemacs-root-face 'my/ibuffer-group)
+      (dolist (face '(treemacs-root-face treemacs-root-remote-face
+                      treemacs-root-remote-disconnected-face
+                      treemacs-root-remote-unreadable-face))
+        (face-remap-add-relative face 'my/treemacs-big-face))
+      (dolist (face '(treemacs-directory-face treemacs-file-face
+                      treemacs-git-unmodified-face treemacs-git-modified-face
+                      treemacs-git-added-face treemacs-git-conflict-face
+                      treemacs-git-renamed-face treemacs-git-untracked-face
+                      treemacs-tags-face treemacs-term-node-face
+                      treemacs-marked-file-face treemacs-git-commit-diff-face
+                      treemacs-async-loading-face))
+        (face-remap-add-relative face 'my/treemacs-face))
+      (face-remap-add-relative 'treemacs-window-background-face 'my/treemacs-bg))
+    (add-hook 'treemacs-select-functions #'my/treemacs-hide-modeline)
+    (add-hook 'treemacs-mode-hook #'my/customize-treemacs))
 
 (use-package treemacs-tab-bar
-  :ensure t
-  :after treemacs)
+    :ensure t
+    :after treemacs)
 
 (use-package treemacs-projectile
-  :ensure t
-  :after (treemacs projectile))
+    :ensure t
+    :after (treemacs projectile))
 
 (use-package treemacs-nerd-icons
-  :ensure t
-  :after treemacs
-  :config (treemacs-load-theme "nerd-icons"))
+    :ensure t
+    :after treemacs
+    :config (treemacs-load-theme "nerd-icons"))
 
 (use-package hydra :ensure t :defer t)
 
 (use-package flycheck
-  :ensure t
-  :init (add-hook 'prog-mode-hook #'flycheck-mode)
-  :bind (("C-c e" . flycheck-next-error)
-         ("C-c E" . flycheck-previous-error)
-         ("C-c C-e" . flycheck-list-errors))
-  :config (setq-default flycheck-disabled-checkers '(emacs-lisp-checkdoc)))
+    :ensure t
+    :defer t
+    :init (add-hook 'prog-mode-hook #'flycheck-mode)
+    :bind (("C-c e" . flycheck-next-error)
+           ("C-c E" . flycheck-previous-error)
+           ("C-c C-e" . flycheck-list-errors))
+    :config (setq-default flycheck-disabled-checkers '(emacs-lisp-checkdoc)))
 
 (use-package lsp-mode
-  :ensure t
-  :init
-  (defun my/ls-mode-setup-completion ()
-    (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
-          '(flex)))
-  :hook
-  (lsp-mode . lsp-enable-which-key-integration)
-  (lsp-completion-mode . my/lsp-mode-setup-completion)
-  :config
-  (setopt lsp-keymap-prefix "C-c l")
-  (setopt lsp-completion-provider :none))
+    :ensure t
+    :defer t
+    :init
+    (defun my/ls-mode-setup-completion ()
+      (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
+            '(flex)))
+    :hook
+    (lsp-mode . lsp-enable-which-key-integration)
+    (lsp-completion-mode . my/lsp-mode-setup-completion)
+    :config
+    (setopt lsp-keymap-prefix "C-c l")
+    (setopt lsp-completion-provider :none))
 
 (use-package dap-mode :ensure t :defer t)
 
 (use-package gdscript-mode
-  :ensure t
-  :after lsp-mode
-  :defer t
-  :if (eq system-type 'windows-nt)
-  :bind (:map gdscript-mode-map ("<F5>" . gdscript-godot-run-project))
-  :config
-  (setq gdscript-use-tab-indents nil)
-  (setq gdscript-godot-executable "C:/Programs/Executables/godot.exe"))
+    :ensure t
+    :after lsp-mode
+    :defer t
+    :if (eq system-type 'windows-nt)
+    :bind (:map gdscript-mode-map ("<F5>" . gdscript-godot-run-project))
+    :config
+    (setq gdscript-use-tab-indents nil)
+    (setq gdscript-godot-executable "C:/Programs/Executables/godot.exe"))
 
 (use-package gdscript-hydra :ensure nil :after gdscript-mode :defer t)
 
@@ -577,6 +619,7 @@
 ;; gdscript/capabilities notification. This ignores it.
 (use-package lsp-gdscript
   :ensure nil
+  :defer t
   :after gdscript-mode
   :defines lsp-register-client make-lsp-client lsp-gdscript-tcp-connect-to-port lsp-activate-on
   :config
@@ -594,13 +637,22 @@
   (set-fringe-bitmap-face 'right-curly-arrow 'ansi-color-magenta)
   (set-fringe-bitmap-face 'left-curly-arrow 'ansi-color-magenta))
 
+(use-package helpful
+    :ensure t
+    :config
+    (keymap-global-set "C-h f" #'helpful-callable)
+    (keymap-global-set "C-h v" #'helpful-variable)
+    (keymap-global-set "C-h k" #'helpful-key)
+    (keymap-global-set "C-h x" #'helpful-command)
+    (keymap-global-set "C-h C-h" #'helpful-at-point))
+
 (use-package slime
-  :ensure t
+    :ensure t
+    :defer t
   :config (setopt inferior-lisp-program "sbcl"))
 
 (use-package server
   :ensure nil
-  :defines server-running-p
   :if (eq system-type 'windows-nt)
   :config (unless (server-running-p) (server-start)))
 
@@ -640,9 +692,21 @@
 (defun my/customize-help ()
   (face-remap-add-relative 'default 'my/help-bg)
   (face-remap-add-relative 'fringe 'my/help-bg))
+
 (add-hook 'help-mode-hook #'my/customize-help)
+(add-hook 'helpful-mode-hook #'my/customize-help)
 (add-hook 'Custom-mode-hook #'my/customize-help)
 (add-hook 'apropos-mode-hook #'my/customize-help)
+(add-hook 'shortdoc-mode-hook #'my/customize-help)
+
+;; Even with helpful, the built-in help will get called from time to time.
+;; Rename help buffers based on their topic.
+(defun my/help-rename (&rest _)
+  (when (string= (buffer-name) "*Help*")
+    (let ((sym (plist-get help-mode--current-data :symbol)))
+      (when sym
+        (rename-buffer (concat "*Help* [" (symbol-name sym) "]"))))))
+(advice-add 'help-make-xrefs :after #'my/help-rename)
 
 (defun my/customize-minibuffer ()
   (face-remap-add-relative 'default 'my/minibuffer-bg)
@@ -673,6 +737,7 @@
 
 ;; Fixes indentation of quoted lists
 (setopt lisp-indent-function 'common-lisp-indent-function)
+(setopt lisp-indent-defun-method '(2 &lambda &body))
 
 ;; Built-in completion options
 (setopt enable-recursive-minibuffers t)
@@ -823,8 +888,72 @@ Preserve window configuration when pressing ESC."
 
 (global-set-key (kbd "M-[") 'previous-file-buffer)
 (global-set-key (kbd "M-]") 'next-file-buffer)
+;; Ctrl+Alt allows cycling any buffers, not just ones with files
+(global-set-key (kbd "C-M-[") 'previous-buffer)
+(global-set-key (kbd "C-M-]") 'next-buffer)
 (global-set-key [mouse-8] 'back-or-previous-buffer)
 (global-set-key [mouse-9] 'forward-or-next-buffer)
+
+
+;; My custom sidebar, treemacs + ibuffer-sidebar
+(defun show-sidebar ()
+  (interactive)
+  (treemacs-select-window)
+  (when (treemacs-is-treemacs-window-selected?)
+    (treemacs-select-window))
+  (redisplay) ; somehow keeps both in sync, sometimes breaks without
+  (ibuffer-sidebar-show-sidebar)
+  (with-selected-window (ibuffer-sidebar-showing-sidebar-p)
+    (setq-local window-size-fixed nil)))
+
+
+(defun hide-sidebar ()
+  (interactive)
+  (when-let ((treemacs-window (treemacs-get-local-window)))
+    (delete-window treemacs-window))
+  ;; Documentation on this is wrong (it returns the window, not the buffer)
+  (when-let ((ibuffer-window (ibuffer-sidebar-showing-sidebar-p)))
+    (delete-window ibuffer-window)))
+
+(defun toggle-sidebar ()
+  (interactive)
+  (if (and (treemacs-get-local-window)
+           (ibuffer-sidebar-showing-sidebar-p))
+      (hide-sidebar)
+    (show-sidebar)))
+
+
+
+(add-hook 'window-setup-hook #'show-sidebar 99)
+(add-hook 'server-after-make-frame-hook #'show-sidebar 99)
+
+(defun my/first-time-theme-setup ()
+  (theme-dark)
+  (remove-hook 'window-setup-hook 'my/first-time-theme-setup)
+  (remove-hook 'server-after-make-frame-hook 'my/first-time-theme-setup))
+(add-hook 'window-setup-hook #'my/first-time-theme-setup)
+(add-hook 'server-after-make-frame-hook #'my/first-time-theme-setup)
+
+(keymap-global-set "C-c C-d" 'toggle-sidebar)
+
+;; Make the sidebar play nice with transpose-frame and related functions.
+;; Lots of paranoid redisplays here to make sure window changes have applied.
+(defun my/hide-and-restore-sidebar (fn &rest args)
+  (let ((treemacs-window (treemacs-get-local-window))
+        (ibuffer-window (ibuffer-sidebar-showing-sidebar-p)))
+    (when treemacs-window (delete-window treemacs-window))
+    (when ibuffer-window (delete-window ibuffer-window))
+    (redisplay)
+    (apply fn args)
+    (let ((cur-win (selected-window)))
+      (when treemacs-window (treemacs-select-window) (redisplay))
+      (when ibuffer-window (ibuffer-sidebar-show-sidebar) (redisplay))
+      (select-window cur-win))))
+
+(dolist (fn '(transpose-frame flip-frame flop-frame rotate-frame
+              rotate-frame-clockwise rotate-frame-anticlockwise))
+  (advice-add fn :around #'my/hide-and-restore-sidebar))
+
 
 ;; Make C-x k kill the current buffer without prompting to select a buffer
 (defun kill-current-buffer ()
@@ -832,20 +961,18 @@ Preserve window configuration when pressing ESC."
   (kill-buffer (current-buffer)))
 (keymap-global-set "C-x k" 'kill-current-buffer)
 
-(defun quick-describe-function ()
-  (interactive)
-  (describe-function (symbol-at-point)))
-
-(defun quick-describe-variable ()
-  (interactive)
-  (describe-variable (symbol-at-point)))
-
 (keymap-global-set "C-S-s" 'isearch-backward)
+(keymap-set isearch-mode-map "C-S-s" 'isearch-repeat-backward)
 (keymap-set help-mode-map "q" 'kill-current-buffer)
 ;(keymap-set backtrace-mode-map "q" 'kill-current-buffer)
 (keymap-set special-mode-map "q" 'kill-current-buffer)
-(keymap-global-set "C-h C-f" 'quick-describe-function)
-(keymap-global-set "C-h C-v" 'quick-describe-variable)
+
+
+;; Vim-style, join down instead of up
+(defun vim-join-line ()
+  (interactive)
+  (delete-indentation t))
+(keymap-global-set "C-S-j" 'vim-join-line)
 
 (keymap-set minibuffer-mode-map "TAB" 'minibuffer-complete)
 
