@@ -61,10 +61,11 @@
         (setq font-variable-pitch "Asap SemiCondensed"))
        ((my/font-available-p "Roboto") (setq font-variable-pitch "Roboto")))))
 
-    (set-face-attribute 'default nil :family font-mono :height 130)
-    (set-face-attribute 'fixed-pitch nil :family font-mono :height 130)
-    (set-face-attribute 'fixed-pitch-serif nil :family font-fixed-serif :height 130)
-    (set-face-attribute 'variable-pitch nil :family font-variable-pitch :height 130 :weight 'medium)))
+    (set-face-attribute 'default nil :family font-mono :height 120)
+    (set-face-attribute 'fixed-pitch nil :family font-mono :height 120)
+    (set-face-attribute 'fixed-pitch-serif nil :family font-fixed-serif :height 120)
+    (set-face-attribute 'variable-pitch nil :family font-variable-pitch :height 120
+                        :weight 'medium)))
 
 (add-hook 'server-after-make-frame-hook #'my/setup-fonts -90)
 (add-hook 'window-setup-hook #'my/setup-fonts -90)
@@ -77,6 +78,9 @@
 (defface my/term-bg
   '((default :inherit default))
   "term background color")
+(defface my/modeline-highlight
+    '((default :box '(:line-width (-2 . -2) :style flat-button)))
+  "mouseover highlight for mode line items")
 (defface my/treemacs-bg
   '((default :inherit default))
   "treemacs background color")
@@ -88,11 +92,8 @@
              :height 1.1))
   "treemacs projects")
 (defface my/ibuffer-face
-    '((default :inherit variable-pitch :height 1.0))
+    '((default :inherit variable-pitch :height 0.9))
   "ibuffer sidebar face")
-(defface my/ibuffer-modeline
-    '((default :box nil :height 1.0))
-  "ibuffer modeline (resize grab-bar)")
 (defface my/ibuffer-group
     '((default :inherit variable-pitch :height 0.9))
   "ibuffer filter group")
@@ -112,12 +113,11 @@
 (package-initialize)
 (unless package-archive-contents (package-refresh-contents))
 (setopt package-native-compile t)
-(unless (package-installed-p 'use-package) (package-install 'use-package))
-(require 'use-package)
 ;; Uncomment to profile startup
 ;; (setopt use-package-compute-statistics t)
 (setopt use-package-enable-imenu-support t)
-(add-to-list 'load-path (expand-file-name "lisp" user-emacs-directory))
+(unless (package-installed-p 'use-package) (package-install 'use-package))
+(require 'use-package)
 
 (use-package no-littering
   :ensure t
@@ -177,9 +177,13 @@
     (set-face-attribute 'cursor nil
                         :background (my/adjust-fg (catppuccin-color 'text) 20))
     (set-face-attribute 'mode-line-active nil
-                        :background (catppuccin-darken (catppuccin-color 'mantle) 5))
+                        :background (my/adjust-bg (catppuccin-color 'base) 15)
+                        :box (list :line-width '(-1 . 1) :style 'flat-button
+                                   :color (catppuccin-color 'overlay2)))
     (set-face-attribute 'mode-line-inactive nil
-                        :background (catppuccin-lighten (catppuccin-color 'mantle) 5))
+                        :background (catppuccin-color 'crust)
+                        :box (list :line-width '(-1 . 1) :style 'flat-button
+                                   :color (catppuccin-color 'surface0)))
     ;; Default rainbow colors are too easy to mix up when side-by-side
     (dolist (pair '((rainbow-delimiters-depth-1-face . text)
                     (rainbow-delimiters-depth-2-face . blue)
@@ -197,20 +201,26 @@
                    `((t (:background ,(catppuccin-color 'red)
                                      :foreground unspecified
                                      :weight bold))))
-    (let ((match-border (catppuccin-darken (catppuccin-color 'crust)
+    (face-spec-set 'window-divider-last-pixel
+                   `((t (:foreground ,(catppuccin-color 'base)))))
+    (face-spec-set 'window-divider-first-pixel
+                   `((t (:foreground ,(catppuccin-color 'base)))))
+    (let ((dark-border (catppuccin-darken (catppuccin-color 'crust)
                                            (pcase catppuccin-flavor
                                              ('latte 20)
                                              (_ 40)))))
+      (face-spec-set 'window-divider
+                     `((t (:foreground ,dark-border))))
       (set-face-attribute 'show-paren-match nil
                           :background (catppuccin-color 'crust)
                           :foreground 'unspecified
                           :inverse-video nil
-                          :box `(:line-width (-2 . -2) :color ,match-border)
+                          :box `(:line-width (-2 . -2) :color ,dark-border)
                           :weight 'bold))
     (set-face-attribute 'tab-bar nil
-                        :background (catppuccin-color 'mantle))
+                        :background (catppuccin-color 'crust))
     (set-face-attribute 'tab-bar-tab-inactive nil
-                        :background (catppuccin-color 'mantle)
+                        :background (catppuccin-color 'crust)
                         :family font-variable-pitch)
     (set-face-attribute 'tab-bar-tab nil
                         :background (catppuccin-color 'base)
@@ -228,10 +238,6 @@
                         :background (my/adjust-bg (catppuccin-color 'mantle) 10))
     (set-face-attribute 'my/ibuffer-face nil
                         :background (my/adjust-bg (catppuccin-color 'mantle) 10))
-    (set-face-attribute 'my/ibuffer-modeline nil
-                        :underline `(:color ,(catppuccin-color 'surface1) :position 12)
-                        :box nil
-                        :background (my/adjust-bg (catppuccin-color 'mantle) 10))
     (set-face-attribute 'my/ibuffer-group nil
                         :foreground (catppuccin-color 'teal)
                         :weight 'normal)
@@ -245,37 +251,38 @@
 (use-package doom-modeline
     :ensure t
     :custom ((doom-modeline-icon t)
-             (doom-modeline-minor-modes t))
+             (doom-modeline-minor-modes t)
+             (doom-modeline-bar-width 1)
+             (doom-modeline-height 24)
+             (doom-modeline-buffer-file-name-style 'relative-from-project)
+             (doom-modeline-buffer-encoding 'nondefault)
+             (doom-modeline-workspace-name nil)
+             (doom-modeline-irc nil)
+             (doom-modeline-display-misc-in-all-mode-lines nil))
     :config
-    ;; Format buffers as "dirname/filename" instead of "filename<dirname>".
-    ;; Keeps the original formatting if the buffer isn't visiting a real file.
-    (defun my/buffer-name ()
-      (if (not (buffer-file-name))
-          (buffer-name)
-        (let ((name (buffer-name)))
-          (save-match-data
-            (rx-let ((name-exp (group (1+ (not (in "<>"))))))
-              (if (string-match (rx bos name-exp "<" name-exp ">" eos) name)
-                  (concat (match-string 2 name) "/" (match-string 1 name))
-                name))))))
-    (defun my/buffer-info ()
+    (defun my/propertize-buffer-name (name tooltip)
       (or
        (ignore-errors
          (concat
           (doom-modeline-spc)
           (doom-modeline--buffer-mode-icon)
           (doom-modeline--buffer-state-icon)
-          (propertize (my/buffer-name)
-                      'help-echo "Buffer name"
+          (propertize name
+                      'help-echo tooltip
                       'face 'doom-modeline-buffer-file
+                      'mouse-face 'my/modeline-highlight
                       'local-map (let ((map (make-sparse-keymap)))
                                    (define-key map [mode-line mouse-1] 'mouse-buffer-menu)
                                    (define-key map [mode-line mouse-2] 'mouse-buffer-menu)
                                    (define-key map [mode-line mouse-3] 'mouse-buffer-menu)
                                    map)))) ""))
     ;; Overwrite the built-in buffer info segments
-    (doom-modeline-def-segment buffer-info (my/buffer-info))
-    (doom-modeline-def-segment buffer-info-simple (my/buffer-info))
+    (doom-modeline-def-segment buffer-info
+        (my/propertize-buffer-name (doom-modeline--buffer-name)
+         (or (buffer-file-name) "Buffer name")))
+    (doom-modeline-def-segment buffer-info-simple
+        (my/propertize-buffer-name (doom-modeline--buffer-simple-name)
+         (or (buffer-file-name) "Buffer name")))
     (doom-modeline-mode t))
 
 (use-package which-key
@@ -457,7 +464,7 @@
     :demand
     :config
     ;; setq is used here because I get type errors if I use setopt
-    (setq ibuffer-sidebar-mode-line-format '(""))
+    (setq ibuffer-sidebar-mode-line-format nil)
     (setq ibuffer-sidebar-width 24)
     (setq ibuffer-sidebar-face 'my/ibuffer-face)
     (setq ibuffer-use-header-line nil)
@@ -474,7 +481,9 @@
     (setq ibuffer-saved-filter-groups
           '(("Groups"
              ("Files" (visiting-file))
-             ("Processes" (process))
+             ("Shell" (or (derived-mode . eat-mode)
+                          (derived-mode . eshell-mode)))
+             ("Process" (process))
              ("Docs" (or (derived-mode . help-mode)
                          (derived-mode . apropos-mode)
                          (derived-mode . Info-mode)
@@ -483,6 +492,7 @@
                          (derived-mode . eww-mode)
                          (derived-mode . doc-view-mode)))
              ("Customize" (derived-mode . Custom-mode))
+             ("Magit" (name ."^magit"))
              ("Other" (name . "\\*"))
              )))
     (define-ibuffer-column icon (:name "Icon")
@@ -542,15 +552,23 @@
     (treemacs-follow-mode -1)
     (defun my/treemacs-hide-modeline (&rest _)
       (when (treemacs-is-treemacs-window-selected?)
+        (text-scale-set -1)
         (setq mode-line-format nil)
         (set-window-fringes (selected-window) 10 1)))
     (defun my/customize-treemacs ()
       (keymap-set treemacs-mode-map "<mouse-1>" #'treemacs-single-click-expand-action)
-      (face-remap-add-relative 'treemacs-root-face 'my/ibuffer-group)
-      (dolist (face '(treemacs-root-face treemacs-root-remote-face
-                      treemacs-root-remote-disconnected-face
-                      treemacs-root-remote-unreadable-face))
-        (face-remap-add-relative face 'my/treemacs-big-face))
+      (face-remap-add-relative 'treemacs-root-face
+                               'my/treemacs-big-face
+                               :foreground (catppuccin-color 'teal))
+      (face-remap-add-relative 'treemacs-root-remote-face
+                               'my/treemacs-big-face
+                               :foreground (catppuccin-color 'yellow))
+      (face-remap-add-relative 'treemacs-root-remote-disconnected-face
+                               'my/treemacs-big-face
+                               :foreground (catppuccin-color 'mauve))
+      (face-remap-add-relative 'treemacs-root-remote-unreadable-face
+                               'my/treemacs-big-face
+                               :foreground (catppuccin-color 'maroon))
       (dolist (face '(treemacs-directory-face treemacs-file-face
                       treemacs-git-unmodified-face treemacs-git-modified-face
                       treemacs-git-added-face treemacs-git-conflict-face
@@ -698,6 +716,7 @@
 (add-hook 'Custom-mode-hook #'my/customize-help)
 (add-hook 'apropos-mode-hook #'my/customize-help)
 (add-hook 'shortdoc-mode-hook #'my/customize-help)
+(add-hook 'Info-mode-hook #'my/customize-help)
 
 ;; Even with helpful, the built-in help will get called from time to time.
 ;; Rename help buffers based on their topic.
@@ -721,6 +740,7 @@
 (setopt auto-revert-interval 5)
 (setopt auto-revert-check-vc-info t)
 (global-auto-revert-mode t)
+
 (tool-bar-mode -1)
 (menu-bar-mode -1) ; shown in tab bar instead
 (indent-tabs-mode -1) ; always use spaces
@@ -731,9 +751,20 @@
 (set-fringe-mode 20)
 (minibuffer-depth-indicate-mode t)
 
+(setopt window-divider-default-right-width 3)
+(setopt window-divider-default-bottom-width 3)
+(setopt window-divider-default-places t)
+(window-divider-mode t)
+
+(setopt pixel-scroll-precision-use-momentum t)
+(setopt pixel-scroll-precision-interpolate-mice t)
+(setopt pixel-scroll-precision-interpolate-page nil)
+(setopt pixel-scroll-precision-large-scroll-height 1.0)
+(setopt pixel-scroll-precision-interpolation-factor 3.0)
+(pixel-scroll-precision-mode t)
+
 ;;;; Options
 ;;;; =========================================================================
-
 
 ;; Fixes indentation of quoted lists
 (setopt lisp-indent-function 'common-lisp-indent-function)
@@ -766,9 +797,17 @@
 (setopt sentence-end-double-space nil)
 (setopt vc-follow-symlinks t)
 
-(setopt mouse-wheel-progressive-speed nil)
-(setopt mouse-wheel-scroll-amount '(0.2))
+(setopt mouse-wheel-progressive-speed t)
+(setopt mouse-wheel-scroll-amount '(8))
+(setopt mouse-buffer-menu-maxlen 64)
+(setopt mouse-buffer-menu-mode-mult 999)
+(setopt mouse-drag-and-drop-region-scroll-margin 2)
+(setopt mouse-wheel-flip-direction t)
+(setopt mouse-wheel-tilt-scroll t)
+
 (setopt scroll-step 1) ; Allow scrolling line-by-line, mainly for terms
+(setopt hscroll-step 1)
+(setopt hscroll-margin 1)
 
 (setopt x-underline-at-descent-line nil)
 (setopt switch-to-buffer-obey-display-actions t)
@@ -789,6 +828,7 @@
 (setopt isearch-wrap-pause 'no-ding)
 (setopt search-default-mode t)
 
+(setopt Man-width-max 120)
 
 ;; EXPERIMENTAL, not quite working yet
 (when (my/windows-p)
