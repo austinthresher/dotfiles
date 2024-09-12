@@ -143,7 +143,16 @@
       (propertize (concat "  " txt "  ")
                   'face (funcall tab-bar-tab-face-function tab))))
   (setopt tab-bar-tab-name-format-function #'my/tab-bar-name-padded)
-  (global-set-key (kbd "C-S-t") 'tab-bar-new-tab-to)
+  (keymap-global-set "C-S-t" 'tab-bar-new-tab-to)
+  (keymap-global-set "M-1" (lambda () (interactive) (tab-bar-select-tab 1)))
+  (keymap-global-set "M-2" (lambda () (interactive) (tab-bar-select-tab 2)))
+  (keymap-global-set "M-3" (lambda () (interactive) (tab-bar-select-tab 3)))
+  (keymap-global-set "M-4" (lambda () (interactive) (tab-bar-select-tab 4)))
+  (keymap-global-set "M-5" (lambda () (interactive) (tab-bar-select-tab 5)))
+  (keymap-global-set "M-6" (lambda () (interactive) (tab-bar-select-tab 6)))
+  (keymap-global-set "M-7" (lambda () (interactive) (tab-bar-select-tab 7)))
+  (keymap-global-set "M-8" (lambda () (interactive) (tab-bar-select-tab 8)))
+  (keymap-global-set "M-9" (lambda () (interactive) (tab-bar-select-tab 9)))
   (tab-bar-mode t)
   (setq tab-bar-menu-bar-button (propertize " 󰍜 " 'face 'tab-bar)))
 
@@ -760,7 +769,10 @@
 (setopt pixel-scroll-precision-interpolate-mice t)
 (setopt pixel-scroll-precision-interpolate-page nil)
 (setopt pixel-scroll-precision-large-scroll-height 1.0)
-(setopt pixel-scroll-precision-interpolation-factor 3.0)
+(setopt pixel-scroll-precision-interpolation-factor 2.0)
+(setopt pixel-scroll-precision-interpolation-between-scroll (/ 1.0 60.0))
+(setopt pixel-scroll-precision-interpolation-total-time 0.25)
+
 (pixel-scroll-precision-mode t)
 
 ;;;; Options
@@ -798,7 +810,11 @@
 (setopt vc-follow-symlinks t)
 
 (setopt mouse-wheel-progressive-speed t)
-(setopt mouse-wheel-scroll-amount '(8))
+(setopt mouse-wheel-scroll-amount '(0.1
+                                    ((shift) . 0.9)
+                                    ((meta) . hscroll)
+                                    ((control) . text-scale)
+                                    ((control meta) . global-text-scale)))
 (setopt mouse-buffer-menu-maxlen 64)
 (setopt mouse-buffer-menu-mode-mult 999)
 (setopt mouse-drag-and-drop-region-scroll-margin 2)
@@ -829,6 +845,18 @@
 (setopt search-default-mode t)
 
 (setopt Man-width-max 120)
+
+(setopt switch-to-buffer-in-dedicated-window 'pop)
+(setopt switch-to-buffer-obey-display-actions t)
+
+;; FIXME: This isn't working, why?
+(setq-default display-buffer-alist
+        `(((or (major-mode . Info-mode)
+               (major-mode . help-mode)
+               (major-mode . helpful-mode)
+               (major-mode . apropos-mode))
+           (display-buffer-reuse-window display-buffer-pop-up-window))
+          ))
 
 ;; EXPERIMENTAL, not quite working yet
 (when (my/windows-p)
@@ -926,16 +954,21 @@ Preserve window configuration when pressing ESC."
             (ignore-errors (help-go-forward) t))
                   (next-buffer))))
 
-(global-set-key (kbd "M-[") 'previous-file-buffer)
-(global-set-key (kbd "M-]") 'next-file-buffer)
+(keymap-global-set "M-[" 'previous-file-buffer)
+(keymap-global-set "M-]" 'next-file-buffer)
 ;; Ctrl+Alt allows cycling any buffers, not just ones with files
-(global-set-key (kbd "C-M-[") 'previous-buffer)
-(global-set-key (kbd "C-M-]") 'next-buffer)
-(global-set-key [mouse-8] 'back-or-previous-buffer)
-(global-set-key [mouse-9] 'forward-or-next-buffer)
+(keymap-global-set "C-M-[" 'previous-buffer)
+(keymap-global-set "C-M-]" 'next-buffer)
+(keymap-global-set "<mouse-8>" 'back-or-previous-buffer)
+(keymap-global-set "<mouse-9>" 'forward-or-next-buffer)
 
+;; Middle clicking should delete the window instead of right click
+(keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
+;; Right click should _not_ delete the window, much too easy to do accidentally.
+;; Come up with something clever here, for now just show buffer menu.
+(keymap-global-set "<mode-line> <mouse-3>" 'mouse-buffer-menu)
 
-;; My custom sidebar, treemacs + ibuffer-sidebar
+;; my custom sidebar, treemacs + ibuffer-sidebar
 (defun show-sidebar ()
   (interactive)
   (treemacs-select-window)
@@ -1025,14 +1058,6 @@ Preserve window configuration when pressing ESC."
 
 ;;;; Misc
 ;;;; =========================================================================
-
-;; Close scratch once we open a file
-(defun my/close-scratch ()
-  (let ((buf (current-buffer)))
-    (when (get-buffer "*scratch*")
-      (when (kill-buffer "*scratch*")
-        (switch-to-buffer buf nil t)))))
-(add-hook 'find-file-hook #'my/close-scratch)
 
 (defun hide-buffer (name)
   (interactive "bBuffer to hide: ")
