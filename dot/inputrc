@@ -31,4 +31,7 @@ Control-w: unix-filename-rubout
 # Shift+backspace
 "\e[127;2u": "\b"
 
+# Somehow this makes Ctrl+backspace work
+"\b": backward-kill-word
+
 $endif

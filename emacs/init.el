@@ -1,6 +1,5 @@
 ;; -*- lexical-binding: t -*-
 
-
 ;;;; TODO:
 ;;;; =========================================================================
 ;; - Figure out how to show corfu help pop-up even when there is only
@@ -12,8 +11,6 @@
 ;;    OR checkout CUA mode's rectangle stuff, that might be better
 ;; - Use advice :override instead of redefining functions
 ;;   (currently doing this to customize doom-modeline and corfu, among others)
-;; - Precompute the extra theme colors made with darken / lighten to avoid
-;;   repeated calls
 
 
 ;;;; Early / system settings
@@ -84,6 +81,9 @@
 (defface my/treemacs-bg
   '((default :inherit default))
   "treemacs background color")
+(defface my/read-only
+    '((default :inherit default))
+  "face used for read-only buffers like *Messages*")
 (defface my/treemacs-face
   '((default :inherit variable-pitch :height 0.9))
   "treemacs files")
@@ -97,12 +97,18 @@
 (defface my/ibuffer-group
     '((default :inherit variable-pitch :height 0.9))
   "ibuffer filter group")
+(defface my/tab-bar-separator
+    '((default :width ultra-condensed :height 50))
+  "controls distance between tabs")
 (defface my/help-bg
   '((default :inherit default))
   "help background color")
 (defface my/minibuffer-bg
   '((default :inherit default))
   "minibuffer background color")
+(defface my/hl-line
+    '((default))
+  "hl-line background color")
 
 ;;;; Packages
 ;;;; =========================================================================
@@ -135,12 +141,13 @@
             tab-bar-format-tabs
             tab-bar-separator
             tab-bar-format-add-tab))
-  (setopt tab-bar-separator "")
+  (setopt tab-bar-separator " ")
   (setopt tab-bar-auto-width-max '(320 100))
   (setopt tab-bar-close-button-show nil)
+  (setopt tab-bar-tab-name-truncated-max 64)
   (defun my/tab-bar-name-padded (tab i)
     (let ((txt (tab-bar-tab-name-format-default tab i)))
-      (propertize (concat "  " txt "  ")
+      (propertize (format " %-64s " txt)
                   'face (funcall tab-bar-tab-face-function tab))))
   (setopt tab-bar-tab-name-format-function #'my/tab-bar-name-padded)
   (keymap-global-set "C-S-t" 'tab-bar-new-tab-to)
@@ -154,7 +161,7 @@
   (keymap-global-set "M-8" (lambda () (interactive) (tab-bar-select-tab 8)))
   (keymap-global-set "M-9" (lambda () (interactive) (tab-bar-select-tab 9)))
   (tab-bar-mode t)
-  (setq tab-bar-menu-bar-button (propertize " 󰍜 " 'face 'tab-bar)))
+  (setq tab-bar-menu-bar-button (propertize " 󰍜 " 'face 'my/minibuffer-bg)))
 
 (use-package whitespace
   :ensure nil
@@ -169,30 +176,59 @@
   :config
   (setopt rainbow-delimiters-outermost-only-face-count 1))
 
+(use-package memoize
+    :ensure t
+    :demand t
+    :config
+    ;; defmemoize will complain if we use it to redefine existing functions
+    (dolist (fn '(my/darken my/lighten my/desaturate my/saturate))
+      (setplist fn nil))
+    (defun my/normalize-color (color) ; memoizing this broke stuff
+      (if (not (string-prefix-p "#" color))
+          color
+        (if (= (length color) 13)
+            (let ((r (substring color 1 3))
+                  (g (substring color 5 7))
+                  (b (substring color 9 11)))
+              (concat "#" r g b))
+          color (message "after: %s" color))))
+    (defmemoize my/darken (color amt):
+      (my/normalize-color (color-darken-name color amt)))
+    (defmemoize my/lighten (color amt)
+      (my/normalize-color (color-lighten-name color amt)))
+    (defmemoize my/desaturate (color amt)
+      (my/normalize-color (color-desaturate-name color amt)))
+    (defmemoize my/saturate (color amt)
+      (my/normalize-color (color-saturate-name color amt)))
+    (defun my/adjust-fg (color amt)
+      (pcase frame-background-mode
+        ('light (my/darken color amt))
+        ('dark (my/lighten color amt))))
+    (defun my/adjust-bg (color amt)
+      (pcase frame-background-mode
+        ('light (my/lighten color amt))
+        ('dark (my/darken color amt)))))
+
 (use-package catppuccin-theme
   :ensure t
   :config
   (setopt catppuccin-flavor 'frappe)
   (setopt catppuccin-italic-comments t)
-  (defun my/adjust-bg (color amount)
-    (if (eq frame-background-mode 'light)
-        (catppuccin-lighten color amount)
-      (catppuccin-darken color amount)))
-  (defun my/adjust-fg (color amount)
-    (if (eq frame-background-mode 'light)
-        (catppuccin-darken color amount)
-      (catppuccin-lighten color amount)))
   (defun my/customize-catppuccin ()
+    (let ((bg-color (my/lighten (catppuccin-color 'base) 4)))
+      (set-face-attribute 'default nil :background bg-color)
+      (set-face-attribute 'fringe nil :background bg-color))
     (set-face-attribute 'cursor nil
                         :background (my/adjust-fg (catppuccin-color 'text) 20))
     (set-face-attribute 'mode-line-active nil
-                        :background (my/adjust-bg (catppuccin-color 'base) 15)
+                        :background (my/adjust-bg (catppuccin-color 'base) 25)
                         :box (list :line-width '(-1 . 1) :style 'flat-button
                                    :color (catppuccin-color 'overlay2)))
     (set-face-attribute 'mode-line-inactive nil
-                        :background (catppuccin-color 'crust)
+                        :foreground (catppuccin-color 'surface2)
+                        :background (my/darken (catppuccin-color 'base) 5)
                         :box (list :line-width '(-1 . 1) :style 'flat-button
-                                   :color (catppuccin-color 'surface0)))
+                                   :color (catppuccin-color 'surface1)))
     ;; Default rainbow colors are too easy to mix up when side-by-side
     (dolist (pair '((rainbow-delimiters-depth-1-face . text)
                     (rainbow-delimiters-depth-2-face . blue)
@@ -214,10 +250,10 @@
                    `((t (:foreground ,(catppuccin-color 'base)))))
     (face-spec-set 'window-divider-first-pixel
                    `((t (:foreground ,(catppuccin-color 'base)))))
-    (let ((dark-border (catppuccin-darken (catppuccin-color 'crust)
-                                           (pcase catppuccin-flavor
-                                             ('latte 20)
-                                             (_ 40)))))
+    (let ((dark-border (my/darken (catppuccin-color 'crust)
+                                  (pcase catppuccin-flavor
+                                    ('latte 20)
+                                    (_ 40)))))
       (face-spec-set 'window-divider
                      `((t (:foreground ,dark-border))))
       (set-face-attribute 'show-paren-match nil
@@ -226,36 +262,67 @@
                           :inverse-video nil
                           :box `(:line-width (-2 . -2) :color ,dark-border)
                           :weight 'bold))
-    (set-face-attribute 'tab-bar nil
-                        :background (catppuccin-color 'crust))
-    (set-face-attribute 'tab-bar-tab-inactive nil
-                        :background (catppuccin-color 'crust)
-                        :family font-variable-pitch)
     (set-face-attribute 'tab-bar-tab nil
                         :background (catppuccin-color 'base)
                         :family font-variable-pitch
-                        :weight 'bold)
+                        :height 120
+                        :weight 'bold
+                        :box (list :line-width '(-1 . -1) :style 'released-button
+                                   :color (catppuccin-color 'crust)))
+    (set-face-attribute 'tab-bar nil
+                        :background (my/darken (catppuccin-color 'crust) 5)
+                        :height 20 :family font-mono) ; tiny size shrinks spacer
+    (set-face-attribute 'tab-bar-tab-inactive nil
+                        :background (catppuccin-color 'crust)
+                        :family font-variable-pitch
+                        :height 120
+                        :foreground (my/desaturate (my/adjust-bg (catppuccin-color 'text) 30) 60)
+                        :box (list :line-width '(-1 . -1) :style 'released-button
+                                   :color (my/adjust-bg (catppuccin-color 'crust) 20)))
     (set-face-attribute 'my/term-bg nil
-                        :background (catppuccin-darken (catppuccin-color 'base) 10))
+                        :background
+                        (pcase frame-background-mode
+                          ('light (my/lighten (my/saturate (catppuccin-color 'base) 100) 2))
+                          ('dark (my/saturate (my/darken (catppuccin-color 'base) 20) 12))))
     (set-face-attribute 'my/help-bg nil
-                        :background (catppuccin-darken (catppuccin-color 'base) 5))
+                        :foreground
+                        (my/desaturate (my/adjust-bg (catppuccin-color 'text) 8) 40)
+                        :background
+                        (pcase frame-background-mode
+                          ('light (my/lighten (my/saturate (catppuccin-color 'base) 25) 2))
+                          ('dark (my/darken (my/desaturate (catppuccin-color 'base) 0) 15))))
+    (set-face-attribute 'my/read-only nil
+                        :foreground (catppuccin-color 'overlay2)
+                        :background (my/desaturate (catppuccin-color 'base) 6))
     (set-face-attribute 'my/minibuffer-bg nil
-                        :background (catppuccin-darken (catppuccin-color 'crust) 5))
-    (set-face-attribute 'my/treemacs-bg nil
-                        :background (my/adjust-bg (catppuccin-color 'mantle) 10))
-    (set-face-attribute 'my/treemacs-big-face nil
-                        :background (my/adjust-bg (catppuccin-color 'mantle) 10))
-    (set-face-attribute 'my/ibuffer-face nil
-                        :background (my/adjust-bg (catppuccin-color 'mantle) 10))
+                        :background (my/darken (catppuccin-color 'crust) 5)
+                        :height 120
+                        :family font-mono)
+    (let ((sidebar-color (pcase frame-background-mode
+                           ('light (catppuccin-color 'base))
+                           ('dark (my/darken (catppuccin-color 'crust) 15)))))
+      (set-face-attribute 'my/treemacs-bg nil :background sidebar-color)
+      (set-face-attribute 'my/treemacs-big-face nil :background sidebar-color)
+      (set-face-attribute 'my/ibuffer-face nil :background sidebar-color))
     (set-face-attribute 'my/ibuffer-group nil
                         :foreground (catppuccin-color 'teal)
                         :weight 'normal)
+    (set-face-attribute 'my/hl-line nil
+                        :extend t
+                        :background (catppuccin-color 'base))
+    (setopt hl-line-face 'my/hl-line)
+    (set-face-attribute 'widget-field nil
+                        :background (catppuccin-color 'surface0)
+                        :box (list :line-width '(1 . -1)
+                                   :color (catppuccin-color 'overlay0)))
     )
   (add-hook 'after-load-theme-hook #'my/customize-catppuccin))
 
 (use-package minions
     :ensure t
-    :config (minions-mode t))
+    :config
+    (add-to-list 'minions-prominent-modes 'view-mode)
+    (minions-mode t))
 
 (use-package doom-modeline
     :ensure t
@@ -338,6 +405,8 @@
     (setopt corfu-preselect 'valid)
     (setopt corfu-preview-current 'insert)
     (setopt corfu-on-exact-match 'insert)
+    (keymap-unset corfu-map "<remap> <move-beginning-of-line>")
+    (keymap-unset corfu-map "<remap> <move-end-of-line>")
     ;; For some reason, Corfu is hard-coded to not show the preview for
     ;; the first match in the list. This overrides the predicate to remove
     ;; that check.
@@ -372,6 +441,14 @@
     (add-hook 'completion-at-point-functions #'cape-dabbrev)
     (add-hook 'completion-at-point-functions #'cape-file))
 
+(use-package orderless
+    :ensure t
+    :custom
+    (orderless-component-separator #'orderless-escapable-split-on-space)
+    (completion-styles '(orderless flex basic))
+    (completion-category-defaults nil)
+    (completion-category-overrides '((file (styles partial-completion)))))
+
 (use-package dabbrev
     :ensure nil
     :bind (("M-/" . dabbrev-completion)
@@ -403,11 +480,18 @@
     :defer t
     :bind (("C-c a" . embark-act)))
 
+(defun my/customize-shell ()
+      (face-remap-add-relative 'default 'my/term-bg)
+      (face-remap-add-relative 'fringe 'my/term-bg)
+      (setq cursor-type 'box)
+      (setq cursor-in-non-selected-windows t))
+
 (use-package eshell
     :ensure t
     :defer t
     :init (defun my/setup-eshell ()
-            (keymap-set eshell-mode-map "C-r" 'consult-history))
+            (keymap-set eshell-mode-map "C-r" 'consult-history)
+            (my/customize-shell))
     :hook ((eshell-mode . my/setup-eshell)))
 
 (use-package eat
@@ -418,12 +502,7 @@
     (eat-eshell-visual-command-mode)
     (setopt eat-term-name "xterm-256color")
     (setopt eat-default-cursor-type '(box 0.5 hollow))
-    (defun my/customize-eat ()
-      (face-remap-add-relative 'default 'my/term-bg)
-      (face-remap-add-relative 'fringe 'my/term-bg)
-      (setq cursor-type 'box)
-      (setq cursor-in-non-selected-windows t))
-    (add-hook 'eat-mode-hook #'my/customize-eat))
+    (add-hook 'eat-mode-hook #'my/customize-shell))
 
 (use-package magit
     :ensure t
@@ -529,9 +608,6 @@
     (keymap-set ibuffer-mode-filter-group-map "<mouse-2>" #'ibuffer-mouse-toggle-mark)
     (defun my/customize-ibuffer ()
       (face-remap-add-relative 'fringe 'my/treemacs-bg)
-      ;; "underline" the empty modeline to act as a draggable resize handle
-      (dolist (face '(mode-line-active mode-line-inactive))
-        (face-remap-add-relative face 'my/ibuffer-modeline))
       (face-remap-add-relative ibuffer-filter-group-name-face 'my/ibuffer-group)
       (set-fringe-mode 10))
     (add-hook 'ibuffer-sidebar-mode-hook #'my/customize-ibuffer)
@@ -549,7 +625,6 @@
                 (setq-local buffer-read-only ro)))))))
     (advice-add 'ibuffer-update-title-and-summary :after #'my/ibuffer-remove-header))
 
-
 (use-package treemacs
     :ensure t
     :demand
@@ -558,6 +633,7 @@
     (setopt treemacs-select-when-already-in-treemacs 'move-back)
     (setopt treemacs-width-is-initially-locked nil)
     (setopt treemacs-width 24)
+    (setopt treemacs-move-files-by-mouse-dragging nil)
     (treemacs-follow-mode -1)
     (defun my/treemacs-hide-modeline (&rest _)
       (when (treemacs-is-treemacs-window-selected?)
@@ -628,7 +704,15 @@
     (setopt lsp-keymap-prefix "C-c l")
     (setopt lsp-completion-provider :none))
 
-(use-package dap-mode :ensure t :defer t)
+(use-package dap-mode
+    :ensure t
+    :defer t
+    :after lsp-mode)
+
+(use-package lsp-jedi
+    :ensure t
+    :defer t
+    :after lsp-mode)
 
 (use-package gdscript-mode
     :ensure t
@@ -679,9 +763,10 @@
   :config (setopt inferior-lisp-program "sbcl"))
 
 (use-package server
-  :ensure nil
-  :if (eq system-type 'windows-nt)
-  :config (unless (server-running-p) (server-start)))
+    :ensure nil
+    :demand t
+    :config (when (and (my/windows-p) (not (server-running-p)))
+              (server-start)))
 
 (use-package recentf
   :ensure nil
@@ -719,13 +804,21 @@
 (defun my/customize-help ()
   (face-remap-add-relative 'default 'my/help-bg)
   (face-remap-add-relative 'fringe 'my/help-bg))
-
 (add-hook 'help-mode-hook #'my/customize-help)
 (add-hook 'helpful-mode-hook #'my/customize-help)
 (add-hook 'Custom-mode-hook #'my/customize-help)
 (add-hook 'apropos-mode-hook #'my/customize-help)
 (add-hook 'shortdoc-mode-hook #'my/customize-help)
 (add-hook 'Info-mode-hook #'my/customize-help)
+
+(defun my/customize-read-only ()
+  (face-remap-add-relative 'default 'my/read-only)
+  (face-remap-add-relative 'fringe 'my/read-only))
+
+(add-hook 'view-mode-hook #'my/customize-read-only)
+(add-hook 'messages-buffer-mode-hook #'my/customize-read-only)
+(with-current-buffer (messages-buffer)
+  (my/customize-read-only))
 
 ;; Even with helpful, the built-in help will get called from time to time.
 ;; Rename help buffers based on their topic.
@@ -787,7 +880,7 @@
 (setopt completion-cycle-threshold nil)
 (setopt completions-detailed t)
 (setopt tab-always-indent 'complete)
-(setopt completion-styles '(basic flex))
+;; (setopt completion-styles '(basic flex))
 (setopt completions-max-height 8)
 (setopt completions-format 'one-column)
 (setopt completions-header-format nil)
@@ -849,14 +942,15 @@
 (setopt switch-to-buffer-in-dedicated-window 'pop)
 (setopt switch-to-buffer-obey-display-actions t)
 
-;; FIXME: This isn't working, why?
-(setq-default display-buffer-alist
-        `(((or (major-mode . Info-mode)
-               (major-mode . help-mode)
-               (major-mode . helpful-mode)
-               (major-mode . apropos-mode))
-           (display-buffer-reuse-window display-buffer-pop-up-window))
-          ))
+(setq display-buffer-alist
+      `(((or (major-mode . Info-mode)
+             (major-mode . help-mode)
+             (major-mode . helpful-mode)
+             (major-mode . apropos-mode)
+             (major-mode . Custom-mode))
+         (display-buffer-reuse-mode-window
+          display-buffer-below-selected))
+        ))
 
 ;; EXPERIMENTAL, not quite working yet
 (when (my/windows-p)
@@ -945,6 +1039,8 @@ Preserve window configuration when pressing ESC."
   (my/in-window-under-mouse
    (or (and (eq major-mode 'help-mode)
             (ignore-errors (help-go-back) t))
+       (and (eq major-mode 'Info-mode)
+            (ignore-errors (Info-history-back) t))
        (previous-buffer))))
 
 (defun forward-or-next-buffer ()
@@ -952,7 +1048,9 @@ Preserve window configuration when pressing ESC."
   (my/in-window-under-mouse
    (or (and (eq major-mode 'help-mode)
             (ignore-errors (help-go-forward) t))
-                  (next-buffer))))
+       (and (eq major-mode 'Info-mode)
+            (ignore-erors (Info-history-forward ) t))
+       (next-buffer))))
 
 (keymap-global-set "M-[" 'previous-file-buffer)
 (keymap-global-set "M-]" 'next-file-buffer)
@@ -971,10 +1069,12 @@ Preserve window configuration when pressing ESC."
 ;; my custom sidebar, treemacs + ibuffer-sidebar
 (defun show-sidebar ()
   (interactive)
-  (treemacs-select-window)
-  (when (treemacs-is-treemacs-window-selected?)
-    (treemacs-select-window))
-  (redisplay) ; somehow keeps both in sync, sometimes breaks without
+  (ignore-errors (treemacs-select-window))
+  (redisplay)
+  (ignore-errors
+    (when (treemacs-is-treemacs-window-selected?)
+      (treemacs-select-window))
+    (redisplay)) ; somehow keeps both in sync, sometimes breaks without
   (ibuffer-sidebar-show-sidebar)
   (with-selected-window (ibuffer-sidebar-showing-sidebar-p)
     (setq-local window-size-fixed nil)))
@@ -995,19 +1095,25 @@ Preserve window configuration when pressing ESC."
       (hide-sidebar)
     (show-sidebar)))
 
+(keymap-global-set "C-c C-d" 'toggle-sidebar)
 
-
-(add-hook 'window-setup-hook #'show-sidebar 99)
-(add-hook 'server-after-make-frame-hook #'show-sidebar 99)
-
+(defvar my/one-time-setup nil)
 (defun my/first-time-theme-setup ()
-  (theme-dark)
+  (unless my/one-time-setup
+    (setq my/one-time-setup t)
+    (message "one time theme apply %s" (server-running-p))
+    (theme-dark)
+    (message "done")
+    )
   (remove-hook 'window-setup-hook 'my/first-time-theme-setup)
   (remove-hook 'server-after-make-frame-hook 'my/first-time-theme-setup))
-(add-hook 'window-setup-hook #'my/first-time-theme-setup)
-(add-hook 'server-after-make-frame-hook #'my/first-time-theme-setup)
 
-(keymap-global-set "C-c C-d" 'toggle-sidebar)
+(unless (server-running-p)
+  (add-hook 'window-setup-hook #'my/first-time-theme-setup)
+  (add-hook 'window-setup-hook #'show-sidebar))
+
+(add-hook 'server-after-make-frame-hook #'my/first-time-theme-setup)
+(add-hook 'server-after-make-frame-hook #'show-sidebar)
 
 ;; Make the sidebar play nice with transpose-frame and related functions.
 ;; Lots of paranoid redisplays here to make sure window changes have applied.
@@ -1068,3 +1174,13 @@ Preserve window configuration when pressing ESC."
 
 ;; File-type mode detection special cases
 (add-to-list 'auto-mode-alist '("bashrc" . sh-mode)) ; no leading '.'
+
+;; Make emacs source files (from help links, etc) open in view mode
+;; NOTE: This should be after use-package stuff but before any files
+;;       that might need to be edited by hand are added to load-path
+(dir-locals-set-class-variables
+ 'emacs
+ '((nil . ((eval . (when buffer-file-name
+                     (view-mode-enter nil #'kill-buffer)))))))
+(dolist (path (cons source-directory load-path))
+  (dir-locals-set-directory-class path 'emacs))
