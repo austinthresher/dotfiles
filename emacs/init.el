@@ -2,8 +2,10 @@
 
 ;;;; TODO:
 ;;;; =========================================================================
-;; - Figure out how to show corfu help pop-up even when there is only
-;;   one match
+;; - Make ctrl+scroll text zoom use smaller steps
+;; - Look at tags to potentially add a tag navigation bar
+;; - Make right-click menu on modeline show options to split the window
+;; - Figure out how to show corfu help pop-up even when there is only one match
 ;; - Make tabs insert spaces in comments / non-syntax areas
 ;; - Make shift-tab unindent too
 ;; - Use keymap-global-set instead of global-set-key
@@ -85,17 +87,17 @@
     '((default :inherit default))
   "face used for read-only buffers like *Messages*")
 (defface my/treemacs-face
-  '((default :inherit variable-pitch :height 0.9))
+  '((default :inherit variable-pitch :height 1.0))
   "treemacs files")
 (defface my/treemacs-big-face
   '((default :inherit variable-pitch
              :height 1.1))
   "treemacs projects")
 (defface my/ibuffer-face
-    '((default :inherit variable-pitch :height 0.9))
+    '((default :inherit variable-pitch :height 1.0))
   "ibuffer sidebar face")
 (defface my/ibuffer-group
-    '((default :inherit variable-pitch :height 0.9))
+    '((default :inherit variable-pitch :height 1.0))
   "ibuffer filter group")
 (defface my/tab-bar-separator
     '((default :width ultra-condensed :height 50))
@@ -109,6 +111,24 @@
 (defface my/hl-line
     '((default))
   "hl-line background color")
+
+
+(defun my/get-window-under-mouse ()
+  (let ((mpos (mouse-position)))
+    (or (window-at (cadr mpos) (cddr mpos) (car mpos))
+        (selected-window))))
+
+(defun my/call-in-window-under-mouse (fn &rest args)
+  (let ((selected-window (selected-window))
+        (target-window (my/get-window-under-mouse)))
+    (unless (eq selected-window target-window)
+      (select-window target-window 'mark-for-redisplay))
+    (ignore-errors (apply fn args))
+    (unless (eq selected-window target-window)
+      (select-window selected-window t))))
+
+(defmacro my/in-window-under-mouse (&rest body)
+  `(my/call-in-window-under-mouse (lambda () ,@body)))
 
 ;;;; Packages
 ;;;; =========================================================================
@@ -191,7 +211,7 @@
                   (g (substring color 5 7))
                   (b (substring color 9 11)))
               (concat "#" r g b))
-          color (message "after: %s" color))))
+          color)))
     (defmemoize my/darken (color amt):
       (my/normalize-color (color-darken-name color amt)))
     (defmemoize my/lighten (color amt)
@@ -489,6 +509,7 @@
 (use-package eshell
     :ensure t
     :defer t
+    :defines eshell-mode-map
     :init (defun my/setup-eshell ()
             (keymap-set eshell-mode-map "C-r" 'consult-history)
             (my/customize-shell))
@@ -502,6 +523,8 @@
     (eat-eshell-visual-command-mode)
     (setopt eat-term-name "xterm-256color")
     (setopt eat-default-cursor-type '(box 0.5 hollow))
+    (keymap-set eat-eshell-char-mode-map "<escape>" 'eat-self-input)
+    (keymap-set eat-char-mode-map "<escape>" 'eat-self-input)
     (add-hook 'eat-mode-hook #'my/customize-shell))
 
 (use-package magit
@@ -547,25 +570,13 @@
     (projectile-register-project-type 'godot '("project.godot")
                                       :project-file "project.godot"))
 
-(use-package ibuffer-sidebar
-    :ensure t
-    :demand
+(use-package ibuffer
+    :ensure nil
+    :demand t
     :config
-    ;; setq is used here because I get type errors if I use setopt
-    (setq ibuffer-sidebar-mode-line-format nil)
-    (setq ibuffer-sidebar-width 24)
-    (setq ibuffer-sidebar-face 'my/ibuffer-face)
-    (setq ibuffer-use-header-line nil)
-    (setq ibuffer-sidebar-use-custom-font t)
-    (setq ibuffer-default-sorting-mode 'alphabetic)
-    (setq ibuffer-sidebar-display-alist
-          '((side . left) (slot . -1) (window-height . 0.2)))
-    (setq ibuffer-sidebar-special-refresh-commands
-          '((kill-buffer . 0)
-            (find-file . 0)
-            (delete-file . 0)
-            (kill-current-buffer . 0)))
     (setq ibuffer-show-empty-filter-groups nil)
+    (setq ibuffer-use-header-line nil)
+    (setq ibuffer-default-sorting-mode 'alphabetic)
     (setq ibuffer-saved-filter-groups
           '(("Groups"
              ("Files" (visiting-file))
@@ -586,44 +597,81 @@
     (define-ibuffer-column icon (:name "Icon")
       (with-current-buffer buffer
         (nerd-icons-icon-for-buffer)))
-    (setq ibuffer-sidebar-formats '((" " mark " " icon " " name)))
     (setq ibuffer-hidden-filter-groups '("Other"))
     (defun my/ibuffer-load-groups ()
       (ibuffer-switch-to-saved-filter-groups "Groups"))
     (add-hook 'ibuffer-mode-hook #'my/ibuffer-load-groups)
-    (add-to-list 'ibuffer-sidebar-special-refresh-commands 'kill-current-buffer)
-    (keymap-set ibuffer-name-map "<mouse-1>" #'ibuffer-mouse-visit-buffer)
     (defun my/ibuffer-kill-mouse-buffer (event)
       (interactive "e")
-      (when-let ((win (ibuffer-sidebar-showing-sidebar-p)))
-        (with-selected-window win
-          (let ((pt (save-excursion
-                      (mouse-set-point event)
-                      (point))))
-            (goto-char pt)
-            (when-let ((buf (ignore-errors (ibuffer-current-buffer t))))
-              (kill-buffer buf))))))
+      (my/in-window-under-mouse
+       (let ((pt (save-excursion
+                   (mouse-set-point event)
+                   (point))))
+         (goto-char pt)
+         (when-let ((buf (ignore-errors (ibuffer-current-buffer t))))
+           (kill-buffer buf)))))
+    (keymap-set ibuffer-name-map "<mouse-1>" #'ibuffer-mouse-visit-buffer)
     (keymap-set ibuffer-name-map "<mouse-2>" #'my/ibuffer-kill-mouse-buffer)
     (keymap-set ibuffer-mode-filter-group-map "<mouse-1>" #'ibuffer-mouse-toggle-filter-group)
     (keymap-set ibuffer-mode-filter-group-map "<mouse-2>" #'ibuffer-mouse-toggle-mark)
+    ;; I get a weird mouse selection when I try to right-click in ibuffer when
+    ;; ibuffer-sidebar isn't the selected window.
+    (defun my/fixed-ibuffer-right-click (event)
+      (interactive "e")
+      (with-selected-window (my/get-window-under-mouse)
+        (ibuffer-mouse-popup-menu event)))
+    (keymap-set ibuffer-mode-filter-group-map "<down-mouse-3>" #'my/fixed-ibuffer-right-click)
+    (keymap-set ibuffer-name-map "<down-mouse-3>" #'my/fixed-ibuffer-right-click)
+    (defun my/ibuffer-remove-header (_)
+      (save-excursion
+        (let ((ro buffer-read-only))
+          (setq-local buffer-read-only nil)
+          (unwind-protect
+               (progn
+                 (goto-char 1)
+                 (search-forward "-\n" nil t)
+                 (delete-region 1 (point))
+                 (goto-char (buffer-end 1)))
+            (setq-local buffer-read-only ro)))))
+    (advice-add 'ibuffer-update-title-and-summary :after #'my/ibuffer-remove-header))
+
+(use-package ibuffer-sidebar
+    :ensure t
+    :demand t
+    :after ibuffer
+    :config
+    ;; setq is used here because I get type errors if I use setopt
+    (setq ibuffer-sidebar-mode-line-format nil)
+    (setq ibuffer-sidebar-width 24)
+    (setq ibuffer-sidebar-face 'my/ibuffer-face)
+    (setq ibuffer-sidebar-use-custom-font t)
+    (setq ibuffer-sidebar-display-alist
+          '((side . left)
+            (slot . -1)
+            (window-height . 0.33)
+            (window-parameters (no-other-window . t))))
+    (setq ibuffer-sidebar-special-refresh-commands
+          '((kill-buffer . 0)
+            (find-file . 0)
+            (delete-file . 0)
+            (kill-current-buffer . 0)))
+    (setq ibuffer-sidebar-formats '((" " mark " " icon " " name)))
     (defun my/customize-ibuffer ()
+      (face-remap-add-relative 'default 'my/ibuffer-face)
       (face-remap-add-relative 'fringe 'my/treemacs-bg)
       (face-remap-add-relative ibuffer-filter-group-name-face 'my/ibuffer-group)
       (set-fringe-mode 10))
     (add-hook 'ibuffer-sidebar-mode-hook #'my/customize-ibuffer)
-    (defun my/ibuffer-remove-header (_)
-      (save-excursion
-        (when-let ((buf (ibuffer-sidebar-buffer)))
-          (with-current-buffer buf
-            (let ((ro buffer-read-only))
-              (setq-local buffer-read-only nil)
-              (unwind-protect
-                   (progn
-                     (goto-char 1)
-                     (search-forward "-\n" nil t)
-                     (delete-region 1 (point)))
-                (setq-local buffer-read-only ro)))))))
-    (advice-add 'ibuffer-update-title-and-summary :after #'my/ibuffer-remove-header))
+    (defun my/ibuffer-sidebar-autoresize (_)
+      ;; Only resize when this is the sidebar buffer window and treemacs is visible
+      (when (and (eq (selected-window) (ibuffer-sidebar-showing-sidebar-p))
+                 (treemacs-get-local-window))
+        (let ((fit-window-to-buffer-horizontally nil)
+              (lines (count-lines (buffer-end -1) (buffer-end 1) t)))
+          (fit-window-to-buffer (selected-window)
+                                lines lines))))
+    (advice-add 'ibuffer-update-title-and-summary :after #'my/ibuffer-sidebar-autoresize)
+    )
 
 (use-package treemacs
     :ensure t
@@ -690,6 +738,15 @@
            ("C-c C-e" . flycheck-list-errors))
     :config (setq-default flycheck-disabled-checkers '(emacs-lisp-checkdoc)))
 
+(use-package anaconda-mode
+    :ensure t
+    :hook
+    (python-mode . anaconda-mode)
+    (python-mode . anaconda-eldoc-mode)
+    :config (setq anaconda-mode-localhost-address "localhost"))
+
+(when nil ;; TEMPORARILY DISABLING TO TRY OTHER OPTIONS
+
 (use-package lsp-mode
     :ensure t
     :defer t
@@ -698,7 +755,7 @@
       (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
             '(flex)))
     :hook
-    (lsp-mode . lsp-enable-which-key-integration)
+    ;(lsp-mode . lsp-enable-which-key-integration)
     (lsp-completion-mode . my/lsp-mode-setup-completion)
     :config
     (setopt lsp-keymap-prefix "C-c l")
@@ -739,6 +796,9 @@
                     :activation-fn (lsp-activate-on "gdscript")
                     :server-id 'gdscript
                     :notification-handlers (ht ("gdscript/capabilities" 'ignore)))))
+
+) ;; END LSP-MODE DISABLE
+
 
 (use-package adaptive-wrap
   :ensure t
@@ -820,15 +880,6 @@
 (with-current-buffer (messages-buffer)
   (my/customize-read-only))
 
-;; Even with helpful, the built-in help will get called from time to time.
-;; Rename help buffers based on their topic.
-(defun my/help-rename (&rest _)
-  (when (string= (buffer-name) "*Help*")
-    (let ((sym (plist-get help-mode--current-data :symbol)))
-      (when sym
-        (rename-buffer (concat "*Help* [" (symbol-name sym) "]"))))))
-(advice-add 'help-make-xrefs :after #'my/help-rename)
-
 (defun my/customize-minibuffer ()
   (face-remap-add-relative 'default 'my/minibuffer-bg)
   (face-remap-add-relative 'fringe 'my/minibuffer-bg))
@@ -855,18 +906,9 @@
 
 (setopt window-divider-default-right-width 3)
 (setopt window-divider-default-bottom-width 3)
-(setopt window-divider-default-places t)
+(setopt window-divider-default-places 'bottom-only)
 (window-divider-mode t)
 
-(setopt pixel-scroll-precision-use-momentum t)
-(setopt pixel-scroll-precision-interpolate-mice t)
-(setopt pixel-scroll-precision-interpolate-page nil)
-(setopt pixel-scroll-precision-large-scroll-height 1.0)
-(setopt pixel-scroll-precision-interpolation-factor 2.0)
-(setopt pixel-scroll-precision-interpolation-between-scroll (/ 1.0 60.0))
-(setopt pixel-scroll-precision-interpolation-total-time 0.25)
-
-(pixel-scroll-precision-mode t)
 
 ;;;; Options
 ;;;; =========================================================================
@@ -902,12 +944,13 @@
 (setopt sentence-end-double-space nil)
 (setopt vc-follow-symlinks t)
 
-(setopt mouse-wheel-progressive-speed t)
+(setopt mouse-wheel-progressive-speed nil)
 (setopt mouse-wheel-scroll-amount '(0.1
                                     ((shift) . 0.9)
                                     ((meta) . hscroll)
                                     ((control) . text-scale)
                                     ((control meta) . global-text-scale)))
+
 (setopt mouse-buffer-menu-maxlen 64)
 (setopt mouse-buffer-menu-mode-mult 999)
 (setopt mouse-drag-and-drop-region-scroll-margin 2)
@@ -950,6 +993,8 @@
              (major-mode . Custom-mode))
          (display-buffer-reuse-mode-window
           display-buffer-below-selected))
+        ("*Async Shell Command*"
+         (display-buffer-no-window))
         ))
 
 ;; EXPERIMENTAL, not quite working yet
@@ -1016,23 +1061,6 @@ Preserve window configuration when pressing ESC."
           (lambda (_ buf _) (eq nil (buffer-file-name buf))))
     (next-buffer)
     (setq switch-to-prev-buffer-skip old-switch-to-prev-buffer-skip)))
-
-(defun my/get-window-under-mouse ()
-  (let ((mpos (mouse-position)))
-    (or (window-at (cadr mpos) (cddr mpos) (car mpos))
-        (selected-window))))
-
-(defun my/call-in-window-under-mouse (fn &rest args)
-  (let ((selected-window (selected-window))
-        (target-window (my/get-window-under-mouse)))
-    (unless (eq selected-window target-window)
-      (select-window target-window 'mark-for-redisplay))
-    (ignore-errors (apply fn args))
-    (unless (eq selected-window target-window)
-      (select-window selected-window t))))
-
-(defmacro my/in-window-under-mouse (&rest body)
-  `(my/call-in-window-under-mouse (lambda () ,@body)))
 
 (defun back-or-previous-buffer ()
   (interactive)
@@ -1101,14 +1129,11 @@ Preserve window configuration when pressing ESC."
 (defun my/first-time-theme-setup ()
   (unless my/one-time-setup
     (setq my/one-time-setup t)
-    (message "one time theme apply %s" (server-running-p))
-    (theme-dark)
-    (message "done")
-    )
+    (theme-dark))
   (remove-hook 'window-setup-hook 'my/first-time-theme-setup)
   (remove-hook 'server-after-make-frame-hook 'my/first-time-theme-setup))
 
-(unless (server-running-p)
+(unless server-mode
   (add-hook 'window-setup-hook #'my/first-time-theme-setup)
   (add-hook 'window-setup-hook #'show-sidebar))
 
