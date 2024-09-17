@@ -94,10 +94,10 @@
              :height 1.1))
   "treemacs projects")
 (defface my/ibuffer-face
-    '((default :inherit variable-pitch :height 1.0))
+    '((default :inherit variable-pitch :height 120))
   "ibuffer sidebar face")
 (defface my/ibuffer-group
-    '((default :inherit variable-pitch :height 1.0))
+    '((default :inherit variable-pitch :height 120))
   "ibuffer filter group")
 (defface my/tab-bar-separator
     '((default :width ultra-condensed :height 50))
@@ -129,6 +129,26 @@
 
 (defmacro my/in-window-under-mouse (&rest body)
   `(my/call-in-window-under-mouse (lambda () ,@body)))
+
+;; If the window is scrolled past the end of the buffer, clamp scroll
+;; to the end of the buffer.
+(defun my/eob-recenter ()
+  (when (and (pos-visible-in-window-p (point-max))
+             (eq (selected-window) (get-buffer-window)))
+    (save-excursion
+      (goto-char (point-max))
+      (recenter -1))))
+
+;; Fixes mouse scroll when using built-in scroll mode
+(defun my/scroll-up (&optional amt)
+  (interactive)
+  (scroll-up amt)
+  (let ((name (buffer-name)))
+    (when (or (string= "*:Buffers:*" name)
+              (string-prefix-p " *Treemacs-" name))
+      (my/eob-recenter))))
+(setq mwheel-scroll-up-function 'my/scroll-up)
+
 
 ;;;; Packages
 ;;;; =========================================================================
@@ -182,6 +202,22 @@
   (keymap-global-set "M-9" (lambda () (interactive) (tab-bar-select-tab 9)))
   (tab-bar-mode t)
   (setq tab-bar-menu-bar-button (propertize " 󰍜 " 'face 'my/minibuffer-bg)))
+
+
+(use-package tab-line
+    :ensure nil
+    :demand t
+    :hook
+    (help-mode . tab-line-mode)
+    (helpful-mode . tab-line-mode)
+    :config
+    ;; Exclude real files from showing up in the tab-line.
+    ;; This is used to group a bunch of misc buffers into one window.
+    (defun my/tab-line-tabs ()
+      (let ((bufs (tab-line-tabs-window-buffers)))
+        (seq-difference (seq-remove (lambda (x) (buffer-file-name x)) bufs)
+                        (list (get-buffer "*scratch*")))))
+    (setq tab-line-tabs-function 'my/tab-line-tabs))
 
 (use-package whitespace
   :ensure nil
@@ -270,12 +306,12 @@
                    `((t (:foreground ,(catppuccin-color 'base)))))
     (face-spec-set 'window-divider-first-pixel
                    `((t (:foreground ,(catppuccin-color 'base)))))
+    (face-spec-set 'window-divider
+                   `((t (:foreground ,(catppuccin-color 'surface0)))))
     (let ((dark-border (my/darken (catppuccin-color 'crust)
                                   (pcase catppuccin-flavor
                                     ('latte 20)
                                     (_ 40)))))
-      (face-spec-set 'window-divider
-                     `((t (:foreground ,dark-border))))
       (set-face-attribute 'show-paren-match nil
                           :background (catppuccin-color 'crust)
                           :foreground 'unspecified
@@ -381,23 +417,34 @@
          (or (buffer-file-name) "Buffer name")))
     (doom-modeline-mode t))
 
-(use-package which-key
-    :ensure t
-    :defer t
-    :config
-    (setopt which-key-dont-use-unicode nil)
-    (setopt which-key-add-column-padding 2)
-    (setopt which-key-min-display-lines 8)
-    (setopt which-key-max-description-length 100)
-    (setopt which-key-max-display-columns (if (display-graphic-p) 1 nil))
-    (setopt which-key-max-description-length 1.0)
-    (setopt which-key-idle-delay 10000.0)
-    (setopt which-key-show-early-on-C-h t)
-    (setopt which-key-idle-secondary-delay 0.05)
-    (setopt which-key-preserve-window-configuration t)
-    (which-key-mode t))
-
 (use-package nerd-icons :ensure t :defer)
+
+(use-package good-scroll
+    :ensure t
+    :demand t
+    :config
+    ;; Prevent scrolling past the end of a buffer
+    (defun my/good-scroll-advice (fn target)
+      (let* ((name (buffer-name (window-buffer good-scroll--window)))
+             (in-sidebar (or (string= "*:Buffers:*" name)
+                             (string-prefix-p " *Treemacs-" name))))
+        (if (or (not in-sidebar)
+                (< target 0)
+                (not (pos-visible-in-window-p (point-max))))
+          (funcall fn target)
+        (my/eob-recenter)
+        (setq good-scroll-destination 0)
+        (setq good-scroll--prev-point (point))
+        (setq good-scroll--prev-window-start (window-start))
+        (setq good-scroll--prev-vscroll (window-vscroll nil t))
+        0)))
+    (advice-add 'good-scroll--go-to :around #'my/good-scroll-advice)
+    (setopt good-scroll-render-rate (/ 1.0 (if (my/windows-p) 120.0 60.0)))
+    (setopt good-scroll-step 120)
+    (setopt good-scroll-duration 0.1)
+    (keymap-global-set "<prior>" 'good-scroll-down-full-screen)
+    (keymap-global-set "<next>" 'good-scroll-up-full-screen)
+    (good-scroll-mode t))
 
 ;; TODO: Take a look at vertico-unobtrusive and vertico-flat
 (use-package vertico
@@ -592,7 +639,8 @@
                          (derived-mode . doc-view-mode)))
              ("Customize" (derived-mode . Custom-mode))
              ("Magit" (name ."^magit"))
-             ("Other" (name . "\\*"))
+             ("Directory" (derived-mode . dired-mode))
+             ("Other" (name . ".*"))
              )))
     (define-ibuffer-column icon (:name "Icon")
       (with-current-buffer buffer
@@ -658,18 +706,20 @@
     (setq ibuffer-sidebar-formats '((" " mark " " icon " " name)))
     (defun my/customize-ibuffer ()
       (face-remap-add-relative 'default 'my/ibuffer-face)
-      (face-remap-add-relative 'fringe 'my/treemacs-bg)
+      (face-remap-add-relative 'fringe 'my/ibuffer-face)
       (face-remap-add-relative ibuffer-filter-group-name-face 'my/ibuffer-group)
+      (add-hook 'post-command-hook 'my/eob-recenter)
       (set-fringe-mode 10))
     (add-hook 'ibuffer-sidebar-mode-hook #'my/customize-ibuffer)
     (defun my/ibuffer-sidebar-autoresize (_)
       ;; Only resize when this is the sidebar buffer window and treemacs is visible
       (when (and (eq (selected-window) (ibuffer-sidebar-showing-sidebar-p))
                  (treemacs-get-local-window))
-        (let ((fit-window-to-buffer-horizontally nil)
-              (lines (count-lines (buffer-end -1) (buffer-end 1) t)))
+        (let* ((fit-window-to-buffer-horizontally nil)
+               (lines (count-lines (buffer-end -1) (buffer-end 1) t))
+               (size (max 3 (+ lines 1))))
           (fit-window-to-buffer (selected-window)
-                                lines lines))))
+                                size size))))
     (advice-add 'ibuffer-update-title-and-summary :after #'my/ibuffer-sidebar-autoresize)
     )
 
@@ -687,6 +737,7 @@
       (when (treemacs-is-treemacs-window-selected?)
         (text-scale-set -1)
         (setq mode-line-format nil)
+        (add-hook 'post-command-hook 'my/eob-recenter)
         (set-window-fringes (selected-window) 10 1)))
     (defun my/customize-treemacs ()
       (keymap-set treemacs-mode-map "<mouse-1>" #'treemacs-single-click-expand-action)
@@ -745,21 +796,21 @@
     (python-mode . anaconda-eldoc-mode)
     :config (setq anaconda-mode-localhost-address "localhost"))
 
-(when nil ;; TEMPORARILY DISABLING TO TRY OTHER OPTIONS
-
 (use-package lsp-mode
     :ensure t
-    :defer t
     :init
     (defun my/ls-mode-setup-completion ()
       (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
             '(flex)))
     :hook
-    ;(lsp-mode . lsp-enable-which-key-integration)
     (lsp-completion-mode . my/lsp-mode-setup-completion)
     :config
     (setopt lsp-keymap-prefix "C-c l")
     (setopt lsp-completion-provider :none))
+
+(use-package lsp-ui
+    :ensure t
+    :after lsp-mode)
 
 (use-package dap-mode
     :ensure t
@@ -797,14 +848,12 @@
                     :server-id 'gdscript
                     :notification-handlers (ht ("gdscript/capabilities" 'ignore)))))
 
-) ;; END LSP-MODE DISABLE
-
 
 (use-package adaptive-wrap
   :ensure t
   :config
   (setopt adaptive-wrap-extra-indent 1)
-  (add-hook 'prog-mode 'adaptive-wrap-prefix-mode)
+  (add-hook 'prog-mode-hook 'adaptive-wrap-prefix-mode)
   (set-fringe-bitmap-face 'right-curly-arrow 'ansi-color-magenta)
   (set-fringe-bitmap-face 'left-curly-arrow 'ansi-color-magenta))
 
@@ -906,7 +955,7 @@
 
 (setopt window-divider-default-right-width 3)
 (setopt window-divider-default-bottom-width 3)
-(setopt window-divider-default-places 'bottom-only)
+(setopt window-divider-default-places 'right-only)
 (window-divider-mode t)
 
 
@@ -985,18 +1034,6 @@
 (setopt switch-to-buffer-in-dedicated-window 'pop)
 (setopt switch-to-buffer-obey-display-actions t)
 
-(setq display-buffer-alist
-      `(((or (major-mode . Info-mode)
-             (major-mode . help-mode)
-             (major-mode . helpful-mode)
-             (major-mode . apropos-mode)
-             (major-mode . Custom-mode))
-         (display-buffer-reuse-mode-window
-          display-buffer-below-selected))
-        ("*Async Shell Command*"
-         (display-buffer-no-window))
-        ))
-
 ;; EXPERIMENTAL, not quite working yet
 (when (my/windows-p)
   (setq explicit-shell-file-name "C:/Program Files/Git/bin/bash.exe")
@@ -1022,7 +1059,7 @@ Preserve window configuration when pressing ESC."
 
 (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
 
-;; I keep accidentally hitting this when trying to exit which-key
+;; I keep accidentally hitting this when trying to exit a prompt
 (global-unset-key (kbd "C-x ESC"))
 
 (when (display-graphic-p) ; fix awful default GUI behavior
@@ -1045,22 +1082,43 @@ Preserve window configuration when pressing ESC."
   (setopt catppuccin-flavor 'latte)
   (load-theme 'catppuccin t))
 
+
+(defun my/skip-file-buffers (_ buf _) (or (buffer-file-name buf)
+                                          (string= "*scratch*" (buffer-name buf))))
+(defun my/skip-non-file-buffers (_ buf _ ) (not (my/skip-file-buffers nil buf nil)))
+
 ;; Cycle file buffers, skipping others
 (defun previous-file-buffer ()
   (interactive)
-  (let ((old-switch-to-prev-buffer-skip switch-to-prev-buffer-skip))
-    (setq switch-to-prev-buffer-skip
-          (lambda (_ buf _) (eq nil (buffer-file-name buf))))
-    (previous-buffer)
-    (setq switch-to-prev-buffer-skip old-switch-to-prev-buffer-skip)))
+  (let ((switch-to-prev-buffer-skip #'my/skip-non-file-buffers))
+    (previous-buffer)))
 
 (defun next-file-buffer ()
   (interactive)
-  (let ((old-switch-to-prev-buffer-skip switch-to-prev-buffer-skip))
-    (setq switch-to-prev-buffer-skip
-          (lambda (_ buf _) (eq nil (buffer-file-name buf))))
-    (next-buffer)
-    (setq switch-to-prev-buffer-skip old-switch-to-prev-buffer-skip)))
+  (let ((switch-to-prev-buffer-skip #'my/skip-non-file-buffers))
+    (next-buffer)))
+
+(defun previous-non-file-buffer ()
+  (interactive)
+  (let ((switch-to-prev-buffer-skip #'my/skip-file-buffers))
+    (previous-buffer)))
+
+(defun next-non-file-buffer ()
+  (interactive)
+  (let ((switch-to-prev-buffer-skip #'my/skip-file-buffers))
+    (next-buffer)))
+
+(defun next-similar-buffer ()
+  (interactive)
+  (if (my/skip-file-buffers nil (current-buffer) nil)
+      (next-file-buffer)
+    (next-non-file-buffer)))
+
+(defun previous-similar-buffer ()
+  (interactive)
+  (if (my/skip-file-buffers nil (current-buffer) nil)
+      (previous-file-buffer)
+    (previous-non-file-buffer)))
 
 (defun back-or-previous-buffer ()
   (interactive)
@@ -1069,7 +1127,7 @@ Preserve window configuration when pressing ESC."
             (ignore-errors (help-go-back) t))
        (and (eq major-mode 'Info-mode)
             (ignore-errors (Info-history-back) t))
-       (previous-buffer))))
+       (previous-similar-buffer))))
 
 (defun forward-or-next-buffer ()
   (interactive)
@@ -1077,12 +1135,12 @@ Preserve window configuration when pressing ESC."
    (or (and (eq major-mode 'help-mode)
             (ignore-errors (help-go-forward) t))
        (and (eq major-mode 'Info-mode)
-            (ignore-erors (Info-history-forward ) t))
-       (next-buffer))))
+            (ignore-errors (Info-history-forward ) t))
+       (next-similar-buffer))))
 
-(keymap-global-set "M-[" 'previous-file-buffer)
-(keymap-global-set "M-]" 'next-file-buffer)
-;; Ctrl+Alt allows cycling any buffers, not just ones with files
+(keymap-global-set "M-[" 'previous-similar-buffer)
+(keymap-global-set "M-]" 'next-similar-buffer)
+;; Ctrl+Alt allows cycling any buffers, not just similar
 (keymap-global-set "C-M-[" 'previous-buffer)
 (keymap-global-set "C-M-]" 'next-buffer)
 (keymap-global-set "<mouse-8>" 'back-or-previous-buffer)
@@ -1125,6 +1183,78 @@ Preserve window configuration when pressing ESC."
 
 (keymap-global-set "C-c C-d" 'toggle-sidebar)
 
+(defvar bottom-window nil)
+(defvar main-window nil)
+;; Custom layout that uses a bottom split + tabline-mode
+(defun reset-window-layout ()
+  (interactive)
+  (let ((buf (if (buffer-file-name) (current-buffer) (scratch-buffer))))
+    (hide-sidebar)
+    (split-window-right)
+    (other-window 1)
+    (let ((ignore-window-parameters t))
+      (delete-other-windows)
+      (setq main-window (selected-window))
+      (let ((switch-to-buffer-obey-display-actions nil))
+        (switch-to-buffer buf nil t)))
+    (show-sidebar)
+    (split-window-below -10)
+    (let ((switch-to-buffer-obey-display-actions nil))
+      (other-window 1)
+      (switch-to-buffer (messages-buffer) t t)
+      (setq scroll-bar-width 5)
+      (setq vertical-scroll-bar 'right)
+      (setq bottom-window (selected-window))
+      (switch-to-buffer (messages-buffer) t t)
+      (tab-line-mode t)
+      (goto-char (point-max))
+      (other-window 1))))
+
+
+(defun my/buffer-is-read-only (buf)
+  (if (bufferp buf)
+      (buffer-local-value 'buffer-read-only buf)
+    (when-let ((b (get-buffer buf)))
+      (buffer-local-value 'buffer-read-only b))))
+
+(defun my/show-tab-line (win)
+  (with-selected-window win
+    (tab-line-mode t)))
+
+(setq display-buffer-alist
+      '(("\\*:Buffers:\\*"
+         (display-buffer-reuse-mode-window
+          display-buffer-in-side-window)
+         (side . left)
+         (slot . -1))
+        (" \\*Treemacs-"
+         (display-buffer-reuse-mode-window
+          display-buffer-in-side-window)
+         (side . left)
+         (slot . 1))
+        ((or "\\*Async Shell Command\\*"
+          (major-mode . help-mode)
+          (major-mode . helpful-mode)
+          (major-mode . Info-mode)
+          (major-mode . Man-mode)
+          (major-mode . messages-buffer-mode))
+         (display-buffer-reuse-mode-window
+          display-buffer-at-bottom)
+         (window-height . 18)
+         (body-function . #'my/show-tab-line)
+         (mode messages-buffer-mode help-mode helpful-mode Info-mode apropos-mode Man-mode))
+        ;; This needs work
+        (my/buffer-is-read-only
+         (display-buffer-reuse-mode-window
+          display-buffer-in-direction)
+         (direction . down)
+         (window-height . 9)
+         (slot . 0)
+         (mode fundamental-mode)
+         )
+        ))
+
+
 (defvar my/one-time-setup nil)
 (defun my/first-time-theme-setup ()
   (unless my/one-time-setup
@@ -1135,10 +1265,10 @@ Preserve window configuration when pressing ESC."
 
 (unless server-mode
   (add-hook 'window-setup-hook #'my/first-time-theme-setup)
-  (add-hook 'window-setup-hook #'show-sidebar))
+  (add-hook 'window-setup-hook #'reset-window-layout))
 
 (add-hook 'server-after-make-frame-hook #'my/first-time-theme-setup)
-(add-hook 'server-after-make-frame-hook #'show-sidebar)
+(add-hook 'server-after-make-frame-hook #'reset-window-layout)
 
 ;; Make the sidebar play nice with transpose-frame and related functions.
 ;; Lots of paranoid redisplays here to make sure window changes have applied.
