@@ -2,7 +2,12 @@
 
 ;;;; TODO:
 ;;;; =========================================================================
+;; - Check out lsp-booster, but it might not be faster than native json parsing
+;; - Show modified / unsaved state in buffer list
+;; - Use the same format for file names as doom-modeline
 ;; - Make ctrl+scroll text zoom use smaller steps
+;; - Figure out how to make completion ignore characters after the cursor
+;; - Try to make mouse scroll in corfu-popupinfo scroll the help popup
 ;; - Look at tags to potentially add a tag navigation bar
 ;; - Make right-click menu on modeline show options to split the window
 ;; - Figure out how to show corfu help pop-up even when there is only one match
@@ -13,6 +18,16 @@
 ;;    OR checkout CUA mode's rectangle stuff, that might be better
 ;; - Use advice :override instead of redefining functions
 ;;   (currently doing this to customize doom-modeline and corfu, among others)
+;; - Look for hooks that would be better as buffer-local
+;; - Figure out better window navigation than Alt+Arrows
+;; - Look into ways to save common shell commands / etc. Commands to include:
+;;     - Profile a Python script, then launch pyprof2calltree / kcachegrind
+;; - Try to hook eww to remove junk from github pages
+;; - Show number of matches / index of current match when using isearch
+;; - Fix python-mode keymap conflict for C-c C-d
+;; - Packages to check out:
+;;     - disaster, eldoc-box, eldoc-overlay, flycheck-hl-todo,
+;;       form-feed-st or page-break-lines
 
 
 ;;;; Early / system settings
@@ -225,8 +240,9 @@
     ;; This is used to group a bunch of misc buffers into one window.
     (defun my/tab-line-tabs ()
       (let ((bufs (tab-line-tabs-window-buffers)))
-        (seq-difference (seq-remove (lambda (x) (buffer-file-name x)) bufs)
-                        (list (get-buffer "*scratch*")))))
+        (sort (seq-difference (seq-remove (lambda (x) (buffer-file-name x)) bufs)
+                              (list (get-buffer "*scratch*")))
+              (lambda (a b) (string< (buffer-name a) (buffer-name b))))))
     (setq tab-line-tabs-function 'my/tab-line-tabs)
     )
 
@@ -270,11 +286,11 @@
     (defun my/adjust-fg (color amt)
       (pcase frame-background-mode
         ('light (my/darken color amt))
-        ('dark (my/lighten color amt))))
+        ('dark (my/lighten color (* 2 amt)))))
     (defun my/adjust-bg (color amt)
       (pcase frame-background-mode
         ('light (my/lighten color amt))
-        ('dark (my/darken color amt)))))
+        ('dark (my/darken color (* 2 amt))))))
 
 (use-package catppuccin-theme
   :ensure t
@@ -300,11 +316,11 @@
                                    :color (catppuccin-color 'surface1)))
     ;; Default rainbow colors are too easy to mix up when side-by-side
     (dolist (pair '((rainbow-delimiters-depth-1-face . text)
-                    (rainbow-delimiters-depth-2-face . blue)
+                    (rainbow-delimiters-depth-2-face . teal)
                     (rainbow-delimiters-depth-3-face . yellow)
                     (rainbow-delimiters-depth-4-face . green)
                     (rainbow-delimiters-depth-5-face . peach)
-                    (rainbow-delimiters-depth-6-face . teal)
+                    (rainbow-delimiters-depth-6-face . blue)
                     (rainbow-delimiters-depth-7-face . mauve)
                     (rainbow-delimiters-depth-8-face . rosewater)
                     (rainbow-delimiters-depth-9-face . green)))
@@ -315,6 +331,11 @@
                    `((t (:background ,(catppuccin-color 'red)
                                      :foreground unspecified
                                      :weight bold))))
+    (set-face-attribute 'trailing-whitespace nil
+                        :background (my/adjust-fg (catppuccin-color 'base) 15))
+    (dolist (face '(region highlight))
+      (set-face-attribute face nil
+                        :background (catppuccin-color 'surface1)))
     (face-spec-set 'window-divider-last-pixel
                    `((t (:foreground ,(catppuccin-color 'base)))))
     (face-spec-set 'window-divider-first-pixel
@@ -801,21 +822,23 @@
            ("C-c C-e" . flycheck-list-errors))
     :config (setq-default flycheck-disabled-checkers '(emacs-lisp-checkdoc)))
 
-(use-package anaconda-mode
-    :ensure t
-    :hook
-    (python-mode . anaconda-mode)
-    (python-mode . anaconda-eldoc-mode)
-    :config (setq anaconda-mode-localhost-address "localhost"))
+;; (use-package anaconda-mode
+;;     :ensure t
+;;     :hook
+;;     (python-mode . anaconda-mode)
+;;     (python-mode . anaconda-eldoc-mode)
+;;     :config (setq anaconda-mode-localhost-address "localhost"))
 
 (use-package lsp-mode
     :ensure t
-    :init
-    (defun my/ls-mode-setup-completion ()
-      (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
-            '(flex)))
+    :init (defun my/lsp-mode-setup-completion ()
+            (setq-local completion-styles '(orderless)
+                        completion-category-defaults nil))
+      ;; (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
+      ;;       '(flex)))
     :hook
     (lsp-completion-mode . my/lsp-mode-setup-completion)
+    (python-mode . lsp)
     :config
     (setopt lsp-keymap-prefix "C-c l")
     (setopt lsp-completion-provider :none))
@@ -826,13 +849,15 @@
 
 (use-package dap-mode
     :ensure t
-    :defer t
     :after lsp-mode)
+
+;; TODO: Add actual snippets (maybe yasnippet-snippets)
+(use-package yasnippet
+    :ensure t
+    :hook (python-mode . yas-minor-mode))
 
 (use-package lsp-jedi
     :ensure t
-    :defer t
-    :hook (python-mode . lsp)
     :after lsp-mode)
 
 (use-package gdscript-mode
@@ -874,7 +899,8 @@
     :config
     (keymap-global-set "C-h f" #'helpful-callable)
     (keymap-global-set "C-h v" #'helpful-variable)
-    (keymap-global-set "C-h k" #'helpful-key)
+    ;; Helpful doesn't show your keypress, so keep the built-in C-h k binding
+    (keymap-global-set "C-h C-k" #'helpful-key)
     (keymap-global-set "C-h x" #'helpful-command)
     (keymap-global-set "C-h C-h" #'helpful-at-point))
 
@@ -919,6 +945,8 @@
 ;;;; Customize built-in modes (use-package didn't work)
 ;;;; =========================================================================
 
+(setopt info-lookup-other-window-flag nil)
+(setopt Info-isearch-search nil)
 (setopt custom-buffer-done-kill t)
 (setopt help-window-select t)
 (setopt help-downcase-arguments t)
@@ -938,9 +966,21 @@
   (my/add-scroll-bar))
 
 (add-hook 'view-mode-hook #'my/customize-read-only)
-(add-hook 'messages-buffer-mode-hook #'my/customize-read-only)
-(with-current-buffer (messages-buffer)
-  (my/customize-read-only))
+(defun my/messages-scroll-advice (&rest _)
+  (when (eq major-mode 'messages-buffer-mode)
+    (goto-char (point-max))
+    (previous-line)
+    (end-of-line)
+    (recenter -1)))
+
+(defun my/customize-messages ()
+  (my/customize-read-only)
+  (advice-add 'tab-line-select-tab :after 'my/messages-scroll-advice)
+  
+  )
+(add-hook 'messages-buffer-mode-hook #'my/customize-messages)
+(with-current-buffer (messages-buffer) ;; make sure we hit the initial messages buffer
+  (my/customize-messages))
 
 (defun my/customize-minibuffer ()
   (face-remap-add-relative 'default 'my/minibuffer-bg)
@@ -999,6 +1039,8 @@
         '(read-only t
           cursor-intangible t
           face minibuffer-prompt))
+(setopt inhibit-message-regexps '("Beginning of buffer" "End of buffer"))
+(setopt set-message-functions '(inhibit-message set-minibuffer-message))
 
 (add-to-list 'completion-ignored-extensions "__pycache__/")
 (setopt read-extended-command-predicate
@@ -1062,12 +1104,8 @@
 
 ;; Allow ESC to quit prompts / etc, but customized to not close splits.
 (defun my/keyboard-escape-quit-adv (fun)
-  "Around advice for `keyboard-escape-quit` FUN.
-Preserve window configuration when pressing ESC."
-  (let ((old-buffer-quit-function buffer-quit-function))
-    (setq buffer-quit-function (or buffer-quit-function #'keyboard-quit))
-    (funcall fun)
-    (setq buffer-quit-function old-buffer-quit-function)))
+  (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
+    (funcall fun)))
 (advice-add #'keyboard-escape-quit :around #'my/keyboard-escape-quit-adv)
 
 (global-set-key (kbd "<escape>") 'keyboard-escape-quit)
@@ -1079,22 +1117,45 @@ Preserve window configuration when pressing ESC."
   (global-unset-key (kbd "C-z"))
   (global-unset-key (kbd "C-x C-z")))
 
+(defun recompile-or-prompt ()
+  (interactive)
+  (if (string= compile-command "make -k ")
+      ;; Subtle change from the default to make this not trigger a second time
+      (progn (setq compile-command "make -k")
+             (call-interactively 'compile))
+    (recompile)))
+
+(keymap-global-set "<f5>" 'recompile-or-prompt)
+(keymap-global-set "<f6>" 'compile)
+
+
 ;;; Style note: not including the my/ prefix for interactive commands.
 
-(defun theme-dark ()
+(defun dark-theme ()
   (interactive)
   (setq frame-background-mode 'dark)
   (mapc 'frame-set-background-mode (frame-list))
   (setopt catppuccin-flavor 'frappe)
   (load-theme 'catppuccin t))
 
-(defun theme-light ()
+(defun light-theme ()
   (interactive)
   (setq frame-background-mode 'light)
   (mapc 'frame-set-background-mode (frame-list))
   (setopt catppuccin-flavor 'latte)
   (load-theme 'catppuccin t))
 
+;; Make Ctrl+Backspace behave consistently with other editors
+;; FIXME: This will still delete too many characters when used
+;; like:     (1, 2)))<cursor>
+;; This will delete the 2 as well, I would like to keep that.
+(defun backward-kill-space-or-word ()
+  (interactive)
+  (if (looking-back "[ \n]" nil)
+      (progn (delete-horizontal-space t)
+             (while (looking-back "[ \n]" nil) (backward-delete-char 1)))
+    (backward-kill-word 1)))
+(keymap-global-set "C-<backspace>" 'backward-kill-space-or-word)
 
 (defun my/skip-file-buffers (_ buf _) (or (buffer-file-name buf)
                                           (string= "*scratch*" (buffer-name buf))))
@@ -1231,49 +1292,65 @@ Preserve window configuration when pressing ESC."
 
 
 (defun my/buffer-is-read-only (buf)
-  (if (bufferp buf)
-      (buffer-local-value 'buffer-read-only buf)
-    (when-let ((b (get-buffer buf)))
-      (buffer-local-value 'buffer-read-only b))))
-
-(defun my/show-tab-line (win)
-  (with-selected-window win
-    (tab-line-mode t)))
+  (buffer-local-value 'buffer-read-only (get-buffer buf)))
+(defun my/buffer-is-not-file (buf)
+  (null (buffer-file-name (get-buffer buf))))
 
 (setq display-buffer-alist
-      '(("\\*:Buffers:\\*"
-         (display-buffer-reuse-mode-window
+      '(;; Sidebar with buffer list and file tree
+        ("\\*:Buffers:\\*"
+         (display-buffer-reuse-window
+          display-buffer-reuse-mode-window
           display-buffer-in-side-window)
-         (side . left)
-         (slot . -1))
+         (side . left) (slot . -1) (dedicated . t))
         (" \\*Treemacs-"
-         (display-buffer-reuse-mode-window
+         (display-buffer-reuse-window
+          display-buffer-reuse-mode-window
           display-buffer-in-side-window)
-         (side . left)
-         (slot . 1))
-        ((or "\\*Async Shell Command\\*"
-          (major-mode . help-mode)
-          (major-mode . helpful-mode)
-          (major-mode . Info-mode)
-          (major-mode . Man-mode)
-          (major-mode . messages-buffer-mode))
-         (display-buffer-reuse-mode-window
-          display-buffer-at-bottom)
-         (window-height . 18)
-         (body-function . #'my/show-tab-line)
-         (mode messages-buffer-mode help-mode helpful-mode Info-mode apropos-mode Man-mode))
+         (side . left) (slot . 1) (dedicated . t))
+        ;; Open package list in a new tab
         ("\\*Packages\\*"
-         (display-buffer-reuse-mode-window
+         (display-buffer-reuse-window
+          display-buffer-reuse-mode-window
           display-buffer-in-tab)
          (tab-name . "Packages")
-         (dedicated . t)
-         )
-        ;; This needs work
-        (my/buffer-is-read-only ;; Needs to be one of, if not the last entries
-         (display-buffer-reuse-mode-window
+         (dedicated . t))
+        ;; Everything that should show up in the bottom window
+        ((or "\\*Async Shell Command\\*"
+          (major-mode . help-mode) (major-mode . helpful-mode)
+          (major-mode . Info-mode) (major-mode . Man-mode)
+          (major-mode . apropos-mode) (major-mode . messages-buffer-mode)
+          (major-mode . comint-mode) (major-mode . Custom-mode)
+          (major-mode . compilation-mode)
+          my/buffer-is-not-file)
+         (display-buffer-reuse-window
+          display-buffer-reuse-mode-window
+          display-buffer-at-bottom)
+         (window-height . 18)
+         ;; Enable tab-line for every buffer displayed in the bottom window
+         (body-function . (lambda (win)
+                            (with-current-buffer (window-buffer win)
+                              (tab-line-mode t)
+                              (when (eq major-mode 'messages-buffer-mode)
+                                (goto-char (point-max))))))
+         (mode messages-buffer-mode help-mode helpful-mode Info-mode
+          apropos-mode Man-mode shell-mode compilation-mode comint-mode
+          Custom-mode special-mode fundamental-mode))
+        ;; Handle read-only buffers that visit real files. Usually from
+        ;; find-function and similar.
+        ;; FIXME: This doesn't quite work when using find-function in
+        ;;        another frame
+        (my/buffer-is-read-only
+         (display-buffer-reuse-window
+          display-buffer-reuse-mode-window
           display-buffer-use-some-frame
           display-buffer-pop-up-frame)
          (mode fundamental-mode))
+        ;; Real files. WIP, not quite where I want it.
+        ((derived-mode . prog-mode)
+         (display-buffer-reuse-mode-window display-buffer-use-least-recent-window)
+         (mode prog-mode)
+         )
         ))
 
 
@@ -1281,7 +1358,7 @@ Preserve window configuration when pressing ESC."
 (defun my/first-time-theme-setup ()
   (unless my/one-time-setup
     (setq my/one-time-setup t)
-    (theme-dark))
+    (dark-theme))
   (remove-hook 'window-setup-hook 'my/first-time-theme-setup)
   (remove-hook 'server-after-make-frame-hook 'my/first-time-theme-setup))
 
