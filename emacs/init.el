@@ -149,6 +149,13 @@
       (my/eob-recenter))))
 (setq mwheel-scroll-up-function 'my/scroll-up)
 
+(defun my/add-scroll-bar (&optional win)
+    (if (my/windows-p)
+        (set-window-scroll-bars (or win (selected-window)) 10 'right)
+      (with-selected-window (or win (selected-window))
+        (setq vertical-scroll-bar 'right)
+        (setq scroll-bar-width 8))))
+
 
 ;;;; Packages
 ;;;; =========================================================================
@@ -210,14 +217,18 @@
     :hook
     (help-mode . tab-line-mode)
     (helpful-mode . tab-line-mode)
+    (Info-mode . tab-line-mode)
     :config
+    (setq tab-line-close-button-show nil)
+    (setq tab-line-close-tab-function 'kill-buffer)
     ;; Exclude real files from showing up in the tab-line.
     ;; This is used to group a bunch of misc buffers into one window.
     (defun my/tab-line-tabs ()
       (let ((bufs (tab-line-tabs-window-buffers)))
         (seq-difference (seq-remove (lambda (x) (buffer-file-name x)) bufs)
                         (list (get-buffer "*scratch*")))))
-    (setq tab-line-tabs-function 'my/tab-line-tabs))
+    (setq tab-line-tabs-function 'my/tab-line-tabs)
+    )
 
 (use-package whitespace
   :ensure nil
@@ -278,11 +289,13 @@
                         :background (my/adjust-fg (catppuccin-color 'text) 20))
     (set-face-attribute 'mode-line-active nil
                         :background (my/adjust-bg (catppuccin-color 'base) 25)
-                        :box (list :line-width '(-1 . 1) :style 'flat-button
-                                   :color (catppuccin-color 'overlay2)))
+                        :height 110
+                        :box (list :line-width '(-1 . 1) :style 'released-button
+                                   :color (my/darken (catppuccin-color 'crust) 50)))
     (set-face-attribute 'mode-line-inactive nil
                         :foreground (catppuccin-color 'surface2)
                         :background (my/darken (catppuccin-color 'base) 5)
+                        :height 110
                         :box (list :line-width '(-1 . 1) :style 'flat-button
                                    :color (catppuccin-color 'surface1)))
     ;; Default rainbow colors are too easy to mix up when side-by-side
@@ -385,7 +398,7 @@
     :custom ((doom-modeline-icon t)
              (doom-modeline-minor-modes t)
              (doom-modeline-bar-width 1)
-             (doom-modeline-height 24)
+             (doom-modeline-height 16)
              (doom-modeline-buffer-file-name-style 'relative-from-project)
              (doom-modeline-buffer-encoding 'nondefault)
              (doom-modeline-workspace-name nil)
@@ -607,7 +620,6 @@
     (setopt docker-show-status nil)
     (setopt docker-compose-command "docker compose"))
 
-
 (use-package projectile
     :ensure t
     :defer t
@@ -820,6 +832,7 @@
 (use-package lsp-jedi
     :ensure t
     :defer t
+    :hook (python-mode . lsp)
     :after lsp-mode)
 
 (use-package gdscript-mode
@@ -847,7 +860,6 @@
                     :activation-fn (lsp-activate-on "gdscript")
                     :server-id 'gdscript
                     :notification-handlers (ht ("gdscript/capabilities" 'ignore)))))
-
 
 (use-package adaptive-wrap
   :ensure t
@@ -922,7 +934,8 @@
 
 (defun my/customize-read-only ()
   (face-remap-add-relative 'default 'my/read-only)
-  (face-remap-add-relative 'fringe 'my/read-only))
+  (face-remap-add-relative 'fringe 'my/read-only)
+  (my/add-scroll-bar))
 
 (add-hook 'view-mode-hook #'my/customize-read-only)
 (add-hook 'messages-buffer-mode-hook #'my/customize-read-only)
@@ -955,7 +968,7 @@
 
 (setopt window-divider-default-right-width 3)
 (setopt window-divider-default-bottom-width 3)
-(setopt window-divider-default-places 'right-only)
+(setopt window-divider-default-places t)
 (window-divider-mode t)
 
 
@@ -1127,6 +1140,8 @@ Preserve window configuration when pressing ESC."
             (ignore-errors (help-go-back) t))
        (and (eq major-mode 'Info-mode)
             (ignore-errors (Info-history-back) t))
+       (and tab-line-mode
+            (ignore-errors (tab-line-switch-to-prev-tab) t))
        (previous-similar-buffer))))
 
 (defun forward-or-next-buffer ()
@@ -1136,6 +1151,8 @@ Preserve window configuration when pressing ESC."
             (ignore-errors (help-go-forward) t))
        (and (eq major-mode 'Info-mode)
             (ignore-errors (Info-history-forward ) t))
+       (and tab-line-mode
+            (ignore-errors (tab-line-switch-to-next-tab) t))
        (next-similar-buffer))))
 
 (keymap-global-set "M-[" 'previous-similar-buffer)
@@ -1145,7 +1162,9 @@ Preserve window configuration when pressing ESC."
 (keymap-global-set "C-M-]" 'next-buffer)
 (keymap-global-set "<mouse-8>" 'back-or-previous-buffer)
 (keymap-global-set "<mouse-9>" 'forward-or-next-buffer)
-
+(when (my/windows-p)
+  (keymap-global-set "<mouse-4>" 'back-or-previous-buffer)
+  (keymap-global-set "<mouse-5>" 'forward-or-next-buffer))
 ;; Middle clicking should delete the window instead of right click
 (keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
 ;; Right click should _not_ delete the window, much too easy to do accidentally.
@@ -1243,15 +1262,18 @@ Preserve window configuration when pressing ESC."
          (window-height . 18)
          (body-function . #'my/show-tab-line)
          (mode messages-buffer-mode help-mode helpful-mode Info-mode apropos-mode Man-mode))
-        ;; This needs work
-        (my/buffer-is-read-only
+        ("\\*Packages\\*"
          (display-buffer-reuse-mode-window
-          display-buffer-in-direction)
-         (direction . down)
-         (window-height . 9)
-         (slot . 0)
-         (mode fundamental-mode)
+          display-buffer-in-tab)
+         (tab-name . "Packages")
+         (dedicated . t)
          )
+        ;; This needs work
+        (my/buffer-is-read-only ;; Needs to be one of, if not the last entries
+         (display-buffer-reuse-mode-window
+          display-buffer-use-some-frame
+          display-buffer-pop-up-frame)
+         (mode fundamental-mode))
         ))
 
 
