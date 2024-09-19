@@ -3,7 +3,6 @@
 ;;;; TODO:
 ;;;; =========================================================================
 ;; - Check out lsp-booster, but it might not be faster than native json parsing
-;; - Show modified / unsaved state in buffer list
 ;; - Use the same format for file names as doom-modeline
 ;; - Make ctrl+scroll text zoom use smaller steps
 ;; - Figure out how to make completion ignore characters after the cursor
@@ -23,11 +22,15 @@
 ;; - Look into ways to save common shell commands / etc. Commands to include:
 ;;     - Profile a Python script, then launch pyprof2calltree / kcachegrind
 ;; - Try to hook eww to remove junk from github pages
+;; - Is it possible to hack tab-line to be per-window instead of per-buffer?
 ;; - Show number of matches / index of current match when using isearch
 ;; - Fix python-mode keymap conflict for C-c C-d
 ;; - Packages to check out:
 ;;     - disaster, eldoc-box, eldoc-overlay, flycheck-hl-todo,
 ;;       form-feed-st or page-break-lines
+;; - Indicate pop-up frames by disabling the tab bar on them. Maintain a list
+;;   of them and reuse them for read-only buffers. Don't allow the sidebar to
+;;   exist on these frames.
 
 
 ;;;; Early / system settings
@@ -117,12 +120,27 @@
 (defface my/tab-bar-separator
     '((default :width ultra-condensed :height 50))
   "controls distance between tabs")
+(defface my/current-tab
+    '((default :weight bold))
+  "currently selected tab")
 (defface my/help-bg
   '((default :inherit default))
   "help background color")
 (defface my/minibuffer-bg
   '((default :inherit default))
   "minibuffer background color")
+(defface my/invisible-help
+    '((default))
+  "foreground, background, and underline are all the same")
+(defface my/invisible-read-only
+    '((default))
+  "foreground, background, and underline are all the same")
+(defface my/invisible-term
+    '((default))
+  "foreground, background, and underline are all the same")
+(defface my/invisible
+    '((default))
+  "foreground, background, and underline are all the same")
 (defface my/hl-line
     '((default))
   "hl-line background color")
@@ -148,28 +166,47 @@
 ;; If the window is scrolled past the end of the buffer, clamp scroll
 ;; to the end of the buffer.
 (defun my/eob-recenter ()
-  (when (and (pos-visible-in-window-p (point-max))
-             (eq (selected-window) (get-buffer-window)))
+  (when (and (eq (selected-window) (get-buffer-window))
+             (pos-visible-in-window-p (point-max)))
     (save-excursion
       (goto-char (point-max))
       (recenter -1))))
+
+(defun my/is-sidebar-buffer (&optional buf)
+  (let ((name (buffer-name (or buf (current-buffer)))))
+    (or (string= "*:Buffers:*" name)
+        (string-prefix-p " *Treemacs-" name))))
 
 ;; Fixes mouse scroll when using built-in scroll mode
 (defun my/scroll-up (&optional amt)
   (interactive)
   (scroll-up amt)
-  (let ((name (buffer-name)))
-    (when (or (string= "*:Buffers:*" name)
-              (string-prefix-p " *Treemacs-" name))
-      (my/eob-recenter))))
+  (my/eob-recenter))
 (setq mwheel-scroll-up-function 'my/scroll-up)
 
 (defun my/add-scroll-bar (&optional win)
-    (if (my/windows-p)
-        (set-window-scroll-bars (or win (selected-window)) 10 'right)
-      (with-selected-window (or win (selected-window))
-        (setq vertical-scroll-bar 'right)
-        (setq scroll-bar-width 8))))
+  (let ((w (or win (selected-window))))
+    (with-current-buffer (window-buffer w)
+      (let ((lines (count-lines (buffer-end -1) (buffer-end 1)))
+            (height (window-height w)))
+        (if (> lines height)
+            (set-window-scroll-bars w 10 'right)
+          (set-window-scroll-bars w 0 nil))))))
+
+(defun my/scroll-bar-advice (win &rest _)
+  (unless (my/is-sidebar-buffer (window-buffer win))
+    (my/add-scroll-bar win)))
+(advice-add 'select-window :after #'my/scroll-bar-advice)
+
+;; Functions to filter a list of buffers to only include buffers that are or are
+;; not visiting a file. This breaks without the lambda around (buffer-file-name).
+;; Never show the scratch buffer in either of these.
+(defun my/only-file-buffers (bufs)
+  (seq-filter (lambda (b) (buffer-file-name b)) bufs))
+(defun my/no-file-buffers (bufs)
+  (seq-remove (lambda (b) (or (buffer-file-name b)
+                    (string= (buffer-name b) "*scratch*")))
+              bufs))
 
 
 ;;;; Packages
@@ -188,42 +225,90 @@
 (require 'use-package)
 
 (use-package no-littering
-  :ensure t
-  :config (no-littering-theme-backups))
+    :ensure t
+    :config (no-littering-theme-backups))
 
 (use-package savehist
-  :ensure nil
-  :config (savehist-mode t))
+    :ensure nil
+    :config (savehist-mode t))
+
+(use-package doom-modeline
+    :ensure t
+    :custom ((doom-modeline-icon t)
+             (doom-modeline-minor-modes t)
+             (doom-modeline-bar-width 1)
+             (doom-modeline-height 16)
+             (doom-modeline-buffer-file-name-style 'relative-from-project)
+             (doom-modeline-buffer-encoding 'nondefault)
+             (doom-modeline-workspace-name nil)
+             (doom-modeline-irc nil)
+             (doom-modeline-display-misc-in-all-mode-lines nil))
+    :config
+    ;; Wrap doom-modeline's formatting for buffer names to reuse elsewhere,
+    ;; stripping text properties.
+    (defun my/buffer-name (buf)
+      (if (and (buffer-file-name buf)
+               (not (buffer-local-value 'buffer-read-only buf)))
+          (with-current-buffer buf
+            (let ((name (doom-modeline-buffer-file-name)))
+              (remove-list-of-text-properties
+               0 (length name) '(mouse-face face help-echo local-map) name)
+              name))
+        (buffer-name buf)))
+    (defun my/propertize-buffer-name (name tooltip)
+      (or
+       (ignore-errors
+         (concat
+          (doom-modeline-spc)
+          (doom-modeline--buffer-mode-icon)
+          (doom-modeline--buffer-state-icon)
+          (propertize name
+                      'help-echo tooltip
+                      'mouse-face 'my/modeline-highlight
+                      'local-map (let ((map (make-sparse-keymap)))
+                                   (define-key map [mode-line mouse-1] 'mouse-buffer-menu)
+                                   (define-key map [mode-line mouse-2] 'mouse-buffer-menu)
+                                   (define-key map [mode-line mouse-3] 'mouse-buffer-menu)
+                                   map)))) ""))
+    ;; Overwrite the built-in buffer info segments
+    (doom-modeline-def-segment buffer-info
+        (my/propertize-buffer-name (doom-modeline--buffer-name)
+         (or (buffer-file-name) "Buffer name")))
+    (doom-modeline-def-segment buffer-info-simple
+        (my/propertize-buffer-name (doom-modeline--buffer-simple-name)
+         (or (buffer-file-name) "Buffer name")))
+    (doom-modeline-mode t))
 
 (use-package tab-bar
-  :ensure nil
-  :config
-  (setopt tab-bar-format
-          '(tab-bar-format-menu-bar
-            tab-bar-format-tabs
-            tab-bar-separator
-            tab-bar-format-add-tab))
-  (setopt tab-bar-separator " ")
-  (setopt tab-bar-auto-width-max '(320 100))
-  (setopt tab-bar-close-button-show nil)
-  (setopt tab-bar-tab-name-truncated-max 64)
-  (defun my/tab-bar-name-padded (tab i)
-    (let ((txt (tab-bar-tab-name-format-default tab i)))
-      (propertize (format " %-64s " txt)
-                  'face (funcall tab-bar-tab-face-function tab))))
-  (setopt tab-bar-tab-name-format-function #'my/tab-bar-name-padded)
-  (keymap-global-set "C-S-t" 'tab-bar-new-tab-to)
-  (keymap-global-set "M-1" (lambda () (interactive) (tab-bar-select-tab 1)))
-  (keymap-global-set "M-2" (lambda () (interactive) (tab-bar-select-tab 2)))
-  (keymap-global-set "M-3" (lambda () (interactive) (tab-bar-select-tab 3)))
-  (keymap-global-set "M-4" (lambda () (interactive) (tab-bar-select-tab 4)))
-  (keymap-global-set "M-5" (lambda () (interactive) (tab-bar-select-tab 5)))
-  (keymap-global-set "M-6" (lambda () (interactive) (tab-bar-select-tab 6)))
-  (keymap-global-set "M-7" (lambda () (interactive) (tab-bar-select-tab 7)))
-  (keymap-global-set "M-8" (lambda () (interactive) (tab-bar-select-tab 8)))
-  (keymap-global-set "M-9" (lambda () (interactive) (tab-bar-select-tab 9)))
-  (tab-bar-mode t)
-  (setq tab-bar-menu-bar-button (propertize " 󰍜 " 'face 'my/minibuffer-bg)))
+    :ensure nil
+    :config
+    (setopt tab-bar-format
+            '(tab-bar-format-menu-bar
+              tab-bar-format-tabs
+              tab-bar-separator
+              tab-bar-format-align-right))
+    (setopt tab-bar-separator " ")
+    (setopt tab-bar-auto-width-max '(320 100))
+    (setopt tab-bar-close-button-show nil)
+    (setopt tab-bar-tab-name-truncated-max 64)
+    (defun my/tab-bar-name-padded (tab i)
+      (let ((txt (tab-bar-tab-name-format-default tab i)))
+        (propertize (format " %-64s " txt)
+                    'face (funcall tab-bar-tab-face-function tab))))
+    (setopt tab-bar-tab-name-format-function #'my/tab-bar-name-padded)
+    (keymap-global-set "C-S-t" 'tab-bar-new-tab-to)
+    (keymap-global-set "M-1" (lambda () (interactive) (tab-bar-select-tab 1)))
+    (keymap-global-set "M-2" (lambda () (interactive) (tab-bar-select-tab 2)))
+    (keymap-global-set "M-3" (lambda () (interactive) (tab-bar-select-tab 3)))
+    (keymap-global-set "M-4" (lambda () (interactive) (tab-bar-select-tab 4)))
+    (keymap-global-set "M-5" (lambda () (interactive) (tab-bar-select-tab 5)))
+    (keymap-global-set "M-6" (lambda () (interactive) (tab-bar-select-tab 6)))
+    (keymap-global-set "M-7" (lambda () (interactive) (tab-bar-select-tab 7)))
+    (keymap-global-set "M-8" (lambda () (interactive) (tab-bar-select-tab 8)))
+    (keymap-global-set "M-9" (lambda () (interactive) (tab-bar-select-tab 9)))
+    (tab-bar-mode t)
+    ;; This gets modified after loading the theme
+    (setq tab-bar-menu-bar-button (propertize " 󰍜 " 'face 'my/minibuffer-bg)))
 
 
 (use-package tab-line
@@ -233,31 +318,33 @@
     (help-mode . tab-line-mode)
     (helpful-mode . tab-line-mode)
     (Info-mode . tab-line-mode)
+    (Custom-mode . tab-line-mode)
     :config
     (setq tab-line-close-button-show nil)
+    (setq tab-line-switch-cycling t)
     (setq tab-line-close-tab-function 'kill-buffer)
-    ;; Exclude real files from showing up in the tab-line.
-    ;; This is used to group a bunch of misc buffers into one window.
+    (setq tab-line-tab-face-functions '(tab-line-tab-face-modified))
+    (defun my/tab-line-name (buf &optional _) (concat "  " (my/buffer-name buf) "  "))
+    (setq tab-line-tab-name-function 'my/tab-line-name)
     (defun my/tab-line-tabs ()
-      (let ((bufs (tab-line-tabs-window-buffers)))
-        (sort (seq-difference (seq-remove (lambda (x) (buffer-file-name x)) bufs)
-                              (list (get-buffer "*scratch*")))
-              (lambda (a b) (string< (buffer-name a) (buffer-name b))))))
-    (setq tab-line-tabs-function 'my/tab-line-tabs)
-    )
+      (let* ((bufs (tab-line-tabs-window-buffers))
+             (visiting-file (buffer-file-name (current-buffer)))
+             (tabs (if visiting-file (my/only-file-buffers bufs) (my/no-file-buffers bufs))))
+        (sort tabs (lambda (a b) (string< (buffer-name a) (buffer-name b))))))
+    (setq tab-line-tabs-function 'my/tab-line-tabs))
 
 (use-package whitespace
-  :ensure nil
-  :hook (prog-mode . whitespace-mode)
-  :config
-  (setopt whitespace-style '(tab-mark))
-  (setq-default indent-tabs-mode nil))
+    :ensure nil
+    :hook (prog-mode . whitespace-mode)
+    :config
+    (setopt whitespace-style '(tab-mark))
+    (setq-default indent-tabs-mode nil))
 
 (use-package rainbow-delimiters
-  :ensure t
-  :hook (prog-mode . rainbow-delimiters-mode)
-  :config
-  (setopt rainbow-delimiters-outermost-only-face-count 1))
+    :ensure t
+    :hook (prog-mode . rainbow-delimiters-mode)
+    :config
+    (setopt rainbow-delimiters-outermost-only-face-count 1))
 
 (use-package memoize
     :ensure t
@@ -276,7 +363,7 @@
               (concat "#" r g b))
           color)))
     (defmemoize my/darken (color amt):
-      (my/normalize-color (color-darken-name color amt)))
+                (my/normalize-color (color-darken-name color amt)))
     (defmemoize my/lighten (color amt)
       (my/normalize-color (color-lighten-name color amt)))
     (defmemoize my/desaturate (color amt)
@@ -293,120 +380,169 @@
         ('dark (my/darken color (* 2 amt))))))
 
 (use-package catppuccin-theme
-  :ensure t
-  :config
-  (setopt catppuccin-flavor 'frappe)
-  (setopt catppuccin-italic-comments t)
-  (defun my/customize-catppuccin ()
-    (let ((bg-color (my/lighten (catppuccin-color 'base) 4)))
-      (set-face-attribute 'default nil :background bg-color)
-      (set-face-attribute 'fringe nil :background bg-color))
-    (set-face-attribute 'cursor nil
-                        :background (my/adjust-fg (catppuccin-color 'text) 20))
-    (set-face-attribute 'mode-line-active nil
-                        :background (my/adjust-bg (catppuccin-color 'base) 25)
-                        :height 110
-                        :box (list :line-width '(-1 . 1) :style 'released-button
-                                   :color (my/darken (catppuccin-color 'crust) 50)))
-    (set-face-attribute 'mode-line-inactive nil
-                        :foreground (catppuccin-color 'surface2)
-                        :background (my/darken (catppuccin-color 'base) 5)
-                        :height 110
-                        :box (list :line-width '(-1 . 1) :style 'flat-button
-                                   :color (catppuccin-color 'surface1)))
-    ;; Default rainbow colors are too easy to mix up when side-by-side
-    (dolist (pair '((rainbow-delimiters-depth-1-face . text)
-                    (rainbow-delimiters-depth-2-face . teal)
-                    (rainbow-delimiters-depth-3-face . yellow)
-                    (rainbow-delimiters-depth-4-face . green)
-                    (rainbow-delimiters-depth-5-face . peach)
-                    (rainbow-delimiters-depth-6-face . blue)
-                    (rainbow-delimiters-depth-7-face . mauve)
-                    (rainbow-delimiters-depth-8-face . rosewater)
-                    (rainbow-delimiters-depth-9-face . green)))
-      (face-spec-set (car pair)
-                     `((t (:foreground ,(catppuccin-color (cdr pair)))))))
-    ;; Make unmatched delimiters much more noticable
-    (face-spec-set 'rainbow-delimiters-unmatched-face
-                   `((t (:background ,(catppuccin-color 'red)
-                                     :foreground unspecified
-                                     :weight bold))))
-    (set-face-attribute 'trailing-whitespace nil
-                        :background (my/adjust-fg (catppuccin-color 'base) 15))
-    (dolist (face '(region highlight))
-      (set-face-attribute face nil
-                        :background (catppuccin-color 'surface1)))
-    (face-spec-set 'window-divider-last-pixel
-                   `((t (:foreground ,(catppuccin-color 'base)))))
-    (face-spec-set 'window-divider-first-pixel
-                   `((t (:foreground ,(catppuccin-color 'base)))))
-    (face-spec-set 'window-divider
-                   `((t (:foreground ,(catppuccin-color 'surface0)))))
-    (let ((dark-border (my/darken (catppuccin-color 'crust)
-                                  (pcase catppuccin-flavor
-                                    ('latte 20)
-                                    (_ 40)))))
-      (set-face-attribute 'show-paren-match nil
+    :ensure t
+    :config
+    (setopt catppuccin-flavor 'frappe)
+    (setopt catppuccin-italic-comments t)
+    (defun my/customize-catppuccin ()
+      (let ((bg (my/lighten (catppuccin-color 'base) 4)))
+        (set-face-attribute 'default nil :background bg)
+        (set-face-attribute 'fringe nil :background bg)
+        (set-face-attribute 'my/invisible nil
+                            :background bg
+                            :foreground bg
+                            :underline `(:color ,bg :position 0))
+        (set-face-attribute 'tab-bar-tab nil
+                            :height 120
+                            :background bg
+                            :underline `(:color ,bg :position 0)
+                            :inherit '(my/current-tab)))
+      (set-face-attribute 'cursor nil
+                          :background (my/adjust-fg (catppuccin-color 'text) 20))
+      (set-face-attribute 'mode-line-active nil
+                          :background (my/adjust-bg (catppuccin-color 'base) 15)
+                          :height 110
+                          :box (list :line-width '(-1 . 1) :style 'released-button
+                                     :color (my/darken (catppuccin-color 'crust) 50)))
+      (set-face-attribute 'mode-line-inactive nil
+                          :foreground (catppuccin-color 'surface2)
+                          :background (my/darken (catppuccin-color 'base) 5)
+                          :height 110
+                          :box (list :line-width '(-1 . 1) :style 'flat-button
+                                     :color (catppuccin-color 'surface1)))
+      (dolist (face '(doom-modeline-buffer-file doom-modeline-project-parent-dir
+                      doom-modeline-project-dir doom-modeline-project-root-dir
+                      doom-modeline-buffer-path))
+        (set-face-attribute face nil
+                          :height 120
+                          :family font-variable-pitch
+                          :weight 'normal))
+      ;; Default rainbow colors are too easy to mix up when side-by-side
+      (dolist (pair '((rainbow-delimiters-depth-1-face . text)
+                      (rainbow-delimiters-depth-2-face . teal)
+                      (rainbow-delimiters-depth-3-face . yellow)
+                      (rainbow-delimiters-depth-4-face . green)
+                      (rainbow-delimiters-depth-5-face . peach)
+                      (rainbow-delimiters-depth-6-face . blue)
+                      (rainbow-delimiters-depth-7-face . mauve)
+                      (rainbow-delimiters-depth-8-face . rosewater)
+                      (rainbow-delimiters-depth-9-face . green)))
+        (face-spec-set (car pair)
+                       `((t (:foreground ,(catppuccin-color (cdr pair)))))))
+      ;; Make unmatched delimiters much more noticable
+      (face-spec-set 'rainbow-delimiters-unmatched-face
+                     `((t (:background ,(catppuccin-color 'red)
+                                       :foreground unspecified
+                                       :weight bold))))
+      (set-face-attribute 'trailing-whitespace nil
+                          :background (my/adjust-fg (catppuccin-color 'base) 15))
+      (dolist (face '(region highlight))
+        (set-face-attribute face nil
+                            :background (catppuccin-color 'surface1)))
+      (face-spec-set 'window-divider-last-pixel
+                     `((t (:foreground ,(catppuccin-color 'base)))))
+      (face-spec-set 'window-divider-first-pixel
+                     `((t (:foreground ,(catppuccin-color 'base)))))
+      (face-spec-set 'window-divider
+                     `((t (:foreground ,(catppuccin-color 'surface0)))))
+      (let ((dark-border (my/darken (catppuccin-color 'crust)
+                                    (pcase catppuccin-flavor
+                                      ('latte 20)
+                                      (_ 40)))))
+        (set-face-attribute 'show-paren-match nil
+                            :background (catppuccin-color 'crust)
+                            :foreground 'unspecified
+                            :inverse-video nil
+                            :box `(:line-width (-2 . -2) :color ,dark-border)
+                            :weight 'bold))
+      ;; Probably too much work to make these actually look like tabs.
+      ;; Puts an underline that's the same color as the background over the
+      ;; bottom line of the box.
+      (face-spec-set 'my/current-tab
+                     `((t (:height 110
+                           :font ,font-variable-pitch
+                           :background unspecified
+                           :weight normal
+                           :foreground ,(catppuccin-color 'text)
+                           :box (:line-width (1 . -1)
+                                 :style released-button
+                                 :color ,(catppuccin-color 'crust))))))
+      (set-face-attribute 'tab-bar nil
+                          :background (my/darken (catppuccin-color 'crust) 5)
+                          :underline `(:color ,(catppuccin-color 'surface0) :position 0)
+                          :extend t
+                          :height 20
+                          :family font-mono) ; tiny size shrinks spacer
+      (set-face-attribute 'tab-bar-tab-inactive nil
                           :background (catppuccin-color 'crust)
+                          :family font-variable-pitch
+                          :height 120
+                          :foreground (my/desaturate (my/adjust-bg (catppuccin-color 'text) 30) 60)
+                          :box (list :line-width '(-1 . -1) :style 'released-button
+                                     :color (my/adjust-bg (catppuccin-color 'crust) 20)))
+      ;; TODO: It would be better to define a face for this
+      (setq tab-bar-menu-bar-button
+            (propertize " 󰍜 " 'face
+                        `((:underline (:color ,(catppuccin-color 'surface0) :position 0))
+                          my/minibuffer-bg)))
+
+      (face-spec-set 'tab-line-tab '((t (:inherit my/current-tab))))
+      (face-spec-set 'tab-line-tab-current '((t (:inherit my/current-tab))))
+      (face-spec-set 'tab-line `((t (:height 10
+                                     :extend t
+                                     :background ,(catppuccin-color 'base)
+                                     :underline (:color ,(catppuccin-color 'surface0)
+                                                 :position 0)))))
+      (face-spec-set 'tab-line-tab-inactive '((t (:height 110 :inherit 'tab-bar-tab-inactive))))
+      (face-spec-set 'tab-line-highlight '((t (:background unspecified))))
+      (set-face-attribute 'tab-line-tab-modified nil
+                          :slant 'oblique
+                          :weight 'unspecified
                           :foreground 'unspecified
-                          :inverse-video nil
-                          :box `(:line-width (-2 . -2) :color ,dark-border)
-                          :weight 'bold))
-    (set-face-attribute 'tab-bar-tab nil
-                        :background (catppuccin-color 'base)
-                        :family font-variable-pitch
-                        :height 120
-                        :weight 'bold
-                        :box (list :line-width '(-1 . -1) :style 'released-button
-                                   :color (catppuccin-color 'crust)))
-    (set-face-attribute 'tab-bar nil
-                        :background (my/darken (catppuccin-color 'crust) 5)
-                        :height 20 :family font-mono) ; tiny size shrinks spacer
-    (set-face-attribute 'tab-bar-tab-inactive nil
-                        :background (catppuccin-color 'crust)
-                        :family font-variable-pitch
-                        :height 120
-                        :foreground (my/desaturate (my/adjust-bg (catppuccin-color 'text) 30) 60)
-                        :box (list :line-width '(-1 . -1) :style 'released-button
-                                   :color (my/adjust-bg (catppuccin-color 'crust) 20)))
-    (set-face-attribute 'my/term-bg nil
-                        :background
-                        (pcase frame-background-mode
-                          ('light (my/lighten (my/saturate (catppuccin-color 'base) 100) 2))
-                          ('dark (my/saturate (my/darken (catppuccin-color 'base) 20) 12))))
-    (set-face-attribute 'my/help-bg nil
-                        :foreground
-                        (my/desaturate (my/adjust-bg (catppuccin-color 'text) 8) 40)
-                        :background
-                        (pcase frame-background-mode
-                          ('light (my/lighten (my/saturate (catppuccin-color 'base) 25) 2))
-                          ('dark (my/darken (my/desaturate (catppuccin-color 'base) 0) 15))))
-    (set-face-attribute 'my/read-only nil
-                        :foreground (catppuccin-color 'overlay2)
-                        :background (my/desaturate (catppuccin-color 'base) 6))
-    (set-face-attribute 'my/minibuffer-bg nil
-                        :background (my/darken (catppuccin-color 'crust) 5)
-                        :height 120
-                        :family font-mono)
-    (let ((sidebar-color (pcase frame-background-mode
-                           ('light (catppuccin-color 'base))
-                           ('dark (my/darken (catppuccin-color 'crust) 15)))))
-      (set-face-attribute 'my/treemacs-bg nil :background sidebar-color)
-      (set-face-attribute 'my/treemacs-big-face nil :background sidebar-color)
-      (set-face-attribute 'my/ibuffer-face nil :background sidebar-color))
-    (set-face-attribute 'my/ibuffer-group nil
-                        :foreground (catppuccin-color 'teal)
-                        :weight 'normal)
-    (set-face-attribute 'my/hl-line nil
-                        :extend t
-                        :background (catppuccin-color 'base))
-    (setopt hl-line-face 'my/hl-line)
-    (set-face-attribute 'widget-field nil
-                        :background (catppuccin-color 'surface0)
-                        :box (list :line-width '(1 . -1)
-                                   :color (catppuccin-color 'overlay0)))
-    )
-  (add-hook 'after-load-theme-hook #'my/customize-catppuccin))
+                          :background 'unspecified
+                          :inherit 'unspecified)
+      (set-face-attribute 'tab-line-tab-special nil :slant 'unspecified :weight 'unspecified)
+      (let ((bg (pcase frame-background-mode
+                            ('light (my/lighten (my/saturate (catppuccin-color 'base) 100) 2))
+                            ('dark (my/saturate (my/darken (catppuccin-color 'base) 20) 12)))))
+        (set-face-attribute 'my/term-bg nil :background bg)
+        (set-face-attribute 'my/invisible-term nil :background bg :foreground bg :underline `(:color ,bg :position 0)))
+      (let ((bg (pcase frame-background-mode
+                            ('light (my/lighten (my/saturate (catppuccin-color 'base) 25) 2))
+                            ('dark (my/darken (my/desaturate (catppuccin-color 'base) 0) 15)))))
+        (set-face-attribute 'my/help-bg nil
+                            :foreground
+                            (my/desaturate (my/adjust-bg (catppuccin-color 'text) 8) 40)
+                            :background bg)
+        (set-face-attribute 'my/invisible-help nil :background bg :foreground bg :underline `(:color ,bg :position 0)))
+      (let ((bg (my/desaturate (catppuccin-color 'base) 6)))
+        (set-face-attribute 'my/read-only nil
+                          :foreground (catppuccin-color 'overlay2)
+                          :background bg)
+        (set-face-attribute 'my/invisible-read-only nil :background bg :foreground bg :underline `(:color ,bg :position 0)))
+      (set-face-attribute 'my/minibuffer-bg nil
+                          :background (my/darken (catppuccin-color 'crust) 5)
+                          :height 120
+                          :family font-mono)
+      (let ((sidebar-color (pcase frame-background-mode
+                             ('light (catppuccin-color 'base))
+                             ('dark (my/darken (catppuccin-color 'crust) 15)))))
+        (set-face-attribute 'my/treemacs-bg nil :background sidebar-color)
+        (set-face-attribute 'my/treemacs-big-face nil :background sidebar-color)
+        (set-face-attribute 'my/ibuffer-face nil :background sidebar-color))
+      (set-face-attribute 'my/ibuffer-group nil
+                          :foreground (catppuccin-color 'teal)
+                          :weight 'normal)
+      (set-face-attribute 'my/hl-line nil
+                          :extend t
+                          :background (catppuccin-color 'base))
+      (setopt hl-line-face 'my/hl-line)
+      (set-face-attribute 'widget-field nil
+                          :background (catppuccin-color 'surface0)
+                          :box (list :line-width '(1 . -1)
+                                     :color (catppuccin-color 'overlay0)))
+      )
+    (add-hook 'after-load-theme-hook #'my/customize-catppuccin))
 
 (use-package minions
     :ensure t
@@ -414,71 +550,7 @@
     (add-to-list 'minions-prominent-modes 'view-mode)
     (minions-mode t))
 
-(use-package doom-modeline
-    :ensure t
-    :custom ((doom-modeline-icon t)
-             (doom-modeline-minor-modes t)
-             (doom-modeline-bar-width 1)
-             (doom-modeline-height 16)
-             (doom-modeline-buffer-file-name-style 'relative-from-project)
-             (doom-modeline-buffer-encoding 'nondefault)
-             (doom-modeline-workspace-name nil)
-             (doom-modeline-irc nil)
-             (doom-modeline-display-misc-in-all-mode-lines nil))
-    :config
-    (defun my/propertize-buffer-name (name tooltip)
-      (or
-       (ignore-errors
-         (concat
-          (doom-modeline-spc)
-          (doom-modeline--buffer-mode-icon)
-          (doom-modeline--buffer-state-icon)
-          (propertize name
-                      'help-echo tooltip
-                      'face 'doom-modeline-buffer-file
-                      'mouse-face 'my/modeline-highlight
-                      'local-map (let ((map (make-sparse-keymap)))
-                                   (define-key map [mode-line mouse-1] 'mouse-buffer-menu)
-                                   (define-key map [mode-line mouse-2] 'mouse-buffer-menu)
-                                   (define-key map [mode-line mouse-3] 'mouse-buffer-menu)
-                                   map)))) ""))
-    ;; Overwrite the built-in buffer info segments
-    (doom-modeline-def-segment buffer-info
-        (my/propertize-buffer-name (doom-modeline--buffer-name)
-         (or (buffer-file-name) "Buffer name")))
-    (doom-modeline-def-segment buffer-info-simple
-        (my/propertize-buffer-name (doom-modeline--buffer-simple-name)
-         (or (buffer-file-name) "Buffer name")))
-    (doom-modeline-mode t))
-
 (use-package nerd-icons :ensure t :defer)
-
-(use-package good-scroll
-    :ensure t
-    :demand t
-    :config
-    ;; Prevent scrolling past the end of a buffer
-    (defun my/good-scroll-advice (fn target)
-      (let* ((name (buffer-name (window-buffer good-scroll--window)))
-             (in-sidebar (or (string= "*:Buffers:*" name)
-                             (string-prefix-p " *Treemacs-" name))))
-        (if (or (not in-sidebar)
-                (< target 0)
-                (not (pos-visible-in-window-p (point-max))))
-          (funcall fn target)
-        (my/eob-recenter)
-        (setq good-scroll-destination 0)
-        (setq good-scroll--prev-point (point))
-        (setq good-scroll--prev-window-start (window-start))
-        (setq good-scroll--prev-vscroll (window-vscroll nil t))
-        0)))
-    (advice-add 'good-scroll--go-to :around #'my/good-scroll-advice)
-    (setopt good-scroll-render-rate (/ 1.0 (if (my/windows-p) 120.0 60.0)))
-    (setopt good-scroll-step 120)
-    (setopt good-scroll-duration 0.1)
-    (keymap-global-set "<prior>" 'good-scroll-down-full-screen)
-    (keymap-global-set "<next>" 'good-scroll-up-full-screen)
-    (good-scroll-mode t))
 
 ;; TODO: Take a look at vertico-unobtrusive and vertico-flat
 (use-package vertico
@@ -508,6 +580,8 @@
     (setopt corfu-on-exact-match 'insert)
     (keymap-unset corfu-map "<remap> <move-beginning-of-line>")
     (keymap-unset corfu-map "<remap> <move-end-of-line>")
+    (keymap-set corfu-map "<prior>" 'corfu-scroll-down)
+    (keymap-set corfu-map "<next>" 'corfu-scroll-up)
     ;; For some reason, Corfu is hard-coded to not show the preview for
     ;; the first match in the list. This overrides the predicate to remove
     ;; that check.
@@ -582,10 +656,12 @@
     :bind (("C-c a" . embark-act)))
 
 (defun my/customize-shell ()
-      (face-remap-add-relative 'default 'my/term-bg)
-      (face-remap-add-relative 'fringe 'my/term-bg)
-      (setq cursor-type 'box)
-      (setq cursor-in-non-selected-windows t))
+  (face-remap-set-base 'default 'my/term-bg)
+  (face-remap-set-base 'fringe 'my/term-bg)
+  (face-remap-set-base 'tab-line-tab 'my/current-tab 'my/invisible-term)
+  (face-remap-set-base 'tab-line-tab-current 'my/current-tab 'my/invisible-term)
+  (setq cursor-type 'box)
+  (setq cursor-in-non-selected-windows t))
 
 (use-package eshell
     :ensure t
@@ -594,7 +670,7 @@
     :init (defun my/setup-eshell ()
             (keymap-set eshell-mode-map "C-r" 'consult-history)
             (my/customize-shell))
-    :hook ((eshell-mode . my/setup-eshell)))
+    :hook (eshell-mode . my/setup-eshell))
 
 (use-package eat
     :ensure t
@@ -657,9 +733,17 @@
     (setq ibuffer-show-empty-filter-groups nil)
     (setq ibuffer-use-header-line nil)
     (setq ibuffer-default-sorting-mode 'alphabetic)
+    (add-to-list 'ibuffer-never-show-predicates "\\*scratch\\*")
+    (defun my/read-only-p (buf)
+      (and (buffer-file-name buf)
+           (buffer-local-value 'buffer-read-only buf)))
+    (defun my/editable-file-p (buf)
+      (and (buffer-file-name buf)
+           (not (buffer-local-value 'buffer-read-only buf))))
     (setq ibuffer-saved-filter-groups
           '(("Groups"
-             ("Files" (visiting-file))
+             ("Files" (predicate my/editable-file-p (current-buffer)))
+             ("View" (predicate my/read-only-p (current-buffer)))
              ("Shell" (or (derived-mode . eat-mode)
                           (derived-mode . eshell-mode)))
              ("Process" (process))
@@ -675,9 +759,33 @@
              ("Directory" (derived-mode . dired-mode))
              ("Other" (name . ".*"))
              )))
+    (defun my/color-icon (name color)
+      (let ((c (catppuccin-color color)))
+        (propertize (nerd-icons-mdicon name)
+                    'face `(:family ,nerd-icons-font-family :foreground ,c))))
+    ;; Simplified version of doom-modeline--buffer-file-state-icon
+    ;; TODO: finish the other states
+    (defun my/buffer-state-icon ()
+      (cond ((not (or (and (buffer-file-name) (file-remote-p buffer-file-name))
+                      (verify-visited-file-modtime (current-buffer))))
+             (concat " " (my/color-icon "nf-md-reload_alert" 'yellow)))
+            ((and (buffer-file-name) (buffer-modified-p))
+             (concat " " (my/color-icon "nf-md-content_save_edit" 'yellow)))
+            ((and (buffer-file-name) buffer-read-only)
+             (concat " " (my/color-icon "nf-md-lock" 'overlay0)))
+            (t "")))
     (define-ibuffer-column icon (:name "Icon")
       (with-current-buffer buffer
-        (nerd-icons-icon-for-buffer)))
+        (concat (nerd-icons-icon-for-buffer)
+                (my/buffer-state-icon))))
+    (define-ibuffer-column doom-name
+        (:name "Name"
+         :inline t
+         :header-mouse-map ibuffer-name-header-map
+         :props ('mouse-face 'highlight
+                 'keymap ibuffer-name-map
+                 'ibuffer-name-column t))
+        (my/buffer-name buffer))
     (setq ibuffer-hidden-filter-groups '("Other"))
     (defun my/ibuffer-load-groups ()
       (ibuffer-switch-to-saved-filter-groups "Groups"))
@@ -736,7 +844,7 @@
             (find-file . 0)
             (delete-file . 0)
             (kill-current-buffer . 0)))
-    (setq ibuffer-sidebar-formats '((" " mark " " icon " " name)))
+    (setq ibuffer-sidebar-formats '((" " mark " " icon " " doom-name)))
     (defun my/customize-ibuffer ()
       (face-remap-add-relative 'default 'my/ibuffer-face)
       (face-remap-add-relative 'fringe 'my/ibuffer-face)
@@ -816,7 +924,7 @@
 (use-package flycheck
     :ensure t
     :defer t
-    :init (add-hook 'prog-mode-hook #'flycheck-mode)
+    :hook (prog-mode . flycheck-mode)
     :bind (("C-c e" . flycheck-next-error)
            ("C-c E" . flycheck-previous-error)
            ("C-c C-e" . flycheck-list-errors))
@@ -834,8 +942,8 @@
     :init (defun my/lsp-mode-setup-completion ()
             (setq-local completion-styles '(orderless)
                         completion-category-defaults nil))
-      ;; (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
-      ;;       '(flex)))
+    ;; (setf (alist-get 'styles (alist-get 'lsp-capf completion-category-defaults))
+    ;;       '(flex)))
     :hook
     (lsp-completion-mode . my/lsp-mode-setup-completion)
     (python-mode . lsp)
@@ -845,7 +953,8 @@
 
 (use-package lsp-ui
     :ensure t
-    :after lsp-mode)
+    :hook (flycheck-mode . lsp-ui-mode)
+    :config (setopt lsp-ui-sideline-enable nil))
 
 (use-package dap-mode
     :ensure t
@@ -875,24 +984,24 @@
 ;; The lsp client in lsp-gdscript doesn't know what to do with the
 ;; gdscript/capabilities notification. This ignores it.
 (use-package lsp-gdscript
-  :ensure nil
-  :defer t
-  :after gdscript-mode
-  :defines lsp-register-client make-lsp-client lsp-gdscript-tcp-connect-to-port lsp-activate-on
-  :config
-  (lsp-register-client
-   (make-lsp-client :new-connection (lsp-gdscript-tcp-connect-to-port)
-                    :activation-fn (lsp-activate-on "gdscript")
-                    :server-id 'gdscript
-                    :notification-handlers (ht ("gdscript/capabilities" 'ignore)))))
+    :ensure nil
+    :defer t
+    :after gdscript-mode
+    :defines lsp-register-client make-lsp-client lsp-gdscript-tcp-connect-to-port lsp-activate-on
+    :config
+    (lsp-register-client
+     (make-lsp-client :new-connection (lsp-gdscript-tcp-connect-to-port)
+                      :activation-fn (lsp-activate-on "gdscript")
+                      :server-id 'gdscript
+                      :notification-handlers (ht ("gdscript/capabilities" 'ignore)))))
 
 (use-package adaptive-wrap
-  :ensure t
-  :config
-  (setopt adaptive-wrap-extra-indent 1)
-  (add-hook 'prog-mode-hook 'adaptive-wrap-prefix-mode)
-  (set-fringe-bitmap-face 'right-curly-arrow 'ansi-color-magenta)
-  (set-fringe-bitmap-face 'left-curly-arrow 'ansi-color-magenta))
+    :ensure t
+    :hook (prog-mode . adaptive-wrap-prefix-mode)
+    :config
+    (setopt adaptive-wrap-extra-indent 1)
+    (set-fringe-bitmap-face 'right-curly-arrow 'ansi-color-magenta)
+    (set-fringe-bitmap-face 'left-curly-arrow 'ansi-color-magenta))
 
 (use-package helpful
     :ensure t
@@ -907,7 +1016,7 @@
 (use-package slime
     :ensure t
     :defer t
-  :config (setopt inferior-lisp-program "sbcl"))
+    :config (setopt inferior-lisp-program "sbcl"))
 
 (use-package server
     :ensure nil
@@ -916,30 +1025,30 @@
               (server-start)))
 
 (use-package recentf
-  :ensure nil
-  :config
-  (add-to-list 'recentf-exclude "/sudo:")
-  (add-to-list 'recentf-exclude "/sudoedit:")
-  (add-to-list 'recentf-exclude "/su:")
-  (add-to-list 'recentf-exclude "/doas:"))
+    :ensure nil
+    :config
+    (add-to-list 'recentf-exclude "/sudo:")
+    (add-to-list 'recentf-exclude "/sudoedit:")
+    (add-to-list 'recentf-exclude "/su:")
+    (add-to-list 'recentf-exclude "/doas:"))
 
 (use-package rect
-  :ensure nil
-  :config
-  (keymap-set rectangle-mark-mode-map "C-i" 'string-insert-rectangle)
-  (keymap-set rectangle-mark-mode-map "C-r" 'replace-rectangle))
+    :ensure nil
+    :config
+    (keymap-set rectangle-mark-mode-map "C-i" 'string-insert-rectangle)
+    (keymap-set rectangle-mark-mode-map "C-r" 'replace-rectangle))
 
 (use-package browse-url
-  :ensure nil
-  :defer t
-  :config
-  (setopt browse-url-browser-function 'eww-browse-url))
+    :ensure nil
+    :defer t
+    :config
+    (setopt browse-url-browser-function 'eww-browse-url))
 
 (use-package apropos
-  :ensure nil
-  :defer t
-  :bind (:map apropos-mode-map ("q" . kill-current-buffer))
-  :config (setopt apropos-do-all t))
+    :ensure nil
+    :defer t
+    :bind (:map apropos-mode-map ("q" . kill-current-buffer))
+    :config (setopt apropos-do-all t))
 
 
 ;;;; Customize built-in modes (use-package didn't work)
@@ -951,8 +1060,10 @@
 (setopt help-window-select t)
 (setopt help-downcase-arguments t)
 (defun my/customize-help ()
-  (face-remap-add-relative 'default 'my/help-bg)
-  (face-remap-add-relative 'fringe 'my/help-bg))
+  (face-remap-set-base 'default 'my/help-bg)
+  (face-remap-set-base 'fringe 'my/help-bg)
+  (face-remap-set-base 'tab-line-tab 'my/current-tab 'my/invisible-help)
+  (face-remap-set-base 'tab-line-tab-current 'my/current-tab 'my/invisible-help))
 (add-hook 'help-mode-hook #'my/customize-help)
 (add-hook 'helpful-mode-hook #'my/customize-help)
 (add-hook 'Custom-mode-hook #'my/customize-help)
@@ -961,22 +1072,25 @@
 (add-hook 'Info-mode-hook #'my/customize-help)
 
 (defun my/customize-read-only ()
-  (face-remap-add-relative 'default 'my/read-only)
-  (face-remap-add-relative 'fringe 'my/read-only)
-  (my/add-scroll-bar))
+  (face-remap-set-base 'default 'my/read-only)
+  (face-remap-set-base 'fringe 'my/read-only)
+  (face-remap-set-base 'tab-line-tab 'my/current-tab 'my/invisible-read-only)
+  (face-remap-set-base 'tab-line-tab-current 'my/current-tab 'my/invisible-read-only))
 
 (add-hook 'view-mode-hook #'my/customize-read-only)
+
 (defun my/messages-scroll-advice (&rest _)
-  (when (eq major-mode 'messages-buffer-mode)
-    (goto-char (point-max))
-    (previous-line)
-    (end-of-line)
-    (recenter -1)))
+  (with-current-buffer (messages-buffer)
+    (when (eq (window-buffer (selected-window))
+              (messages-buffer))
+      (goto-char (point-max))
+      (ignore-errors (backward-char 1))
+      (recenter -1))))
 
 (defun my/customize-messages ()
   (my/customize-read-only)
   (advice-add 'tab-line-select-tab :after 'my/messages-scroll-advice)
-  
+  ;; TODO: Find a hook to auto-scroll to end when a message is added
   )
 (add-hook 'messages-buffer-mode-hook #'my/customize-messages)
 (with-current-buffer (messages-buffer) ;; make sure we hit the initial messages buffer
@@ -1031,14 +1145,17 @@
 (setopt completion-on-separator-character t)
 (setopt completion-show-help nil)
 
+(setq initial-major-mode 'prog-mode)
+(setq initial-scratch-message "")
+
 (setopt history-delete-duplicates t)
 
 (setq minibuffer-beginning-of-buffer-movement t)
 (setq minibuffer-default-prompt-format "")
 (setq minibuffer-prompt-properties
-        '(read-only t
-          cursor-intangible t
-          face minibuffer-prompt))
+      '(read-only t
+        cursor-intangible t
+        face minibuffer-prompt))
 (setopt inhibit-message-regexps '("Beginning of buffer" "End of buffer"))
 (setopt set-message-functions '(inhibit-message set-minibuffer-message))
 
@@ -1157,9 +1274,11 @@
     (backward-kill-word 1)))
 (keymap-global-set "C-<backspace>" 'backward-kill-space-or-word)
 
-(defun my/skip-file-buffers (_ buf _) (or (buffer-file-name buf)
-                                          (string= "*scratch*" (buffer-name buf))))
-(defun my/skip-non-file-buffers (_ buf _ ) (not (my/skip-file-buffers nil buf nil)))
+;; Both functions always skips *scratch*
+(defun my/skip-file-buffers (_ buf _)
+  (or (buffer-file-name buf) (string= "*scratch*" (buffer-name buf))))
+(defun my/skip-non-file-buffers (_ buf _ )
+    (not (my/skip-file-buffers nil buf nil)))
 
 ;; Cycle file buffers, skipping others
 (defun previous-file-buffer ()
@@ -1223,6 +1342,8 @@
 (keymap-global-set "C-M-]" 'next-buffer)
 (keymap-global-set "<mouse-8>" 'back-or-previous-buffer)
 (keymap-global-set "<mouse-9>" 'forward-or-next-buffer)
+(keymap-global-set "<tab-line> <mouse-8>" 'tab-line-switch-to-prev-tab)
+(keymap-global-set "<tab-line> <mouse-9>" 'tab-line-switch-to-next-tab)
 (when (my/windows-p)
   (keymap-global-set "<mouse-4>" 'back-or-previous-buffer)
   (keymap-global-set "<mouse-5>" 'forward-or-next-buffer))
@@ -1244,7 +1365,6 @@
   (ibuffer-sidebar-show-sidebar)
   (with-selected-window (ibuffer-sidebar-showing-sidebar-p)
     (setq-local window-size-fixed nil)))
-
 
 (defun hide-sidebar ()
   (interactive)
@@ -1268,7 +1388,9 @@
 ;; Custom layout that uses a bottom split + tabline-mode
 (defun reset-window-layout ()
   (interactive)
-  (let ((buf (if (buffer-file-name) (current-buffer) (scratch-buffer))))
+  (let ((buf (if (buffer-file-name)
+                 (current-buffer)
+               (get-scratch-buffer-create))))
     (hide-sidebar)
     (split-window-right)
     (other-window 1)
@@ -1276,20 +1398,16 @@
       (delete-other-windows)
       (setq main-window (selected-window))
       (let ((switch-to-buffer-obey-display-actions nil))
-        (switch-to-buffer buf nil t)))
+        (switch-to-buffer buf nil t))
     (show-sidebar)
     (split-window-below -10)
     (let ((switch-to-buffer-obey-display-actions nil))
       (other-window 1)
-      (switch-to-buffer (messages-buffer) t t)
-      (setq scroll-bar-width 5)
-      (setq vertical-scroll-bar 'right)
       (setq bottom-window (selected-window))
       (switch-to-buffer (messages-buffer) t t)
       (tab-line-mode t)
       (goto-char (point-max))
-      (other-window 1))))
-
+      (other-window 1)))))
 
 (defun my/buffer-is-read-only (buf)
   (buffer-local-value 'buffer-read-only (get-buffer buf)))
@@ -1315,13 +1433,31 @@
           display-buffer-in-tab)
          (tab-name . "Packages")
          (dedicated . t))
+        ;; Handle read-only buffers that visit real files. Usually from
+        ;; find-function and similar.
+        ;; FIXME: This doesn't quite work when using find-function in
+        ;;        another frame
+        ((and my/buffer-is-read-only (not my/buffer-is-not-file))
+         (display-buffer-reuse-window
+          display-buffer-reuse-mode-window
+          display-buffer-pop-up-frame)
+         (mode fundamental-mode))
+        ;; Real files. WIP, not quite where I want it.
+        ((derived-mode . prog-mode)
+         (display-buffer-reuse-mode-window
+          display-buffer-in-previous-window
+          display-buffer-pop-up-window)
+         (mode prog-mode))
         ;; Everything that should show up in the bottom window
         ((or "\\*Async Shell Command\\*"
+          (not "\\*GNU Emacs\\*")
+          (not (derived-mode . prog-mode))
           (major-mode . help-mode) (major-mode . helpful-mode)
           (major-mode . Info-mode) (major-mode . Man-mode)
           (major-mode . apropos-mode) (major-mode . messages-buffer-mode)
           (major-mode . comint-mode) (major-mode . Custom-mode)
-          (major-mode . compilation-mode)
+          (major-mode . compilation-mode) (major-mode . occur-mode)
+          (major-mode . lisp-interaction-mode) (major-mode . debugger-mode)
           my/buffer-is-not-file)
          (display-buffer-reuse-window
           display-buffer-reuse-mode-window
@@ -1329,28 +1465,17 @@
          (window-height . 18)
          ;; Enable tab-line for every buffer displayed in the bottom window
          (body-function . (lambda (win)
-                            (with-current-buffer (window-buffer win)
-                              (tab-line-mode t)
+                            (with-selected-window win
+                              (if (string= (buffer-name) "*scratch*")
+                                  (setq-local tab-line-exclude t)
+                                (tab-line-mode t))
                               (when (eq major-mode 'messages-buffer-mode)
-                                (goto-char (point-max))))))
+                                (my/eob-recenter)))))
          (mode messages-buffer-mode help-mode helpful-mode Info-mode
           apropos-mode Man-mode shell-mode compilation-mode comint-mode
-          Custom-mode special-mode fundamental-mode))
-        ;; Handle read-only buffers that visit real files. Usually from
-        ;; find-function and similar.
-        ;; FIXME: This doesn't quite work when using find-function in
-        ;;        another frame
-        (my/buffer-is-read-only
-         (display-buffer-reuse-window
-          display-buffer-reuse-mode-window
-          display-buffer-use-some-frame
-          display-buffer-pop-up-frame)
-         (mode fundamental-mode))
-        ;; Real files. WIP, not quite where I want it.
-        ((derived-mode . prog-mode)
-         (display-buffer-reuse-mode-window display-buffer-use-least-recent-window)
-         (mode prog-mode)
-         )
+          Custom-mode occur-mode special-mode fundamental-mode
+          lisp-interaction-mode debugger-mode))
+
         ))
 
 
@@ -1393,6 +1518,7 @@
   (interactive)
   (kill-buffer (current-buffer)))
 (keymap-global-set "C-x k" 'kill-current-buffer)
+(keymap-global-set "C-x K" 'kill-buffer-and-window)
 
 (keymap-global-set "C-S-s" 'isearch-backward)
 (keymap-set isearch-mode-map "C-S-s" 'isearch-repeat-backward)
