@@ -25,10 +25,15 @@
 ;; - Fix python-mode keymap conflict for C-c C-d
 ;; - Packages to check out:
 ;;     - disaster, eldoc-box, eldoc-overlay, flycheck-hl-todo,
-;;       form-feed-st or page-break-lines
+;;       form-feed-st or page-break-lines, focus
 ;; - Indicate pop-up frames by disabling the tab bar on them. Maintain a list
 ;;   of them and reuse them for read-only buffers. Don't allow the sidebar to
 ;;   exist on these frames.
+;; - Figure out what part of lsp-mode is responsible for the nice mouseover
+;;   windows and remove scrollbar from them. Try to make them appear for cursor
+;;   hover too instead of the eldoc window at the bottom.
+;; - Try to make find/replace better. Can the default behavior be changed to
+;;   search the entire file, not just from the cursor?
 
 
 ;;;; Early / system settings
@@ -122,10 +127,10 @@
     '((default :weight bold))
   "currently selected tab")
 (defface my/help-bg
-  '((default :inherit default))
+  '((default))
   "help background color")
 (defface my/minibuffer-bg
-  '((default :inherit default))
+  '((default))
   "minibuffer background color")
 (defface my/invisible-help
     '((default))
@@ -142,6 +147,9 @@
 (defface my/hl-line
     '((default))
   "hl-line background color")
+(defface my/hl-line-box
+    '((default))
+  "hl-line for editor windows")
 
 
 (defun my/get-window-under-mouse ()
@@ -263,7 +271,7 @@
           (doom-modeline--buffer-state-icon)
           (propertize name
                       'help-echo tooltip
-                      'mouse-face 'my/modeline-highlight
+                      'mouse-face 'doom-modeline-highlight
                       'local-map (let ((map (make-sparse-keymap)))
                                    (define-key map [mode-line mouse-1] 'mouse-buffer-menu)
                                    (define-key map [mode-line mouse-2] 'mouse-buffer-menu)
@@ -306,8 +314,9 @@
     (keymap-global-set "M-8" (lambda () (interactive) (tab-bar-select-tab 8)))
     (keymap-global-set "M-9" (lambda () (interactive) (tab-bar-select-tab 9)))
     (tab-bar-mode t)
-    ;; This gets modified after loading the theme
-    (setq tab-bar-menu-bar-button (propertize " 󰍜 " 'face 'my/minibuffer-bg)))
+    ;; These get modified after loading the theme
+    (setq tab-bar-menu-bar-button (propertize " 󰍜 " 'face 'my/minibuffer-bg))
+    )
 
 
 (use-package tab-line
@@ -400,22 +409,37 @@
                           :background (my/adjust-fg (catppuccin-color 'text) 20))
       (set-face-attribute 'mode-line-active nil
                           :background (my/adjust-bg (catppuccin-color 'base) 15)
-                          :height 110
-                          :box (list :line-width '(-1 . 1) :style 'released-button
-                                     :color (my/darken (catppuccin-color 'crust) 50)))
+                          :height 100
+                          :overline (my/darken (catppuccin-color 'surface0) 10)
+                          :underline `(:color ,(my/darken (catppuccin-color 'crust) 10) :position 0)
+                          :box 'unspecified)
+      ;; :box (list :line-width '(-1 . 1) :style 'released-button
+      ;;            :color (my/adjust-fg (catppuccin-color 'crust) 20)))
       (set-face-attribute 'mode-line-inactive nil
-                          :foreground (catppuccin-color 'surface2)
-                          :background (my/darken (catppuccin-color 'base) 5)
-                          :height 110
-                          :box (list :line-width '(-1 . 1) :style 'flat-button
-                                     :color (catppuccin-color 'surface1)))
+                          :background (my/adjust-bg (catppuccin-color 'surface1) 5)
+                          :foreground (my/adjust-fg (catppuccin-color 'base) -25)
+                          :weight 'normal
+                          :overline (my/darken (catppuccin-color 'base) 10)
+                          :underline `(:color ,(catppuccin-color 'surface0) :position 0)
+                          :height 100
+                          :box 'unspecified)
+      ;; (list :line-width '(-1 . 1) :style 'flat-button
+      ;;            :color (catppuccin-color 'surface1)))
       (dolist (face '(doom-modeline-buffer-file doom-modeline-project-parent-dir
                       doom-modeline-project-dir doom-modeline-project-root-dir
                       doom-modeline-buffer-path doom-modeline-buffer-modified))
         (set-face-attribute face nil
-                          :height 120
+                          :height 100
                           :family font-variable-pitch
                           :weight 'normal))
+      (set-face-attribute 'doom-modeline-bar nil
+                          :background (catppuccin-color 'base) :inherit 'unspecified)
+      (set-face-attribute 'doom-modeline-bar-inactive nil
+                          :background (catppuccin-color 'base) :inherit 'unspecified)
+      (set-face-attribute 'doom-modeline-highlight nil
+                          :background (my/adjust-bg (catppuccin-color 'surface0) 10)
+                          :foreground (catppuccin-color 'text)
+                          :inherit nil)
       ;; Default rainbow colors are too easy to mix up when side-by-side
       (dolist (pair '((rainbow-delimiters-depth-1-face . text)
                       (rainbow-delimiters-depth-2-face . teal)
@@ -437,13 +461,14 @@
                           :background (my/adjust-fg (catppuccin-color 'base) 15))
       (dolist (face '(region highlight))
         (set-face-attribute face nil
-                            :background (catppuccin-color 'surface1)))
+                            :box 'unspecified
+                            :background (catppuccin-color 'surface0)))
       (face-spec-set 'window-divider-last-pixel
                      `((t (:foreground ,(catppuccin-color 'base)))))
       (face-spec-set 'window-divider-first-pixel
                      `((t (:foreground ,(catppuccin-color 'base)))))
       (face-spec-set 'window-divider
-                     `((t (:foreground ,(catppuccin-color 'surface0)))))
+                     `((t (:foreground ,(catppuccin-color 'base)))))
       (let ((dark-border (my/darken (catppuccin-color 'crust)
                                     (pcase catppuccin-flavor
                                       ('latte 20)
@@ -458,7 +483,7 @@
       ;; Puts an underline that's the same color as the background over the
       ;; bottom line of the box.
       (face-spec-set 'my/current-tab
-                     `((t (:height 110
+                     `((t (:height 100
                            :font ,font-variable-pitch
                            :background unspecified
                            :weight normal
@@ -492,7 +517,7 @@
                                      :background ,(catppuccin-color 'base)
                                      :underline (:color ,(catppuccin-color 'surface0)
                                                  :position 0)))))
-      (face-spec-set 'tab-line-tab-inactive '((t (:height 110 :inherit 'tab-bar-tab-inactive))))
+      (face-spec-set 'tab-line-tab-inactive '((t (:height 100 :inherit 'tab-bar-tab-inactive))))
       (face-spec-set 'tab-line-highlight '((t (:background unspecified))))
       (set-face-attribute 'tab-line-tab-modified nil
                           :slant 'oblique
@@ -520,12 +545,12 @@
                           :background bg)
         (set-face-attribute 'my/invisible-read-only nil :background bg :foreground bg :underline `(:color ,bg :position 0)))
       (set-face-attribute 'my/minibuffer-bg nil
-                          :background (my/darken (catppuccin-color 'crust) 5)
+                          :background (my/adjust-bg (catppuccin-color 'crust) 15)
                           :height 120
                           :family font-mono)
       (let ((sidebar-color (pcase frame-background-mode
                              ('light (catppuccin-color 'base))
-                             ('dark (my/darken (catppuccin-color 'crust) 15)))))
+                             ('dark (my/darken (catppuccin-color 'crust) 25)))))
         (set-face-attribute 'my/treemacs-bg nil :background sidebar-color)
         (set-face-attribute 'my/treemacs-big-face nil :background sidebar-color)
         (set-face-attribute 'my/ibuffer-face nil :background sidebar-color))
@@ -535,11 +560,15 @@
       (set-face-attribute 'my/hl-line nil
                           :extend t
                           :background (catppuccin-color 'base))
+      (set-face-attribute 'my/hl-line-box nil
+                          :extend t
+                          :box `(:line-width (-1 . -1) :color ,(catppuccin-color 'surface0)))
       (setopt hl-line-face 'my/hl-line)
       (set-face-attribute 'widget-field nil
                           :background (catppuccin-color 'surface0)
                           :box (list :line-width '(1 . -1)
                                      :color (catppuccin-color 'overlay0)))
+      (face-spec-set 'custom-documentation `((t (:foreground ,(catppuccin-color 'base)))))
       )
     (add-hook 'after-load-theme-hook #'my/customize-catppuccin))
 
@@ -850,7 +879,7 @@
       (add-hook 'post-command-hook 'my/eob-recenter)
       (set-fringe-mode 10))
     (add-hook 'ibuffer-sidebar-mode-hook #'my/customize-ibuffer)
-    (defun my/ibuffer-sidebar-autoresize (_)
+    (defun my/ibuffer-sidebar-autoresize (&rest _)
       ;; Only resize when this is the sidebar buffer window and treemacs is visible
       (when (and (eq (selected-window) (ibuffer-sidebar-showing-sidebar-p))
                  (treemacs-get-local-window))
@@ -947,7 +976,8 @@
     (python-mode . lsp)
     :config
     (setopt lsp-keymap-prefix "C-c l")
-    (setopt lsp-completion-provider :none))
+    (setopt lsp-completion-provider :none)
+    (setopt lsp-headerline-breadcrumb-enable nil))
 
 (use-package lsp-ui
     :ensure t
@@ -1114,12 +1144,12 @@
 (unless (display-graphic-p) (xterm-mouse-mode t))
 (delete-selection-mode t)
 (undelete-frame-mode t) ; allow restoring closed frames
-(set-fringe-mode 20)
+(set-fringe-style '(20 . 1))
 (minibuffer-depth-indicate-mode t)
 
-(setopt window-divider-default-right-width 3)
-(setopt window-divider-default-bottom-width 3)
-(setopt window-divider-default-places t)
+(setopt window-divider-default-right-width 1)
+(setopt window-divider-default-bottom-width 1)
+(setopt window-divider-default-places 'bottom-only)
 (window-divider-mode t)
 
 
@@ -1361,7 +1391,8 @@
     (redisplay)) ; somehow keeps both in sync, sometimes breaks without
   (ibuffer-sidebar-show-sidebar)
   (with-selected-window (ibuffer-sidebar-showing-sidebar-p)
-    (setq-local window-size-fixed nil)))
+    (setq-local window-size-fixed nil)
+    (my/ibuffer-sidebar-autoresize)))
 
 (defun hide-sidebar ()
   (interactive)
@@ -1451,6 +1482,7 @@
          (display-buffer-reuse-mode-window
           display-buffer-in-previous-window
           display-buffer-pop-up-window)
+         (body-function . (lambda (win) t))
          (mode prog-mode fundamental-mode))
         ;; Everything that should show up in the bottom window
         ((and (or "\\*Async Shell Command\\*"
