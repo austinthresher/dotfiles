@@ -3,8 +3,6 @@
 ;;;; TODO:
 ;;;; =========================================================================
 ;; - Check out lsp-booster, but it might not be faster than native json parsing
-;; - Use the same format for file names as doom-modeline
-;; - Make ctrl+scroll text zoom use smaller steps
 ;; - Figure out how to make completion ignore characters after the cursor
 ;; - Try to make mouse scroll in corfu-popupinfo scroll the help popup
 ;; - Look at tags to potentially add a tag navigation bar
@@ -242,7 +240,8 @@
              (doom-modeline-buffer-encoding 'nondefault)
              (doom-modeline-workspace-name nil)
              (doom-modeline-irc nil)
-             (doom-modeline-display-misc-in-all-mode-lines nil))
+             (doom-modeline-display-misc-in-all-mode-lines nil)
+             (doom-modeline-highlight-modified-buffer-name nil))
     :config
     ;; Wrap doom-modeline's formatting for buffer names to reuse elsewhere,
     ;; stripping text properties.
@@ -412,7 +411,7 @@
                                      :color (catppuccin-color 'surface1)))
       (dolist (face '(doom-modeline-buffer-file doom-modeline-project-parent-dir
                       doom-modeline-project-dir doom-modeline-project-root-dir
-                      doom-modeline-buffer-path))
+                      doom-modeline-buffer-path doom-modeline-buffer-modified))
         (set-face-attribute face nil
                           :height 120
                           :family font-variable-pitch
@@ -552,7 +551,6 @@
 
 (use-package nerd-icons :ensure t :defer)
 
-;; TODO: Take a look at vertico-unobtrusive and vertico-flat
 (use-package vertico
     :ensure t
     :defer t
@@ -1090,8 +1088,7 @@
 (defun my/customize-messages ()
   (my/customize-read-only)
   (advice-add 'tab-line-select-tab :after 'my/messages-scroll-advice)
-  ;; TODO: Find a hook to auto-scroll to end when a message is added
-  )
+  (add-hook 'after-change-functions 'my/messages-scroll-advice 0 t))
 (add-hook 'messages-buffer-mode-hook #'my/customize-messages)
 (with-current-buffer (messages-buffer) ;; make sure we hit the initial messages buffer
   (my/customize-messages))
@@ -1165,13 +1162,13 @@
 (setopt sentence-end-double-space nil)
 (setopt vc-follow-symlinks t)
 
+(setopt text-scale-mode-step 1.05)
 (setopt mouse-wheel-progressive-speed nil)
 (setopt mouse-wheel-scroll-amount '(0.1
                                     ((shift) . 0.9)
                                     ((meta) . hscroll)
                                     ((control) . text-scale)
                                     ((control meta) . global-text-scale)))
-
 (setopt mouse-buffer-menu-maxlen 64)
 (setopt mouse-buffer-menu-mode-mult 999)
 (setopt mouse-drag-and-drop-region-scroll-margin 2)
@@ -1383,6 +1380,13 @@
 
 (keymap-global-set "C-c C-d" 'toggle-sidebar)
 
+;; previous-window-any-frame doesn't respect no-other-window
+(defun other-other-window ()
+  (interactive)
+  (other-window -1))
+(keymap-global-set "M-o" 'other-other-window)
+
+
 (defvar bottom-window nil)
 (defvar main-window nil)
 ;; Custom layout that uses a bottom split + tabline-mode
@@ -1443,21 +1447,20 @@
           display-buffer-pop-up-frame)
          (mode fundamental-mode))
         ;; Real files. WIP, not quite where I want it.
-        ((derived-mode . prog-mode)
+        ((and (not my/buffer-is-not-file) (not my/buffer-is-read-only))
          (display-buffer-reuse-mode-window
           display-buffer-in-previous-window
           display-buffer-pop-up-window)
-         (mode prog-mode))
+         (mode prog-mode fundamental-mode))
         ;; Everything that should show up in the bottom window
-        ((or "\\*Async Shell Command\\*"
-          (not "\\*GNU Emacs\\*")
-          (not (derived-mode . prog-mode))
-          (major-mode . help-mode) (major-mode . helpful-mode)
-          (major-mode . Info-mode) (major-mode . Man-mode)
-          (major-mode . apropos-mode) (major-mode . messages-buffer-mode)
-          (major-mode . comint-mode) (major-mode . Custom-mode)
-          (major-mode . compilation-mode) (major-mode . occur-mode)
-          (major-mode . lisp-interaction-mode) (major-mode . debugger-mode)
+        ((and (or "\\*Async Shell Command\\*"
+                  (major-mode . help-mode) (major-mode . helpful-mode)
+                  (major-mode . Info-mode) (major-mode . Man-mode)
+                  (major-mode . apropos-mode) (major-mode . messages-buffer-mode)
+                  (major-mode . comint-mode) (major-mode . Custom-mode)
+                  (major-mode . compilation-mode) (major-mode . occur-mode)
+                  (major-mode . shell-mode) (major-mode . eshell-mode)
+                  (major-mode . lisp-interaction-mode) (major-mode . debugger-mode))
           my/buffer-is-not-file)
          (display-buffer-reuse-window
           display-buffer-reuse-mode-window
@@ -1473,9 +1476,8 @@
                                 (my/eob-recenter)))))
          (mode messages-buffer-mode help-mode helpful-mode Info-mode
           apropos-mode Man-mode shell-mode compilation-mode comint-mode
-          Custom-mode occur-mode special-mode fundamental-mode
-          lisp-interaction-mode debugger-mode))
-
+          Custom-mode occur-mode special-mode fundamental-mode eshell-mode
+          lisp-interaction-mode debugger-mode inferior-python-mode))
         ))
 
 
