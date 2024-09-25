@@ -3,7 +3,6 @@
 if command -v jq $> /dev/null; then
     make --always-make --dry-run $@ \
         | grep -wE 'gcc|g\+\+' \
-        | grep -w '\-c' \
         | jq -nR '[inputs|{directory:"'$(pwd)'", command:., file: match(" [^ ]+$").string[1:]}]' \
         > compile_commands.json
 else
