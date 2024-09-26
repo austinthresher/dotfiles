@@ -11,16 +11,19 @@
   (set-face-attribute 'show-paren-match nil
                       :box '(:line-width (-1 . -1))
                       :weight 'black
-                      :background "white"
+                      :background "white")
+  (set-face-attribute 'show-paren-mismatch nil
+                      :foreground "white"
                       :background "IndianRed4"
                       :inverse-video nil)
   (set-face-attribute 'trailing-whitespace nil
                       :background "gainsboro")
   (set-face-attribute 'isearch-fail nil :underline "red"
-		      :foreground "red3" :background 'unspecified)
+                      :foreground "red3" :background 'unspecified)
   (set-face-attribute 'highlight nil :background "LightBlue1")
   (set-face-attribute 'region nil :background "LightBlue1")
-  )
+  (dolist (face '(whitespace-tab whitespace-big-indent whitespace-trailing))
+    (face-spec-set face '((t (:background "misty rose" :foreground "gray50"))))))
 
 (elpaca doom-modeline
   (column-number-mode)
@@ -34,23 +37,29 @@
                       'doom-modeline-project-root-dir 'doom-modeline-project-parent-dir))
     (set-face-attribute face nil :inherit '(variable-pitch)))
   (set-face-attribute 'doom-modeline-bar nil
-		      :inherit '(mode-line-active)
-		      :foreground 'unspecified :background 'unspecified)
+                      :inherit '(mode-line-active)
+                      :foreground 'unspecified :background 'unspecified)
   (set-face-attribute 'doom-modeline-bar-inactive nil
-		      :inherit '(mode-line-inactive)
-		      :foreground 'unspecified :background 'unspecified)
-  )
+                      :inherit '(mode-line-inactive)
+                      :foreground 'unspecified :background 'unspecified)
+  (set-face-attribute 'doom-modeline-buffer-modified nil
+                      :foreground "DarkOrange"
+                      :weight 'bold
+                      :inherit '(variable-pitch)))
 
 (elpaca helm
   (setq tab-always-indent 'complete)
   (setq helm-always-two-windows nil
         helm-scroll-amount 8
         helm-move-to-line-cycle-in-source nil
-	helm-default-display-buffer-functions '(display-buffer-at-bottom)
+        helm-display-buffer-default-height 16
+        helm-default-display-buffer-functions '(display-buffer-at-bottom)
+        helm-left-margin-width 1
         helm-buffers-fuzzy-matching t
         helm-semantic-fuzzy-match t
         helm-imenu-fuzzy-match t
         helm-apropos-fuzzy-match t
+        helm-visible-mark-prefix "◎"
         helm-display-header-line nil)
   (keymap-global-set "C-c h" 'helm-command-prefix)
   (keymap-global-set "M-x" 'helm-M-x)
@@ -72,6 +81,9 @@
     (define-key eshell-mode-map [remap eshell-pcomplete] 'helm-esh-pcomplete)
     (define-key eshell-mode-map (kbd "M-p") 'helm-eshell-history))
   (add-hook 'eshell-mode-hook 'my/helm-eshell)
+  ;; For some reason M-p in helm-find-files does not show previously opened files.
+  (defun my/fix-helm-history (&rest _) (setq helm-ff-history file-name-history))
+  (advice-add 'helm-find-files-history :before 'my/fix-helm-history)
   (defun my/customize-helm ()
     (keymap-set helm-map "<escape>" 'helm-keyboard-quit)
     (let ((bg-col (face-attribute 'default :background)))
@@ -81,24 +93,21 @@
       (set-face-attribute 'helm-selection nil
                           :background "LightBlue1" :underline '(:color "black" :position 0))
       (set-face-attribute 'helm-visible-mark nil
-			  :foreground 'unspecified :background "gold"
-			  :weight 'bold
-			  :box `(:line-width (-1 . -2) :color ,bg-col)))
+                          :foreground 'unspecified :background "gold"
+                          :weight 'bold
+                          :box `(:line-width (-1 . -2) :color ,bg-col)))
     (dolist (face (list 'helm-ff-directory 'helm-ff-dotted-symlink-directory
-			'helm-buffer-directory 'helm-ff-dotted-directory))
+                        'helm-buffer-directory 'helm-ff-dotted-directory))
       (set-face-attribute face nil :extend 'unspecified :weight 'bold
-			  :foreground "DodgerBlue3" :background 'unspecified))
-    (dolist (face (list 'helm-ff-invalid-symlink 'helm-resume-need-update
-			'helm-ff-suid))
+                          :foreground "DodgerBlue3" :background 'unspecified))
+    (dolist (face (list 'helm-ff-invalid-symlink 'helm-resume-need-update 'helm-ff-suid))
       (set-face-attribute face nil :foreground "red" :background 'unspecified))
     (face-spec-set 'helm-lisp-show-completion '((t (:foreground "purple"))))
     (face-spec-set 'helm-swoop-target-word-face
                    '((t (:foreground "white" :background "#7700FF"
-		        :box (:line-width (-16 . -16) :color "#7700FF")))))
-    (face-spec-set 'helm-swoop-target-line-face
-                   '((t (:background "gold"))))
-    (face-spec-set 'helm-swoop-target-line-block-face
-                   '((t (:background "goldenrod1")))))
+                         :box (:line-width (-16 . -16) :color "#7700FF")))))
+    (face-spec-set 'helm-swoop-target-line-face '((t (:background "gold"))))
+    (face-spec-set 'helm-swoop-target-line-block-face '((t (:background "goldenrod1")))))
   (add-hook 'helm-mode-hook 'my/customize-helm)
   (helm-mode))
 
@@ -128,10 +137,11 @@
 ;; (elpaca run-command)
 
 (setopt show-paren-delay 0)
+(setopt show-paren-when-point-inside-paren t)
 (show-paren-mode)
 
-(add-hook 'prog-mode 'whitespace-mode)
-(setopt whitespace-style '(face tabs trailing))
+(add-hook 'prog-mode-hook 'whitespace-mode)
+(setopt whitespace-style '(face trailing tabs tab-mark))
 
 ;; make isearch work more like vim
 (setopt disabled-command-function 'ignore)
@@ -161,6 +171,7 @@
        (set-face-font 'default "Iosevka Nerd Font Propo-12")
        (set-face-font 'fixed-pitch "Iosevka Nerd Font Propo-12")
        (set-face-font 'variable-pitch "Asap SemiCondensed-12")))
+(setq inhibit-compacting-font-caches t)
 
 (setq vc-follow-symlinks t)
 (setq history-delete-duplicates t)
@@ -170,12 +181,19 @@
 (setq custom-unlispify-menu-entries nil)
 (setq shell-kill-buffer-on-exit t)
 (setq window-resize-pixelwise t)
-;;(setopt widget-mouse-face 'highlight-no-extend)
+(setq text-scale-mode-step 1.05)
+(setq switch-to-buffer-obey-display-actions t)
+(setq switch-to-buffer-in-dedicated-window 'pop)
+(setq line-move-visual nil)
+(setq cursor-in-non-selected-windows nil)
+
 (setopt window-divider-default-right-width 1)
 (window-divider-mode)
 
-(tool-bar-mode -1)
+(setq-default indent-tabs-mode nil)
 (indent-tabs-mode -1)
+
+(tool-bar-mode -1)
 (context-menu-mode)
 (undelete-frame-mode)
 (auto-save-mode -1)
@@ -196,14 +214,23 @@
 (keymap-global-unset "C-h t")
 (keymap-global-unset "<f1> t")
 
+(keymap-global-set "<escape>" 'keyboard-escape-quit)
+
 ;; I really want escape to do what it says
 (keymap-global-set "C-h ESC" 'keyboard-quit)
-(keymap-global-set "ESC ESC" 'keyboard-quit)
 (keymap-global-set "C-x ESC" 'keyboard-quit)
 (keymap-global-set "C-c ESC" 'keyboard-quit)
 (keymap-global-set "C-M-g" 'keyboard-quit)
 
-(defun kill-current-buffer () (interactive) (kill-buffer (current-buffer)))	
+;; Something, somewhere is rebinding this. It doesn't look like the debugger can
+;; break on keymap modification.
+(keymap-global-set "ESC ESC" 'keyboard-quit)
+(defun my/brute-force-esc-map ()
+  (keymap-global-set "ESC ESC" 'keyboard-quit))
+(add-hook 'window-configuration-change-hook 'my/brute-force-esc-map)
+
+
+(defun kill-current-buffer () (interactive) (kill-buffer (current-buffer)))
 (keymap-global-set "C-x k" 'kill-current-buffer)
 (keymap-global-set "C-x K" 'kill-buffer-and-window)
 
@@ -212,9 +239,9 @@
 consider it a pop-up and also close the window."
   (interactive)
   (cond ((and (null (window-prev-buffers (selected-window)))
-	      (null (window-next-buffers (selected-window))))
-	 (kill-buffer-and-window))
-	(t (kill-current-buffer))))
+              (null (window-next-buffers (selected-window))))
+         (kill-buffer-and-window))
+        (t (kill-current-buffer))))
 (keymap-set special-mode-map "q" 'kill-and-close-if-popup)
 
 (defun vim-join-line () (interactive) (delete-indentation t))
@@ -225,13 +252,19 @@ consider it a pop-up and also close the window."
 
 (keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
 (keymap-global-set "<mode-line> <mouse-3>" 'mouse-buffer-menu)
+(setq mouse-wheel-progressive-speed nil)
+(setq mouse-wheel-scroll-amount '(0.1
+                                  ((shift) . 0.9)
+                                  ((meta) . hscroll)
+                                  ((control) . text-scale)
+                                  ((control meta) . global-text-scale)))
 
 ;; Also consider helm buffers hidden, those things get everywhere...
 (defun my/skip-hidden-buffers (_ buf _)
   (let ((name (buffer-name buf)))
     (or (string-prefix-p " " name)
-	(string-prefix-p "*helm" name)
-	(string-prefix-p "*Helm" name))))
+        (string-prefix-p "*helm" name)
+        (string-prefix-p "*Helm" name))))
 
 (defun previous-non-hidden-buffer ()
   (interactive)
@@ -248,10 +281,10 @@ consider it a pop-up and also close the window."
 (defun my/skip-file-buffers (_ buf _)
   (let ((name (buffer-name buf)))
     (or (buffer-file-name buf)
-	(string= "*scratch*" name)
-	(string-prefix-p " " name)
-	(string-prefix-p "*helm" name)
-	(string-prefix-p "*Helm" name))))
+        (string= "*scratch*" name)
+        (string-prefix-p " " name)
+        (string-prefix-p "*helm" name)
+        (string-prefix-p "*Helm" name))))
 (defun my/skip-non-file-buffers (_ buf _)
   (or (null (buffer-file-name buf))
       (string-prefix-p " " (buffer-name buf))))
@@ -275,6 +308,17 @@ consider it a pop-up and also close the window."
 (keymap-global-set "M-[" 'previous-similar-buffer)
 (keymap-global-set "M-]" 'next-similar-buffer)
 
+(defun recompile-or-prompt ()
+  (interactive)
+  (if (string= compile-command "make -k ")
+      ;; Subtle change from the default to make this not trigger a second time
+      (progn (setq compile-command "make -k")
+             (call-interactively 'compile))
+    (recompile)))
+
+(keymap-global-set "<f5>" 'recompile-or-prompt)
+(keymap-global-set "<f6>" 'compile)
+
 ;; Prevents ESC from messing with splits
 (defun my/keyboard-escape-quit-advice (fn)
   (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
@@ -283,17 +327,21 @@ consider it a pop-up and also close the window."
 
 (setq initial-scratch-message nil)
 (setq initial-major-mode 'prog-mode)
+(defun my/scratch-buffer-set-face ()
+  (when (string= (buffer-name) "*scratch*")
+      (setq-local buffer-face-mode-face 'variable-pitch)
+      (buffer-face-mode)))
+(add-hook 'prog-mode-hook 'my/scratch-buffer-set-face)
 
 (defun my/recent-files-scratch-buffer ()
   "Display recent files in the scratch buffer."
-  (setq debug-on-error t)
   (when file-name-history
     (with-current-buffer (get-scratch-buffer-create)
-      (setq buffer-face-mode-face 'variable-pitch)
-      (buffer-face-mode t) ;;FIXME: this doesn't seem to work
-      (insert "    Recent Files\n")
+      (insert "    " (propertize "Recent Files" :face 'bold) "\n")
       (dolist (f (take 10 file-name-history))
-	(insert "  • " (buttonize (propertize f :face 'bold) #'find-file f) "\n")))))
-
+        (insert "  • " (buttonize f #'find-file f) "\n")))
+    (unless (cdr command-line-args)
+      (scratch-buffer))))
+(defun recent-files () (interactive) (my/recent-files-scratch-buffer) (scratch-buffer))
 (add-hook 'elpaca-after-init-hook 'my/recent-files-scratch-buffer)
 
