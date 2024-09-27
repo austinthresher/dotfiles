@@ -63,7 +63,7 @@ Example usage:
 (defface my/minibuffer-prompt-focused nil "Prompt when minibuffer has focus")
 (face-spec-set 'my/minibuffer-focused '((t (:foreground "black" :background unspecified))))
 (face-spec-set 'my/minibuffer-prompt-focused
-               '((t (:foreground "green4" :background unspecified :weight bold))))
+               '((t (:foreground "DarkGreen" :background unspecified))))
 (defface my/minibuffer-unfocused nil "Text when minibuffer is unfocused")
 (defface my/minibuffer-prompt-unfocused nil "Prompt when minibuffer is unfocused")
 (face-spec-set 'my/minibuffer-unfocused '((t (:foreground "grey60" :background unspecified))))

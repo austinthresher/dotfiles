@@ -16,9 +16,11 @@
 (setopt show-paren-delay 0)
 (setopt show-paren-when-point-inside-paren t)
 (show-paren-mode)
+(defun my/trailing-whitespace () (setq-local show-trailing-whitespace t))
+(add-hook 'prog-mode-hook 'my/trailing-whitespace)
 
+(setq whitespace-style '(face tabs tab-mark))
 (add-hook 'prog-mode-hook 'whitespace-mode)
-(setopt whitespace-style '(face trailing tabs tab-mark))
 
 ;; make isearch work more like vim
 (setopt disabled-command-function 'ignore)
@@ -36,14 +38,18 @@
 
 (setq imenu-auto-rescan t)
 
-(cond ((eq system-type 'windows-nt)
-       (set-face-font 'default "Iosevka NF-12")
-       (set-face-font 'fixed-pitch "Iosevka NF-12")
-       (set-face-font 'variable-pitch "Roboto Condensed-12"))
-      (t
-       (set-face-font 'default "Iosevka Nerd Font Propo-11")
-       (set-face-font 'fixed-pitch "Iosevka Nerd Font Propo-11")
-       (set-face-font 'variable-pitch "Asap SemiCondensed-11")))
+(setq alternate-fontname-alist
+      '(("Iosevka NF" "Iosevka Nerd Font Propo" "courier" "fixed")
+        ("JetBrainsMono NF" "JetBrainsMonoNL NF" "Consolas" "FreeMono" "courier" "fixed")
+        ("Roboto Condensed" "Roboto" "Arial" "helv" "helvetica" "fixed")))
+(setq face-font-family-alternatives '(("Monospace" "Iosevka NF")
+                                      ("Monospace Serif" "JetBrainsMono NF")
+                                      ("Sans Serif" "Roboto Condensed")
+                                      ("helv" "helvetica" "arial" "fixed")))
+
+(set-face-font 'default "Iosevka NF-12")
+(set-face-font 'fixed-pitch "Iosevka NF-12")
+(set-face-font 'variable-pitch "Roboto Condensed-12")
 (setq inhibit-compacting-font-caches t)
 
 (setq vc-follow-symlinks t)
@@ -61,6 +67,7 @@
 (setq cursor-in-non-selected-windows nil)
 (setq c-ts-mode-indent-style 'k&r)
 (setq c-default-style '((c-mode . "stroustrup")
+                        (c++-mode . "stroustrup")
                         (java-mode . "java")
                         (awk-mode . "awk")
                         (other . "k&r")))
@@ -70,9 +77,9 @@
   (if (member (char-before) '(?\s ?\t))
       (funcall-interactively 'c-indent-line-or-region arg region)
     (indent-for-tab-command arg)))
-(defun my/fix-c-tab ()
-  (keymap-set c-mode-map "TAB" 'c-indent-or-complete))
+(defun my/fix-c-tab () (keymap-set c-mode-base-map "TAB" 'c-indent-or-complete))
 (add-hook 'c-mode-hook 'my/fix-c-tab)
+(add-hook 'c++-mode-hook 'my/fix-c-tab)
 
 ;; TODO: Add a hook to disable this when eglot is on
 ;; (setopt help-at-pt-timer-delay 0.25)
@@ -82,11 +89,18 @@
 (setq minibuffer-beginning-of-buffer-movement t)
 (setq minibuffer-prompt-properties
       '(read-only t cursor-intangible t face minibuffer-prompt))
+(add-hook 'minibuffer-setup-hook 'cursor-intangible-mode)
+
+;; Don't truncate eval results in minibuffer
+(setq eval-expression-print-level nil)
+(setq eval-expression-print-length nil)
 
 (setq tab-always-indent 'complete)
 (setq completion-cycle-threshold nil)
 (setq completions-detailed t)
 (setq completions-max-height 16)
+(setq read-extended-command-predicate #'command-completion-default-include-p)
+(setq read-buffer-completion-ignore-case t)
 
 (setq enable-recursive-minibuffers t)
 (minibuffer-depth-indicate-mode)
@@ -114,6 +128,7 @@
 (keymap-global-set "C-x SPC" 'cua-rectangle-mark-mode)
 (keymap-global-unset "C-h t")
 (keymap-global-unset "<f1> t")
+(keymap-global-unset "M-ESC :")
 
 (keymap-global-set "<escape>" 'keyboard-escape-quit)
 
@@ -123,13 +138,24 @@
 (keymap-global-set "C-c ESC" 'keyboard-quit)
 (keymap-global-set "C-M-g" 'keyboard-quit)
 
+;; Bigger line jumps. Set the mark on the first use if a prefix was given.
+(defun next-line-x8 (&optional arg)
+  (interactive "P")
+  (when arg (unless (eq last-command 'next-line-x8) (push-mark)))
+  (let ((current-prefix-arg (* 8 (or arg 1))))
+    (call-interactively #'next-line)))
 
-(keymap-global-set "ESC ESC" 'keyboard-quit)
-;; Something, somewhere is rebinding this. It doesn't look like the debugger can
-;; break on keymap modification.
-;; (defun my/brute-force-esc-map ()
-;;   (keymap-global-set "ESC ESC" 'keyboard-quit))
-;; (add-hook 'window-configuration-change-hook 'my/brute-force-esc-map)
+(defun previous-line-x8 (&optional arg)
+  (interactive "P")
+  (when arg (unless (eq last-command 'previous-line-x8) (push-mark)))
+  (let ((current-prefix-arg (* 8 (or arg 1))))
+    (call-interactively #'previous-line)))
+
+(keymap-global-set "M-n" 'next-line-x8)
+(keymap-global-set "M-p" 'previous-line-x8)
+
+;; Might not need this anymore?
+;; (keymap-global-set "ESC ESC" 'keyboard-quit)
 
 (defun kill-current-buffer () (interactive) (kill-buffer (current-buffer)))
 (keymap-global-set "C-x k" 'kill-current-buffer)
@@ -149,7 +175,7 @@ consider it a pop-up and also close the window."
 (keymap-global-set "C-S-j" 'vim-join-line)
 
 (defun other-other-window () (interactive) (other-window -1))
-(keymap-global-set "M-o" 'other-other-window)
+(keymap-global-set "C-c o" 'other-other-window)
 
 (keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
 (keymap-global-set "<mode-line> <mouse-3>" 'mouse-buffer-menu)
@@ -212,6 +238,11 @@ consider it a pop-up and also close the window."
 (keymap-global-set "M-[" 'previous-similar-buffer)
 (keymap-global-set "M-]" 'next-similar-buffer)
 
+(defun my/flymake-set-keys ()
+  (keymap-set flymake-mode-map "M-g ]" 'flymake-goto-next-error)
+  (keymap-set flymake-mode-map "M-g [" 'flymake-goto-prev-error))
+(add-hook 'flymake-mode-hook 'my/flymake-set-keys)
+
 (defun recompile-or-prompt ()
   (interactive)
   (if (string= compile-command "make -k ")
@@ -241,19 +272,23 @@ consider it a pop-up and also close the window."
     (backward-kill-word 1)))
 (keymap-global-set "C-<backspace>" 'backward-kill-space-or-word)
 
-;; Not sure if I want to keep this as a keybind yet
-(defun select-minibuffer ()
-  (interactive)
-  (when (active-minibuffer-window)
-    (select-frame-set-input-focus (window-frame (active-minibuffer-window)))
-    (select-window (active-minibuffer-window))))
-(keymap-global-set "<f1>" 'select-minibuffer)
+;; Other window, but prioritize the minibuffer when active
+(defun select-minibuffer-or-other-window (&rest args)
+  (interactive "p\ni\np")
+  (cond ((active-minibuffer-window)
+         (select-frame-set-input-focus (window-frame (active-minibuffer-window)))
+         (select-window (active-minibuffer-window)))
+        (t (apply #'funcall-interactively #'other-window args))))
+(keymap-global-set "C-x O" 'select-minibuffer-or-other-window)
+
 
 (defun my/buffer-is-read-only (buf)
   (and (buffer-local-value 'buffer-read-only (get-buffer buf))
        (buffer-file-name (get-buffer buf))))
 
 ;; TODO: Advise the mouse buffer menu to force it to use the clicked window
+;; TODO: Put window-local tab line on non-file windows
+;; TODO: Advise help-function-def--button-function to set read-only and use view-mode
 (setq display-buffer-alist
       '(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
          nil
@@ -279,6 +314,10 @@ consider it a pop-up and also close the window."
 
 (setq initial-scratch-message nil)
 
+(defun my/replace-scratch (file)
+  (let ((new-buf (find-file file)))
+    (delete-other-windows)
+    (kill-buffer "*scratch*")))
 (defun my/recent-files-scratch-buffer ()
   "Display recent files in the scratch buffer."
   (with-current-buffer (get-scratch-buffer-create)
@@ -287,10 +326,11 @@ consider it a pop-up and also close the window."
       (dolist (f (take 10 file-name-history))
         (when (file-exists-p f)
           (let ((txt (apply #'propertize f 'font-lock-face '(variable-pitch link)
-                            (button--properties #'find-file f nil))))
+                            (button--properties #'my/replace-scratch f nil))))
             (insert "  • " txt "\n")))))
     (insert "\n")
-    (unless (cdr command-line-args) (scratch-buffer))))
+    (goto-char (point-max)))
+  (unless (cdr command-line-args) (scratch-buffer)))
 (defun recent-files () (interactive) (my/recent-files-scratch-buffer) (scratch-buffer))
 (add-hook 'elpaca-after-init-hook 'my/recent-files-scratch-buffer)
 
