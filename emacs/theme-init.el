@@ -53,6 +53,31 @@ Example usage:
 
 ;;;; Mode-specific face changes
 
-(define-mode-face my/shell-face '(((eshell-mode shell-mode) fringe default))
-  '((t (:background "gray30"))))
+;; (define-mode-face my/shell-face '(((eshell-mode shell-mode) fringe default))
+;;   '((t (:background "gray30"))))
 
+
+;;;; Indicate when the minibuffer is active
+
+(defface my/minibuffer-focused nil "Text when minibuffer has focus")
+(defface my/minibuffer-prompt-focused nil "Prompt when minibuffer has focus")
+(face-spec-set 'my/minibuffer-focused '((t (:foreground "black" :background unspecified))))
+(face-spec-set 'my/minibuffer-prompt-focused
+               '((t (:foreground "green4" :background unspecified :weight bold))))
+(defface my/minibuffer-unfocused nil "Text when minibuffer is unfocused")
+(defface my/minibuffer-prompt-unfocused nil "Prompt when minibuffer is unfocused")
+(face-spec-set 'my/minibuffer-unfocused '((t (:foreground "grey60" :background unspecified))))
+(face-spec-set 'my/minibuffer-prompt-unfocused
+               '((t (:foreground "grey80" :background unspecified) :weight normal)))
+
+(defun my/highlight-minibuffer-when-active (&rest _)
+  (cond ((eq (selected-window) (active-minibuffer-window))
+         (face-remap-set-base 'minibuffer-prompt 'my/minibuffer-prompt-focused)
+         (face-remap-set-base 'fringe 'my/minibuffer-focused)
+         (face-remap-set-base 'default 'my/minibuffer-focused))
+        ((active-minibuffer-window)
+         (with-selected-window (active-minibuffer-window)
+           (face-remap-set-base 'minibuffer-prompt 'my/minibuffer-prompt-unfocused)
+           (face-remap-set-base 'fringe 'my/minibuffer-unfocused)
+           (face-remap-set-base 'default 'my/minibuffer-unfocused)))))
+(add-hook 'window-selection-change-functions 'my/highlight-minibuffer-when-active)

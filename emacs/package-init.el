@@ -19,6 +19,8 @@
                       :foreground "red3" :background 'unspecified)
   (set-face-attribute 'highlight nil :background "LightBlue1")
   (set-face-attribute 'region nil :background "LightBlue1")
+  (set-face-attribute 'mode-line nil :inherit '(variable-pitch))
+  (set-face-attribute 'mode-line-inactive nil :inherit '(variable-pitch))
   (dolist (face '(whitespace-tab whitespace-big-indent whitespace-trailing))
     (face-spec-set face '((t (:background "misty rose" :foreground "gray50"))))))
 
@@ -40,98 +42,124 @@
                       :inherit '(mode-line-inactive)
                       :foreground 'unspecified :background 'unspecified)
   (set-face-attribute 'doom-modeline-buffer-modified nil
-                      :foreground "DarkOrange"
+                      :foreground 'unspecified ;"DarkOrange"
                       :weight 'bold
                       :inherit '(variable-pitch)))
 
-(elpaca helm
-  (setq tab-always-indent 'complete)
-  (setq helm-always-two-windows nil
-        helm-scroll-amount 8
-        helm-move-to-line-cycle-in-source nil
-        helm-display-buffer-default-height 16
-        helm-default-display-buffer-functions '(display-buffer-at-bottom)
-        helm-left-margin-width 1
-        helm-buffers-fuzzy-matching t
-        helm-semantic-fuzzy-match t
-        helm-imenu-fuzzy-match t
-        helm-apropos-fuzzy-match t
-        helm-visible-mark-prefix "◎"
-        helm-display-header-line nil)
-  (keymap-global-set "C-c h" 'helm-command-prefix)
-  (keymap-global-set "M-x" 'helm-M-x)
-  (keymap-global-set "C-x C-S-f" 'helm-for-files)
-  (keymap-global-set "C-x C-f" 'helm-find-files)
-  (keymap-global-set "M-s o" 'helm-occur)
-  (keymap-global-set "C-h a" 'helm-apropos)
-  (keymap-global-set "C-x C-b" 'helm-buffers-list)
-  (keymap-global-set "C-x b" 'helm-mini)
-  (keymap-global-set "C-R" 'helm-resume)
-  (keymap-global-set "M-I" 'helm-semantic-or-imenu)
-  (keymap-global-set "C-S-o" 'helm-all-mark-rings)
-  ;; (defun my/hide-helm-modeline ()
-  ;;   (with-helm-buffer (setq-local mode-line-format nil)))
-  ;; (fset 'helm-display-mode-line #'ignore)
-  ;; (add-hook 'helm-after-initialize-hook 'my/hide-helm-modeline)
-  (defun my/helm-eshell ()
-    (eshell-cmpl-initialize)
-    (define-key eshell-mode-map [remap eshell-pcomplete] 'helm-esh-pcomplete)
-    (define-key eshell-mode-map (kbd "M-p") 'helm-eshell-history))
-  (add-hook 'eshell-mode-hook 'my/helm-eshell)
-  ;; For some reason M-p in helm-find-files does not show previously opened files.
-  (defun my/fix-helm-history (&rest _) (setq helm-ff-history file-name-history))
-  (advice-add 'helm-find-files-history :before 'my/fix-helm-history)
-  (defun my/customize-helm ()
-    (keymap-set helm-map "<escape>" 'helm-keyboard-quit)
-    (let ((bg-col (face-attribute 'default :background)))
-      (set-face-attribute 'helm-source-header nil
-                          :inherit '(variable-pitch) :background 'unspecified
-                          :weight 'normal :height 1.5 :underline t)
-      (set-face-attribute 'helm-selection nil
-                          :background "LightBlue1" :underline '(:color "black" :position 0))
-      (set-face-attribute 'helm-visible-mark nil
-                          :foreground 'unspecified :background "gold"
-                          :weight 'bold
-                          :box `(:line-width (-1 . -2) :color ,bg-col)))
-    (dolist (face (list 'helm-ff-directory 'helm-ff-dotted-symlink-directory
-                        'helm-buffer-directory 'helm-ff-dotted-directory))
-      (set-face-attribute face nil :extend 'unspecified :weight 'bold
-                          :foreground "DodgerBlue3" :background 'unspecified))
-    (dolist (face (list 'helm-ff-invalid-symlink 'helm-resume-need-update 'helm-ff-suid))
-      (set-face-attribute face nil :foreground "red" :background 'unspecified))
-    (face-spec-set 'helm-lisp-show-completion '((t (:foreground "purple"))))
-    (face-spec-set 'helm-swoop-target-word-face
-                   '((t (:foreground "white" :background "#7700FF"
-                         :box (:line-width (-16 . -16) :color "#7700FF")))))
-    (face-spec-set 'helm-swoop-target-line-face '((t (:background "gold"))))
-    (face-spec-set 'helm-swoop-target-line-block-face '((t (:background "goldenrod1")))))
-  (add-hook 'helm-mode-hook 'my/customize-helm)
-  (helm-mode))
+(elpaca minions
+  (minions-mode)
+  (add-to-list 'minions-prominent-modes 'view-mode))
 
-(elpaca helm-descbinds)
-(elpaca helm-themes)
-(elpaca helm-xref)
-(elpaca helm-unicode)
-(elpaca helm-swoop
-  (setq helm-swoop-use-line-number-face t)
-  (setq helm-multi-swoop-edit-save t)
-  (setq helm-swoop-split-with-multiple-windows t)
-  (keymap-global-set "C-M-s" 'helm-swoop)
-  (keymap-set isearch-mode-map "C-M-s" 'helm-swoop-from-isearch))
-(elpaca helm-ext (helm-ext-minibuffer-enable-header-line-maybe t))
+(elpaca consult
+  (keymap-global-set "C-M-x" 'consult-mode-command)
+  ;;(keymap-global-set [remap Info-search] 'consult-info)
+  (keymap-global-set "C-x b" 'consult-buffer)
+  (keymap-global-set "C-M-:" 'consult-complex-command)
+  (keymap-global-set "C-x r b" 'consult-bookmark)
+  (keymap-global-set "C-x p b" 'consult-project-buffer)
+  (keymap-global-set "M-y" 'consult-yank-pop)
+  (keymap-global-set "M-g e" 'consult-compile-error)
+  (keymap-global-set "M-g f" 'consult-flymake)
+  (keymap-global-set "M-g g" 'consult-goto-line)
+  (keymap-global-set "M-g M-g" 'consult-goto-line)
+  (keymap-global-set "M-g o" 'consult-outline)
+  (keymap-global-set "M-g M" 'consult-global-mark)
+  (keymap-global-set "M-g m" 'consult-mark)
+  (keymap-global-set "M-g i" 'consult-imenu)
+  (keymap-global-set "M-g I" 'consult-imenu-multi)
+  (keymap-global-set "M-s d" 'consult-fd)
+  (keymap-global-set "M-s g" 'consult-grep)
+  (keymap-global-set "M-s G" 'consult-git-grep)
+  (keymap-global-set "M-s r" 'consult-ripgrep)
+  (keymap-global-set "M-s l" 'consult-line)
+  (keymap-global-set "M-s L" 'consult-line-multi)
+  (keymap-global-set "M-s k" 'consult-keep-lines)
+  (keymap-global-set "M-s u" 'consult-focus-lines)
+  (keymap-global-set "M-s e" 'consult-isearch-history)
+  (keymap-set isearch-mode-map "M-e" 'consult-isearch-history)
+  (keymap-set isearch-mode-map "M-s e" 'consuilt-isearch-history)
+  (keymap-set isearch-mode-map "M-s l" 'consult-line)
+  (keymap-set isearch-mode-map "M-s L" 'consult-line-multi)
+  (keymap-set minibuffer-local-map "M-s" 'consult-history)
+  (keymap-set minibuffer-local-map "M-r" 'consult-history)
+  (setq register-preview-delay 0.25
+        register-preview-function #'consult-register-format)
+  (advice-add 'register-preview :override 'consult-register-window)
+  (setq xref-show-xrefs-function 'consult-xref
+        xref-show-definitions-function 'consult-xref)
+  (require 'consult)
+  (consult-customize consult-theme :preview-key '(:debounce 0.2 any)
+                     consult-ripgrep consult-git-grep consult-grep
+                     consult-bookmark consult-recent-file consult-xref
+                     consult--source-file-register consult--source-recent-file
+                     consult--source-bookmark consult--source-project-recent-file
+                     :preview-key '(:debounce 0.4 any)))
 
-;; trying these out
-(elpaca helm-ls-git)
+(elpaca vertico
+  (setq vertico-cycle t)
+  (vertico-mode)
+  (vertico-reverse-mode)
+  (keymap-set vertico-map "TAB" 'minibuffer-complete))
 
+(elpaca corfu
+  (setq corfu-cycle t
+        corfu-popupinfo-delay '(0.25 . 0.1)
+        corfu-popupinfo-hide nil
+        corfu-preview-current 'insert
+        corfu-on-exact-match 'insert
+        corfu-quit-no-match nil
+        corfu-quit-at-boundary 'separator)
+  (global-corfu-mode)
+  (corfu-popupinfo-mode)
+  (keymap-unset corfu-map "<remap> <move-beginning-of-line>")
+  (keymap-unset corfu-map "<remap> <move-end-of-line>")
+  (keymap-set corfu-map "<prior>" 'corfu-scroll-down)
+  (keymap-set corfu-map "<next>" 'corfu-scroll-up)
+  (keymap-set corfu-map "<tab>" 'corfu-next)
+  (keymap-set corfu-map "<backtab>" 'corfu-previous)
+  (keymap-set corfu-map "<space>" 'corfu-insert-separator)
+  (corfu-history-mode)
+  (require 'savehist)
+  (add-to-list 'savehist-additional-variables 'corfu-history)
+  (defun corfu--preview-current-p ()
+    (and corfu-preview-current (>= corfu--index 0))))
+
+(elpaca cape
+  (add-hook 'completion-at-point-functions #'cape-dabbrev)
+  (add-hook 'completion-at-point-functions #'cape-file))
+
+(elpaca embark
+  (keymap-global-set "C-." 'embark-act)
+  (keymap-global-set "C-," 'embark-dwim)
+  (keymap-global-set "C-h B" 'embark-bindings)
+  (setq prefix-help-command 'embark-prefix-help-command))
+(elpaca embark-consult
+  (add-hook 'embark-collect-mode-hook 'consult-preview-at-point-mode))
+
+(elpaca marginalia (marginalia-mode))
+
+(elpaca orderless
+  (setq orderless-component-separator 'orderless-escapable-split-on-space)
+  (setq completion-styles '(orderless flex basic))
+  (setq completion-category-defaults nil)
+  (setq completion-category-overrides '((file (styles partial-completion)))))
+
+(elpaca consult-eglot)
+(elpaca consult-eglot-embark (consult-eglot-embark-mode))
 
 (elpaca yasnippet)
 (elpaca yasnippet-snippets)
-(elpaca helm-c-yasnippet)
-
-(elpaca dash)
+(elpaca consult-yasnippet
+  (setq consult-yasnippet-use-thing-at-point t))
 
 ;; TODO: https://bard.github.io/emacs-run-command/quickstart
 ;; (elpaca run-command)
+
+
+
+
+
+
 
 
 ;; FIXME: They show up in the menu, but I can't jump to them?

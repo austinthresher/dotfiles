@@ -10,8 +10,8 @@
 (setq custom-file (expand-file-name "custom.el" user-emacs-directory))
 ;; NOTE: Need to actually load custom file if not loading packages.
 ;; Otherwise, custom is loaded in elpaca-after-init-hook
-(my/user-load "custom.el")
-;;(my/user-load "package-init.el")
+;;(my/user-load "custom.el")
+(my/user-load "package-init.el")
 
 (setopt show-paren-delay 0)
 (setopt show-paren-when-point-inside-paren t)
@@ -37,9 +37,9 @@
 (setq imenu-auto-rescan t)
 
 (cond ((eq system-type 'windows-nt)
-       (set-face-font 'default "Iosevka NF-11:antialias=natural")
-       (set-face-font 'fixed-pitch "Iosevka NF-11:antialias=natural")
-       (set-face-font 'variable-pitch "Segoe UI-11:antialias=natural"))
+       (set-face-font 'default "Iosevka NF-12")
+       (set-face-font 'fixed-pitch "Iosevka NF-12")
+       (set-face-font 'variable-pitch "Roboto Condensed-12"))
       (t
        (set-face-font 'default "Iosevka Nerd Font Propo-11")
        (set-face-font 'fixed-pitch "Iosevka Nerd Font Propo-11")
@@ -59,6 +59,14 @@
 (setq switch-to-buffer-in-dedicated-window 'pop)
 (setq line-move-visual nil)
 (setq cursor-in-non-selected-windows nil)
+(setq c-ts-mode-indent-style 'k&r)
+(setq c-default-style '((c-mode . "stroustrup")
+                        (java-mode . "java")
+                        (awk-mode . "awk")
+                        (other . "k&r")))
+
+(setopt help-at-pt-timer-delay 0.25)
+(setopt help-at-pt-display-when-idle '(keymap local-map button kbd-help))
 
 (setq eldoc-idle-delay 0.05)
 (setq minibuffer-beginning-of-buffer-movement t)
@@ -105,13 +113,13 @@
 (keymap-global-set "C-c ESC" 'keyboard-quit)
 (keymap-global-set "C-M-g" 'keyboard-quit)
 
+
+(keymap-global-set "ESC ESC" 'keyboard-quit)
 ;; Something, somewhere is rebinding this. It doesn't look like the debugger can
 ;; break on keymap modification.
-(keymap-global-set "ESC ESC" 'keyboard-quit)
-(defun my/brute-force-esc-map ()
-  (keymap-global-set "ESC ESC" 'keyboard-quit))
-(add-hook 'window-configuration-change-hook 'my/brute-force-esc-map)
-
+;; (defun my/brute-force-esc-map ()
+;;   (keymap-global-set "ESC ESC" 'keyboard-quit))
+;; (add-hook 'window-configuration-change-hook 'my/brute-force-esc-map)
 
 (defun kill-current-buffer () (interactive) (kill-buffer (current-buffer)))
 (keymap-global-set "C-x k" 'kill-current-buffer)
@@ -223,13 +231,28 @@ consider it a pop-up and also close the window."
     (backward-kill-word 1)))
 (keymap-global-set "C-<backspace>" 'backward-kill-space-or-word)
 
+;; Not sure if I want to keep this as a keybind yet
+(defun select-minibuffer ()
+  (interactive)
+  (when (active-minibuffer-window)
+    (select-frame-set-input-focus (window-frame (active-minibuffer-window)))
+    (select-window (active-minibuffer-window))))
+(keymap-global-set "<f1>" 'select-minibuffer)
 
 (defun my/buffer-is-read-only (buf)
-  (buffer-local-value 'buffer-read-only (get-buffer buf)))
+  (and (buffer-local-value 'buffer-read-only (get-buffer buf))
+       (buffer-file-name (get-buffer buf))))
+
+;; TODO: Advise the mouse buffer menu to force it to use the clicked window
 (setq display-buffer-alist
-      '(((derived-mode . special-mode)
+      '(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+         nil
+         (window-parameters (mode-line-format . none)))
+        ((or (derived-mode . special-mode)
+             (mode . Custom-mode))
          (display-buffer-reuse-mode-window display-buffer-at-bottom)
-         (mode special-mode))
+         (window-height . 0.3)
+         (mode special-mode Custom-mode))
         (my/buffer-is-read-only
          (display-buffer-reuse-mode-window display-buffer-at-bottom)
          (body-function . (lambda (win)
@@ -240,27 +263,24 @@ consider it a pop-up and also close the window."
              (derived-mode . text-mode))
          (display-buffer-reuse-mode-window display-buffer-in-direction)
          (direction . right)
-         (inhibit-same-window . t)
          (mode prog-mode text-mode))))
 
+(my/user-load "theme-init.el")
 
 (setq initial-scratch-message nil)
-(setq initial-major-mode 'prog-mode)
-(defun my/scratch-buffer-set-face ()
-  (when (string= (buffer-name) "*scratch*")
-      (setq-local buffer-face-mode-face 'variable-pitch)
-      (buffer-face-mode)))
-(add-hook 'prog-mode-hook 'my/scratch-buffer-set-face)
 
 (defun my/recent-files-scratch-buffer ()
   "Display recent files in the scratch buffer."
-  (when file-name-history
-    (with-current-buffer (get-scratch-buffer-create)
-      (insert "    " (propertize "Recent Files" :face 'bold) "\n")
+  (with-current-buffer (get-scratch-buffer-create)
+    (insert "  " (propertize "Recent Files" 'font-lock-face 'bold) "\n")
+    (when file-name-history
       (dolist (f (take 10 file-name-history))
-        (insert "  • " (buttonize f #'find-file f) "\n")))
-    (unless (cdr command-line-args)
-      (scratch-buffer))))
+        (when (file-exists-p f)
+          (let ((txt (apply #'propertize f 'font-lock-face '(variable-pitch link)
+                            (button--properties #'find-file f nil))))
+            (insert "  • " txt "\n")))))
+    (insert "\n")
+    (unless (cdr command-line-args) (scratch-buffer))))
 (defun recent-files () (interactive) (my/recent-files-scratch-buffer) (scratch-buffer))
 (add-hook 'elpaca-after-init-hook 'my/recent-files-scratch-buffer)
 
