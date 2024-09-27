@@ -75,9 +75,10 @@
   (keymap-global-set "M-s L" 'consult-line-multi)
   (keymap-global-set "M-s k" 'consult-keep-lines)
   (keymap-global-set "M-s u" 'consult-focus-lines)
-  (keymap-global-set "M-s e" 'consult-isearch-history)
-  (keymap-set isearch-mode-map "M-e" 'consult-isearch-history)
-  (keymap-set isearch-mode-map "M-s e" 'consuilt-isearch-history)
+  (keymap-global-set "M-s h" 'consult-isearch-history)
+  (keymap-global-set "M-s e" 'consult-eglot-symbols)
+  (keymap-set isearch-mode-map "M-h" 'consult-isearch-history)
+  (keymap-set isearch-mode-map "M-s h" 'consuilt-isearch-history)
   (keymap-set isearch-mode-map "M-s l" 'consult-line)
   (keymap-set isearch-mode-map "M-s L" 'consult-line-multi)
   (keymap-set minibuffer-local-map "M-s" 'consult-history)
@@ -152,17 +153,11 @@
 (elpaca consult-yasnippet
   (setq consult-yasnippet-use-thing-at-point t))
 
+
 ;; TODO: https://bard.github.io/emacs-run-command/quickstart
 ;; (elpaca run-command)
 
 
-
-
-
-
-
-
-;; FIXME: They show up in the menu, but I can't jump to them?
 (defun my/elisp-imenu ()
   (add-to-list 'imenu-generic-expression '(nil "^(elpaca \\([^ )]*\\)" 1)))
 (add-hook 'emacs-lisp-mode-hook 'my/elisp-imenu)

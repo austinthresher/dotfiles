@@ -65,8 +65,18 @@
                         (awk-mode . "awk")
                         (other . "k&r")))
 
-(setopt help-at-pt-timer-delay 0.25)
-(setopt help-at-pt-display-when-idle '(keymap local-map button kbd-help))
+(defun c-indent-or-complete (&optional arg region)
+  (interactive)
+  (if (member (char-before) '(?\s ?\t))
+      (funcall-interactively 'c-indent-line-or-region arg region)
+    (indent-for-tab-command arg)))
+(defun my/fix-c-tab ()
+  (keymap-set c-mode-map "TAB" 'c-indent-or-complete))
+(add-hook 'c-mode-hook 'my/fix-c-tab)
+
+;; TODO: Add a hook to disable this when eglot is on
+;; (setopt help-at-pt-timer-delay 0.25)
+;; (setopt help-at-pt-display-when-idle '(keymap local-map button kbd-help))
 
 (setq eldoc-idle-delay 0.05)
 (setq minibuffer-beginning-of-buffer-movement t)
