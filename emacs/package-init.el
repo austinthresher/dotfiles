@@ -11,6 +11,7 @@
   (set-face-attribute 'font-lock-string-face nil :foreground "#2c6415")
   (set-face-attribute 'font-lock-comment-face nil :foreground "#888")
   (set-face-attribute 'font-lock-comment-delimiter-face nil :foreground "#888")
+  (set-face-attribute 'font-lock-doc-face nil :weight 'light)
   (set-face-attribute 'show-paren-match nil
                       :box '(:line-width (-1 . -1))
                       :weight 'black
@@ -29,16 +30,21 @@
   (set-face-attribute 'mode-line-inactive nil :inherit '(variable-pitch))
   (face-spec-set 'whitespace-tab '((t (:foreground "gray80" :background unspecified))))
   (let ((bg "#f6f7f8")
+        (inactive-bg "#c6c7c8")
+        (line-bg "#e6e7e8")
         (h 110))
     (face-spec-set 'window-divider-first-pixel `((t (:foreground ,bg))))
     (face-spec-set 'window-divider-last-pixel `((t (:foreground ,bg))))
-    (set-face-attribute 'tab-line-tab nil :background bg :box 'unspecified :height h)
-    (set-face-attribute 'tab-line-tab-current nil :background bg :box 'unspecified :height h)
-    (set-face-attribute 'tab-line-highlight nil :box 'unspecified :inherit '(highlight) :height h)
+    (set-face-attribute 'tab-line-tab nil :background bg :box 'unspecified :height h
+                        :underline `(:color ,bg :position 0))
+    (set-face-attribute 'tab-line-tab-current nil :foreground "black" :background bg
+                        :box 'unspecified :height h :underline `(:color ,bg :position 0))
+    (set-face-attribute 'tab-line-highlight nil :box 'unspecified :underline t :height h
+                        :background 'unspecified :foreground 'unspecified :inherit nil)
     (set-face-attribute 'tab-line-tab-modified nil :weight 'bold :foreground 'unspecified :height h)
-    (set-face-attribute 'tab-line-tab-inactive nil :background "#c6c7c8" :height h)
-    (set-face-attribute 'tab-line nil :background "#e6e7e8"))
-  )
+    (set-face-attribute 'tab-line-tab-inactive nil :background inactive-bg :height h
+                        :underline `(:color ,inactive-bg :position 0))
+    (set-face-attribute 'tab-line nil :background line-bg :underline `(:color ,inactive-bg :position 0))))
 
 (elpaca doom-modeline
   (column-number-mode)
@@ -184,16 +190,16 @@
   (setq orderless-component-separator 'orderless-escapable-split-on-space)
   (setq completion-styles '(orderless basic))
   (setq completion-category-defaults nil)
-  (setq completion-category-overrides '((file (styles partial-completion))))
-  )
+  (setq completion-category-overrides '((file (styles partial-completion)))))
 
 (elpaca consult-eglot)
 (elpaca consult-eglot-embark (consult-eglot-embark-mode))
 
-(elpaca yasnippet)
-(elpaca yasnippet-snippets)
-(elpaca consult-yasnippet
-  (setq consult-yasnippet-use-thing-at-point t))
+;; Not sure I want to keep this
+;; (elpaca yasnippet)
+;; (elpaca yasnippet-snippets)
+;; (elpaca consult-yasnippet
+;;   (setq consult-yasnippet-use-thing-at-point t))
 
 ;; TODO: https://bard.github.io/emacs-run-command/quickstart
 ;; (elpaca run-command)
@@ -205,13 +211,30 @@
   (keymap-global-set "M-o" 'ace-window))
 
 ;;;; Misc small QoL packages
+
 (elpaca form-feed-st
   (global-form-feed-st-mode)
   (set-face-attribute 'form-feed-st-line nil :foreground "grey75"))
-(elpaca adaptive-wrap
+
+(elpaca '(adaptive-wrap :host github :repo "emacsmirror/adaptive-wrap" :branch "master")
   (setq adaptive-wrap-extra-indent 1)
   (add-hook 'prog-mode-hook 'adaptive-wrap-prefix-mode))
 
+(elpaca treesit-auto
+  (require 'treesit-auto)
+  (setq treesit-auto-install 'prompt)
+  ;; The package author doesn't seem to update often. Patch or remove broken recipes.
+  (defconst broken-treesit-auto '(markdown latex))
+  (setq treesit-auto-langs
+        (seq-difference (mapcar #'treesit-auto-recipe-lang treesit-auto-recipe-list)
+                        broken-treesit-auto))
+  (defun my/find-treesit-auto-recipe (lang)
+    (car (seq-filter (lambda (x) (eq (treesit-auto-recipe-lang x) lang))
+                                       treesit-auto-recipe-list)))
+  ;; Janet has the wrong name
+  (when-let ((janet (my/find-treesit-auto-recipe 'janet)))
+    (setf (treesit-auto-recipe-lang janet) 'janet-simple))
+  (global-treesit-auto-mode))
 
 (defun my/elisp-imenu ()
   (add-to-list 'imenu-generic-expression '(nil "^(elpaca \\([^ )]*\\)" 1)))

@@ -1,5 +1,8 @@
 ;; -*- lexical-binding: t -*-
 
+;; TODO: The order of this file doesn't really make any sense. Maybe look at
+;; literate org config files for inspiration.
+
 (setq inhibit-startup-message t)
 (setq inhibit-startup-screen t)
 (defun display-startup-echo-area-message ())
@@ -39,7 +42,8 @@
 (setq imenu-auto-rescan t)
 
 (setq alternate-fontname-alist
-      '(("Iosevka NF" "Iosevka Nerd Font Propo" "courier" "fixed")
+      '(("Iosevka NFP" "Iosevka Nerd Font Propo" "courier" "fixed")
+        ("IosevkaTermSlab NFP" "IosevkaTermSlab Nerd Font Propo" "courier" "fixed")
         ("JetBrainsMono NF" "JetBrainsMonoNL NF" "Consolas" "FreeMono" "courier" "fixed")
         ("Roboto Condensed" "Roboto" "Arial" "helv" "helvetica" "fixed")))
 (setq face-font-family-alternatives '(("Monospace" "Iosevka NF")
@@ -47,12 +51,13 @@
                                       ("Sans Serif" "Roboto Condensed")
                                       ("helv" "helvetica" "arial" "fixed")))
 
-(set-face-font 'default "Iosevka NF-11")
-(set-face-font 'fixed-pitch "Iosevka NF-11")
-(set-face-font 'variable-pitch "Roboto Condensed-11")
+(set-face-font 'default "Iosevka NFP-11:weight=normal")
+(set-face-font 'fixed-pitch "IosevkaTermSlab NFP-11:weight=normal")
+(set-face-font 'fixed-pitch-serif "IosevkaTermSlab NFP-11:weight=normal")
+(set-face-font 'variable-pitch "Roboto Condensed-11:weight=semilight")
 (setq inhibit-compacting-font-caches t)
 
-(setq backup-directory-alist '(("." . "~/.emacs.d/.backups")))
+(setq backup-directory-alist '(("." . "~/.emacs-backups")))
 (setq fit-window-to-buffer-horizontally t)
 (setq read-minibuffer-restore-windows nil)
 (setq resize-mini-windows t)
@@ -115,13 +120,21 @@
 (setq-default indent-tabs-mode nil)
 (indent-tabs-mode -1)
 
-(defun my/tab-line-tab-name (&rest args)
-  (let ((name (apply #'tab-line-tab-name-buffer args)))
-    (concat "  " name "  ")))
-(setq tab-line-tab-name-function 'my/tab-line-tab-name)
 (setq tab-line-new-button-show nil)
 (setq tab-line-close-button-show nil)
+;; TODO: Re-enable showing modified in tab-line but make sure it updates in every window
 (setq tab-line-tab-face-functions '())
+
+;; Use advice here instead of tab-line-tab-name-function so that it's after
+;; propertize has been applied to the text.
+(defun my/tab-line-tab-custom (name)
+  (let* ((bg-col (face-attribute (get-text-property 0 'face name) :background))
+         (space (propertize "  " 'face `(:background ,bg-col :underline nil)))
+         (name (concat space name space)))
+    ;; help-echo is redundant and blocks other tabs
+    (ignore-errors (remove-text-properties 0 (length name) '(help-echo nil) name))
+    name))
+(advice-add 'tab-line-tab-name-format-default :filter-return 'my/tab-line-tab-custom)
 (global-tab-line-mode) ;; Probably temporary until I figure something better out
 
 (tool-bar-mode -1)
@@ -218,12 +231,16 @@ consider it a pop-up and also close the window."
 (keymap-global-set "C-M-[" 'previous-non-hidden-buffer)
 (keymap-global-set "C-M-]" 'next-non-hidden-buffer)
 
-(defun my/skip-file-buffers (_ buf _)
+;; TODO: Write predicates to categorize buffers, then re-use those instead of
+;; duplicating this logic in multiple places (tab-line, etc).
+
+;; Assigned directly to switch-to-prev-buffer-skip
+(defun my/skip-file-buffers (_ buf &rest _)
   (let ((name (buffer-name buf)))
     (or (buffer-file-name buf)
         (string= "*scratch*" name)
         (string-prefix-p " " name))))
-(defun my/skip-non-file-buffers (_ buf _)
+(defun my/skip-non-file-buffers (_ buf &rest _)
   (or (null (buffer-file-name buf))
       (string-prefix-p " " (buffer-name buf))))
 
@@ -245,6 +262,51 @@ consider it a pop-up and also close the window."
 
 (keymap-global-set "M-[" 'previous-similar-buffer)
 (keymap-global-set "M-]" 'next-similar-buffer)
+
+;; Used for tab-line tab filtering
+(defun my/only-non-file-buffers (bufs)
+  (seq-remove (lambda (b) (and (or (buffer-file-name b)
+                                   (string= (buffer-name b) "*scratch*")
+                                   (string-prefix-p " " (buffer-name b)))))
+              bufs))
+(defun my/only-file-buffers (bufs)
+  (seq-filter (lambda (b) (and (or (buffer-file-name b) (string= (buffer-name b) "*scratch*"))
+                                (not (string-prefix-p " " (buffer-name b)))))
+               bufs))
+
+;; Modified tab-line-tabs-window-buffers to include all similar buffers, not
+;; only ones seen in this window, following the same order as next-buffer
+;; TODO: Add a list of regexps to filter things out of these lists,
+;; particularly *Async-native-compile-log*
+(defun my/tab-line-tabs ()
+  (let* ((bufs (buffer-list (selected-frame)))
+         (visiting-file (or (buffer-file-name (current-buffer))
+                            (string= (buffer-name) "*scratch*")))
+         (tabs (if visiting-file (my/only-file-buffers bufs)
+                 (my/only-non-file-buffers bufs))))
+    tabs
+    (sort tabs (lambda (a b) (string< (buffer-name a) (buffer-name b))))))
+(setq tab-line-tabs-function 'my/tab-line-tabs)
+
+;; Use C-tab to navigate in displayed tab order instead of LRU order
+(defun next-tab-line-tab ()
+  (interactive)
+  (let* ((tabs (my/tab-line-tabs))
+         (after (member (current-buffer) tabs)))
+    (if (cdr after)
+        (switch-to-buffer (cadr after))
+      (switch-to-buffer (car tabs)))))
+
+(defun previous-tab-line-tab ()
+  (interactive)
+  (let* ((tabs (reverse (my/tab-line-tabs)))
+         (after (member (current-buffer) tabs)))
+    (if (cdr after)
+        (switch-to-buffer (cadr after))
+      (switch-to-buffer (car tabs)))))
+(keymap-global-set "C-<tab>" 'next-tab-line-tab)
+(keymap-global-set "C-<backtab>" 'previous-tab-line-tab)
+(keymap-global-set "C-<iso-lefttab>" 'previous-tab-line-tab)
 
 (defun my/flymake-set-keys ()
   (keymap-set flymake-mode-map "M-g ]" 'flymake-goto-next-error)
@@ -307,7 +369,7 @@ consider it a pop-up and also close the window."
         (goto-char (point-max))
         (ignore-errors (backward-char 1))
         (recenter -1)))))
-(setq debug-on-error t)
+
 (defun my/setup-follow-buffer-output ()
   (add-hook 'after-change-functions (my/make-follow-buffer-output (current-buffer)) 0 'local))
 
@@ -352,10 +414,8 @@ upper-half of the frame"
                                windows))
          (sorted (sort eligible (lambda (a b) (> (nth 3 (window-edges a))
                                                  (nth 3 (window-edges b)))))))
-    (let ((result (or (car sorted)
-                      (split-root-window-below (- (min (truncate (frame-height) 5) 16))))))
-      (message "window picked: %s (%s)" result this-command)
-      result)))
+    (or (car sorted)
+        (split-root-window-below (- (min (truncate (frame-height) 5) 16))))))
 
 (defun my/display-buffer-in-bottom-tab (buffer alist)
   (let* ((candidate-win (my/find-bottom-window))
@@ -365,6 +425,18 @@ upper-half of the frame"
     (when actual-win
       (with-selected-window actual-win (tab-line-mode))
       actual-win)))
+
+
+(defun my/display-file-buffer-in-save-window (buffer alist)
+    "If we're trying to display a file buffer in a window that is already
+showing a file buffer, reuse it. Otherwise use the most recently focused window
+that is showing a file buffer. This should be doable with built-in configuration
+of display-buffer-alist, but every attempt I made failed."
+    ;; TODO: Finish this
+    )
+
+(setq display-comint-buffer-action '(my/display-buffer-in-bottom-tab ()))
+(setq display-tex-shell-buffer-action '(my/display-buffer-in-bottom-tab ()))
 
 ;; Note that Custom-mode seems to set its mode _after_ the window is created,
 ;; so we have to match by name.
@@ -376,7 +448,9 @@ upper-half of the frame"
       `(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
          nil
          (window-parameters (mode-line-format . none)))
-        ((or "\\*Custom" ,@(mapcar (apply-partially #'cons 'derived-mode) bottom-window-modes))
+        ("\\*Async-native-compile-log\\*"
+         (display-buffer-no-window))
+        ((or "\\*Custom" "\\*e?shell\\*" ,@(mapcar (apply-partially #'cons 'derived-mode) bottom-window-modes))
          (my/display-buffer-in-bottom-tab)
          (mode ,@bottom-window-modes))
         (my/buffer-is-read-only
@@ -395,9 +469,11 @@ upper-half of the frame"
          (body-function . (lambda (win) (select-window win)))
          (mode prog-mode text-mode fundamental-mode))))
 
+
 (when (treesit-available-p)
   (when (treesit-language-available-p 'cmake)
-    (add-to-list 'auto-mode-alist '("CMakeLists.txt" . cmake-ts-mode))))
+    (add-to-list 'auto-mode-alist '("CMakeLists.txt" . cmake-ts-mode))
+    (add-to-list 'auto-mode-alist '("\\.cmake\\'" . cmake-ts-mode))))
 
 (my/user-load "theme-init.el")
 
@@ -407,6 +483,7 @@ upper-half of the frame"
   (let ((new-buf (find-file file)))
     (delete-other-windows)
     (kill-buffer "*scratch*")))
+
 (defun my/recent-files-scratch-buffer ()
   "Display recent files in the scratch buffer."
   (with-current-buffer (get-scratch-buffer-create)
@@ -421,7 +498,9 @@ upper-half of the frame"
             (insert "  • " txt "\n")))))
     (insert "\n")
     (goto-char (point-max)))
-  (unless (cdr command-line-args) (scratch-buffer)))
+  (unless (cdr command-line-args)
+    (pop-to-buffer (messages-buffer))
+    (pop-to-buffer (scratch-buffer))
+    ))
 (defun recent-files () (interactive) (my/recent-files-scratch-buffer) (scratch-buffer))
 (add-hook 'elpaca-after-init-hook 'my/recent-files-scratch-buffer)
-

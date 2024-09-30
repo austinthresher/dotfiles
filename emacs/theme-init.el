@@ -15,7 +15,7 @@
                                   target-names))))
     `(defun ,fn-name (&rest _)
        ,@(mapcar (lambda (target)
-                   `(face-remap-set-base (quote ,target)(quote ,face-name)))
+                   `(face-remap-add-relative (quote ,target)(quote ,face-name)))
                  target-faces))))
 
 (defun define-mode-face--build-hooks (modes fn-name)
@@ -56,6 +56,9 @@ Example usage:
 ;; (define-mode-face my/shell-face '(((eshell-mode shell-mode) fringe default))
 ;;   '((t (:background "gray30"))))
 
+(define-mode-face my/info-face '((Info-mode default header-line header-line-highlight))
+  '((t (:inherit (variable-pitch)))))
+
 
 ;;;; Indicate when the minibuffer is active
 
@@ -82,4 +85,5 @@ Example usage:
              (face-remap-set-base 'fringe 'my/minibuffer-unfocused)
              (face-remap-set-base 'default 'my/minibuffer-unfocused))))))
 ;; Disabling to test if this is what's interfering with corfu
+;; Update: I _think_ it's something that gets turned on with eglot
 ;; (add-hook 'window-selection-change-functions 'my/highlight-minibuffer-when-active)
