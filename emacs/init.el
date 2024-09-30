@@ -47,11 +47,15 @@
                                       ("Sans Serif" "Roboto Condensed")
                                       ("helv" "helvetica" "arial" "fixed")))
 
-(set-face-font 'default "Iosevka NF-12")
-(set-face-font 'fixed-pitch "Iosevka NF-12")
-(set-face-font 'variable-pitch "Roboto Condensed-12")
+(set-face-font 'default "Iosevka NF-11")
+(set-face-font 'fixed-pitch "Iosevka NF-11")
+(set-face-font 'variable-pitch "Roboto Condensed-11")
 (setq inhibit-compacting-font-caches t)
 
+(setq backup-directory-alist '(("." . "~/.emacs.d/.backups")))
+(setq fit-window-to-buffer-horizontally t)
+(setq read-minibuffer-restore-windows nil)
+(setq resize-mini-windows t)
 (setq vc-follow-symlinks t)
 (setq history-delete-duplicates t)
 (setq set-mark-command-repeat-pop t)
@@ -61,7 +65,7 @@
 (setq shell-kill-buffer-on-exit t)
 (setq window-resize-pixelwise t)
 (setq text-scale-mode-step 1.05)
-(setq switch-to-buffer-obey-display-actions t)
+(setq switch-to-buffer-obey-display-actions nil)
 (setq switch-to-buffer-in-dedicated-window 'pop)
 (setq line-move-visual nil)
 (setq cursor-in-non-selected-windows nil)
@@ -105,11 +109,20 @@
 (setq enable-recursive-minibuffers t)
 (minibuffer-depth-indicate-mode)
 
-(setopt window-divider-default-right-width 1)
+(setopt window-divider-default-right-width 3)
 (window-divider-mode)
 
 (setq-default indent-tabs-mode nil)
 (indent-tabs-mode -1)
+
+(defun my/tab-line-tab-name (&rest args)
+  (let ((name (apply #'tab-line-tab-name-buffer args)))
+    (concat "  " name "  ")))
+(setq tab-line-tab-name-function 'my/tab-line-tab-name)
+(setq tab-line-new-button-show nil)
+(setq tab-line-close-button-show nil)
+(setq tab-line-tab-face-functions '())
+(global-tab-line-mode) ;; Probably temporary until I figure something better out
 
 (tool-bar-mode -1)
 (context-menu-mode)
@@ -189,12 +202,9 @@ consider it a pop-up and also close the window."
                                   ((control) . text-scale)
                                   ((control meta) . global-text-scale)))
 
-;; Also consider helm buffers hidden, those things get everywhere...
 (defun my/skip-hidden-buffers (_ buf _)
   (let ((name (buffer-name buf)))
-    (or (string-prefix-p " " name)
-        (string-prefix-p "*helm" name)
-        (string-prefix-p "*Helm" name))))
+    (or (string-prefix-p " " name))))
 
 (defun previous-non-hidden-buffer ()
   (interactive)
@@ -212,9 +222,7 @@ consider it a pop-up and also close the window."
   (let ((name (buffer-name buf)))
     (or (buffer-file-name buf)
         (string= "*scratch*" name)
-        (string-prefix-p " " name)
-        (string-prefix-p "*helm" name)
-        (string-prefix-p "*Helm" name))))
+        (string-prefix-p " " name))))
 (defun my/skip-non-file-buffers (_ buf _)
   (or (null (buffer-file-name buf))
       (string-prefix-p " " (buffer-name buf))))
@@ -281,23 +289,96 @@ consider it a pop-up and also close the window."
         (t (apply #'funcall-interactively #'other-window args))))
 (keymap-global-set "C-x O" 'select-minibuffer-or-other-window)
 
+;; Useful for debugging display-buffer-alist and similar
+(defun my/major-mode-parents (mode)
+  (when-let ((parent (get mode 'derived-mode-parent)))
+    (cons parent (my/major-mode-parents parent))))
+
+(defun major-mode-parents (&optional mode)
+  (interactive)
+  (let ((current-mode (or mode major-mode)))
+    (message "%s" (cons current-mode (my/major-mode-parents current-mode)))))
+
+
+(defun my/make-follow-buffer-output (buf)
+  (lambda (&rest _)
+    (when-let ((win (get-buffer-window buf)))
+      (with-selected-window win
+        (goto-char (point-max))
+        (ignore-errors (backward-char 1))
+        (recenter -1)))))
+(setq debug-on-error t)
+(defun my/setup-follow-buffer-output ()
+  (add-hook 'after-change-functions (my/make-follow-buffer-output (current-buffer)) 0 'local))
+
+(add-hook 'compilation-mode-hook 'my/setup-follow-buffer-output)
+(add-hook 'messages-buffer-mode-hook 'my/setup-follow-buffer-output) ;; this doesn't seem consistent
+(kill-buffer (get-buffer "*Messages*"))
+
+;; Monkey patch helper macro
+(defmacro with-function-replaced (target-fn new-fn &rest body)
+  (declare (indent 2))
+  (let ((old-fn (gensym))
+        (block-result (gensym))
+        (new-fn-value (if (symbolp new-fn) `(symbol-function ,new-fn) new-fn)))
+    `(let ((,old-fn (symbol-function ,target-fn)))
+       (fset ,target-fn ,new-fn-value)
+       (let ((,block-result (progn ,@body)))
+         (fset ,target-fn ,old-fn)
+         ,block-result))))
+
+;; customize-group specifically uses pop-to-buffer-same-window
+(defun my/customize-group-advice (fn &rest args)
+  (let ((switch-to-buffer-obey-display-actions t))
+    (with-function-replaced 'pop-to-buffer-same-window 'pop-to-buffer
+      (apply fn args))))
+(advice-add 'customize-group :around 'my/customize-group-advice)
+(add-hook 'Custom-mode-hook 'tab-line-mode)
+
 
 (defun my/buffer-is-read-only (buf)
   (and (buffer-local-value 'buffer-read-only (get-buffer buf))
        (buffer-file-name (get-buffer buf))))
 
-;; TODO: Advise the mouse buffer menu to force it to use the clicked window
-;; TODO: Put window-local tab line on non-file windows
+
+(defun my/find-bottom-window ()
+  "Find the bottom-most window, excluding the minibuffer and any window in the
+upper-half of the frame"
+  (let* ((windows (remove (active-minibuffer-window) (window-list)))
+         (bot (if (active-minibuffer-window)
+                  (- (frame-height) (window-height (active-minibuffer-window)))
+                (frame-height)))
+         (eligible (seq-filter (lambda (x) (not (= 0 (window-top-line x))))
+                               windows))
+         (sorted (sort eligible (lambda (a b) (> (nth 3 (window-edges a))
+                                                 (nth 3 (window-edges b)))))))
+    (let ((result (or (car sorted)
+                      (split-root-window-below (- (min (truncate (frame-height) 5) 16))))))
+      (message "window picked: %s (%s)" result this-command)
+      result)))
+
+(defun my/display-buffer-in-bottom-tab (buffer alist)
+  (let* ((candidate-win (my/find-bottom-window))
+         (actual-win (or (and candidate-win
+                              (window--display-buffer buffer candidate-win 'reuse alist))
+                         (display-buffer-at-bottom buffer alist))))
+    (when actual-win
+      (with-selected-window actual-win (tab-line-mode))
+      actual-win)))
+
+;; Note that Custom-mode seems to set its mode _after_ the window is created,
+;; so we have to match by name.
+(defconst bottom-window-modes
+  '(special-mode compilation-mode comint-mode Custom-mode))
+
 ;; TODO: Advise help-function-def--button-function to set read-only and use view-mode
 (setq display-buffer-alist
-      '(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+      `(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
          nil
          (window-parameters (mode-line-format . none)))
-        ((or (derived-mode . special-mode)
-             (mode . Custom-mode))
-         (display-buffer-reuse-mode-window display-buffer-at-bottom)
-         (window-height . 0.3)
-         (mode special-mode Custom-mode))
+        ((or "\\*Custom" ,@(mapcar (apply-partially #'cons 'derived-mode) bottom-window-modes))
+         (my/display-buffer-in-bottom-tab)
+         (mode ,@bottom-window-modes))
         (my/buffer-is-read-only
          (display-buffer-reuse-mode-window display-buffer-at-bottom)
          (body-function . (lambda (win)
@@ -305,10 +386,18 @@ consider it a pop-up and also close the window."
                               (unless view-mode (view-mode)))))
          (mode special-mode))
         ((or (derived-mode . prog-mode)
-             (derived-mode . text-mode))
-         (display-buffer-reuse-mode-window display-buffer-in-direction)
+             (derived-mode . text-mode)
+             (derived-mode . fundamental-mode))
+         (display-buffer-reuse-window
+          display-buffer-reuse-mode-window
+          display-buffer-in-direction)
          (direction . right)
-         (mode prog-mode text-mode))))
+         (body-function . (lambda (win) (select-window win)))
+         (mode prog-mode text-mode fundamental-mode))))
+
+(when (treesit-available-p)
+  (when (treesit-language-available-p 'cmake)
+    (add-to-list 'auto-mode-alist '("CMakeLists.txt" . cmake-ts-mode))))
 
 (my/user-load "theme-init.el")
 
@@ -321,7 +410,9 @@ consider it a pop-up and also close the window."
 (defun my/recent-files-scratch-buffer ()
   "Display recent files in the scratch buffer."
   (with-current-buffer (get-scratch-buffer-create)
-    (insert "  " (propertize "Recent Files" 'font-lock-face 'bold) "\n")
+    (insert "Welcome to Emacs ")
+    (insert (format "%s.%s!\n\n" emacs-major-version emacs-minor-version))
+    (insert (propertize "Recent Files" 'font-lock-face 'bold) "\n")
     (when file-name-history
       (dolist (f (take 10 file-name-history))
         (when (file-exists-p f)

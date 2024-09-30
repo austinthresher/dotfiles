@@ -3,8 +3,14 @@
 (my/user-load "bootstrap-elpaca.el")
 (add-hook 'elpaca-after-init-hook (apply-partially #'my/user-load "custom.el"))
 
+;; TODO: Move theme override stuff to theme-init.el
 (elpaca sublime-themes
   (load-theme 'mccarthy t)
+  (set-face-attribute 'default nil :foreground "#444")
+  (set-face-attribute 'font-lock-builtin-face nil :foreground "#111")
+  (set-face-attribute 'font-lock-string-face nil :foreground "#2c6415")
+  (set-face-attribute 'font-lock-comment-face nil :foreground "#888")
+  (set-face-attribute 'font-lock-comment-delimiter-face nil :foreground "#888")
   (set-face-attribute 'show-paren-match nil
                       :box '(:line-width (-1 . -1))
                       :weight 'black
@@ -21,7 +27,18 @@
   (set-face-attribute 'region nil :background "LightBlue1")
   (set-face-attribute 'mode-line nil :inherit '(variable-pitch))
   (set-face-attribute 'mode-line-inactive nil :inherit '(variable-pitch))
-  (face-spec-set 'whitespace-tab '((t (:foreground "gray80" :background unspecified)))))
+  (face-spec-set 'whitespace-tab '((t (:foreground "gray80" :background unspecified))))
+  (let ((bg "#f6f7f8")
+        (h 110))
+    (face-spec-set 'window-divider-first-pixel `((t (:foreground ,bg))))
+    (face-spec-set 'window-divider-last-pixel `((t (:foreground ,bg))))
+    (set-face-attribute 'tab-line-tab nil :background bg :box 'unspecified :height h)
+    (set-face-attribute 'tab-line-tab-current nil :background bg :box 'unspecified :height h)
+    (set-face-attribute 'tab-line-highlight nil :box 'unspecified :inherit '(highlight) :height h)
+    (set-face-attribute 'tab-line-tab-modified nil :weight 'bold :foreground 'unspecified :height h)
+    (set-face-attribute 'tab-line-tab-inactive nil :background "#c6c7c8" :height h)
+    (set-face-attribute 'tab-line nil :background "#e6e7e8"))
+  )
 
 (elpaca doom-modeline
   (column-number-mode)
@@ -109,11 +126,10 @@
         vertico-resize t)
   (vertico-mode)
   (vertico-reverse-mode)
-  (vertico-multiform-mode)
-  (setq vertico-multiform-commands
-        '()
-        vertico-multiform-categories
-        '((consult-location buffer)))
+  ;; Not actually using now, but keeping for possible future use
+  ;; (vertico-multiform-mode)
+  ;; (setq vertico-multiform-commands '()
+  ;;       vertico-multiform-categories '())
   (keymap-set vertico-map "TAB" 'minibuffer-complete)
   (keymap-set vertico-map "M-P" 'previous-line-x8)
   (keymap-set vertico-map "M-N" 'next-line-x8)
@@ -192,6 +208,9 @@
 (elpaca form-feed-st
   (global-form-feed-st-mode)
   (set-face-attribute 'form-feed-st-line nil :foreground "grey75"))
+(elpaca adaptive-wrap
+  (setq adaptive-wrap-extra-indent 1)
+  (add-hook 'prog-mode-hook 'adaptive-wrap-prefix-mode))
 
 
 (defun my/elisp-imenu ()
