@@ -50,11 +50,13 @@
                                       ("Monospace Serif" "JetBrainsMono NF")
                                       ("Sans Serif" "Roboto Condensed")
                                       ("helv" "helvetica" "arial" "fixed")))
-
-(set-face-font 'default "Iosevka NFP-11:weight=normal")
+(set-face-font 'default "Iosevka NFP-11")
 (set-face-font 'fixed-pitch "IosevkaTermSlab NFP-11:weight=normal")
 (set-face-font 'fixed-pitch-serif "IosevkaTermSlab NFP-11:weight=normal")
 (set-face-font 'variable-pitch "Roboto Condensed-11:weight=semilight")
+;; Windows doesn't respect font weight settings, requiring a different family instead
+(defface my/default-light '((t (:family "Iosevka NFP Light" :inherit (default)))) "Light default font")
+
 (setq inhibit-compacting-font-caches t)
 
 (setq backup-directory-alist '(("." . "~/.emacs-backups")))
@@ -263,6 +265,11 @@ consider it a pop-up and also close the window."
 (keymap-global-set "M-[" 'previous-similar-buffer)
 (keymap-global-set "M-]" 'next-similar-buffer)
 
+(defun my/is-file-buffer (&optional buf)
+  (let ((b (or buf (current-buffer))))
+    (or (buffer-file-name b)
+        (string= (buffer-name b) "*scratch*"))))
+
 ;; Used for tab-line tab filtering
 (defun my/only-non-file-buffers (bufs)
   (seq-remove (lambda (b) (and (or (buffer-file-name b)
@@ -270,8 +277,8 @@ consider it a pop-up and also close the window."
                                    (string-prefix-p " " (buffer-name b)))))
               bufs))
 (defun my/only-file-buffers (bufs)
-  (seq-filter (lambda (b) (and (or (buffer-file-name b) (string= (buffer-name b) "*scratch*"))
-                                (not (string-prefix-p " " (buffer-name b)))))
+  (seq-filter (lambda (b) (and (my/is-file-buffer b)
+                               (not (string-prefix-p " " (buffer-name b)))))
                bufs))
 
 ;; Modified tab-line-tabs-window-buffers to include all similar buffers, not
@@ -280,8 +287,7 @@ consider it a pop-up and also close the window."
 ;; particularly *Async-native-compile-log*
 (defun my/tab-line-tabs ()
   (let* ((bufs (buffer-list (selected-frame)))
-         (visiting-file (or (buffer-file-name (current-buffer))
-                            (string= (buffer-name) "*scratch*")))
+         (visiting-file (my/is-file-buffer))
          (tabs (if visiting-file (my/only-file-buffers bufs)
                  (my/only-non-file-buffers bufs))))
     tabs
@@ -427,13 +433,14 @@ upper-half of the frame"
       actual-win)))
 
 
-(defun my/display-file-buffer-in-save-window (buffer alist)
+(defun my/display-file-buffer-in-same-window (buffer alist)
     "If we're trying to display a file buffer in a window that is already
 showing a file buffer, reuse it. Otherwise use the most recently focused window
 that is showing a file buffer. This should be doable with built-in configuration
 of display-buffer-alist, but every attempt I made failed."
-    ;; TODO: Finish this
-    )
+    (when (my/is-file-buffer (current-buffer))
+        (let ((switch-to-buffer-obey-display-actions nil))
+          (switch-to-buffer buffer))))
 
 (setq display-comint-buffer-action '(my/display-buffer-in-bottom-tab ()))
 (setq display-tex-shell-buffer-action '(my/display-buffer-in-bottom-tab ()))
@@ -462,7 +469,7 @@ of display-buffer-alist, but every attempt I made failed."
         ((or (derived-mode . prog-mode)
              (derived-mode . text-mode)
              (derived-mode . fundamental-mode))
-         (display-buffer-reuse-window
+         (my/display-file-buffer-in-same-window
           display-buffer-reuse-mode-window
           display-buffer-in-direction)
          (direction . right)

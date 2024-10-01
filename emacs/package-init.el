@@ -9,9 +9,11 @@
   (set-face-attribute 'default nil :foreground "#444")
   (set-face-attribute 'font-lock-builtin-face nil :foreground "#111")
   (set-face-attribute 'font-lock-string-face nil :foreground "#2c6415")
-  (set-face-attribute 'font-lock-comment-face nil :foreground "#888")
-  (set-face-attribute 'font-lock-comment-delimiter-face nil :foreground "#888")
-  (set-face-attribute 'font-lock-doc-face nil :weight 'light)
+  (set-face-attribute 'font-lock-comment-face nil :foreground "#888"
+                      :inherit '(my/default-light))
+  (set-face-attribute 'font-lock-comment-delimiter-face nil :foreground "#888"
+                      :inherit '(my/default-light))
+  (set-face-attribute 'font-lock-doc-face nil :inherit '(my/default-light))
   (set-face-attribute 'show-paren-match nil
                       :box '(:line-width (-1 . -1))
                       :weight 'black
@@ -64,7 +66,8 @@
   (set-face-attribute 'doom-modeline-bar-inactive nil
                       :inherit '(mode-line-inactive)
                       :foreground 'unspecified :background 'unspecified)
-  (set-face-attribute 'doom-modeline-buffer-minor-mode nil :foreground "grey95")
+  (set-face-attribute 'doom-modeline-buffer-minor-mode nil
+                      :foreground "grey95" :inherit '())
   (set-face-attribute 'doom-modeline-buffer-modified nil
                       :foreground 'unspecified ;"DarkOrange"
                       :weight 'bold
@@ -203,6 +206,9 @@
 
 ;; TODO: https://bard.github.io/emacs-run-command/quickstart
 ;; (elpaca run-command)
+
+(elpaca lsp-mode)
+(elpaca lsp-ui)
 
 (elpaca ace-window
   (face-spec-set 'aw-leading-char-face
