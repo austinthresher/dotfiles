@@ -110,7 +110,7 @@
 (setq completion-cycle-threshold nil)
 (setq completions-detailed t)
 (setq completions-max-height 16)
-(setq read-extended-command-predicate #'command-completion-default-include-p)
+;;(setq read-extended-command-predicate #'command-completion-default-include-p)
 (setq read-buffer-completion-ignore-case t)
 
 (setq enable-recursive-minibuffers t)
@@ -122,6 +122,7 @@
 (setq-default indent-tabs-mode nil)
 (indent-tabs-mode -1)
 
+;;(setq tab-line-close-tab-function 'kill-buffer)
 (setq tab-line-new-button-show nil)
 (setq tab-line-close-button-show nil)
 ;; TODO: Re-enable showing modified in tab-line but make sure it updates in every window
@@ -236,12 +237,17 @@ consider it a pop-up and also close the window."
 ;; TODO: Write predicates to categorize buffers, then re-use those instead of
 ;; duplicating this logic in multiple places (tab-line, etc).
 
+(defun my/is-file-buffer (&optional buf)
+  (or (buffer-file-name buf)
+      (string= (buffer-name buf) "*scratch*")))
+
+(defun my/is-hidden-buffer (&optional buf)
+  (eq ?\s (aref (buffer-name (or buf (current-buffer))) 0)))
+
 ;; Assigned directly to switch-to-prev-buffer-skip
 (defun my/skip-file-buffers (_ buf &rest _)
-  (let ((name (buffer-name buf)))
-    (or (buffer-file-name buf)
-        (string= "*scratch*" name)
-        (string-prefix-p " " name))))
+    (or (my/is-file-buffer buf)
+        (my/is-hidden-buffer buf)))
 (defun my/skip-non-file-buffers (_ buf &rest _)
   (or (null (buffer-file-name buf))
       (string-prefix-p " " (buffer-name buf))))
@@ -265,10 +271,6 @@ consider it a pop-up and also close the window."
 (keymap-global-set "M-[" 'previous-similar-buffer)
 (keymap-global-set "M-]" 'next-similar-buffer)
 
-(defun my/is-file-buffer (&optional buf)
-  (let ((b (or buf (current-buffer))))
-    (or (buffer-file-name b)
-        (string= (buffer-name b) "*scratch*"))))
 
 ;; Used for tab-line tab filtering
 (defun my/only-non-file-buffers (bufs)
@@ -281,17 +283,53 @@ consider it a pop-up and also close the window."
                                (not (string-prefix-p " " (buffer-name b)))))
                bufs))
 
+;; I assign a category to windows to reuse them for similar purposes. A window
+;; remembers the category it was first used for.
+(defun my/set-window-type (win type)
+  (set-window-parameter win 'my/window-type type))
+
+(defun my/get-window-type (&optional win)
+  (let* ((w (or win (selected-window)))
+         (win-type (window-parameter w 'my/window-type)))
+    (or win-type
+        (set-window-parameter w 'my/window-type
+                              (if (my/is-file-buffer (window-buffer w))
+                                  'file
+                                'special)))))
+
+(defun my/get-windows-with-type (type &optional frame)
+  (seq-filter (lambda (w) (eq (my/get-window-type w) type)) (window-list frame)))
+
+(defconst tab-line-hide-regexps
+  '("\\*Async-native-compile-log\\*"
+    "\\*Completions\\*"
+    "\\*EGLOT.*events\\*"
+    ))
+
+(defun my/any-regexp-matches-string-p (regexps str)
+  (catch 'match
+    (dolist (regexp regexps)
+      (when (string-match-p regexp str)
+        (throw 'match regexp)))))
+
 ;; Modified tab-line-tabs-window-buffers to include all similar buffers, not
-;; only ones seen in this window, following the same order as next-buffer
-;; TODO: Add a list of regexps to filter things out of these lists,
-;; particularly *Async-native-compile-log*
+;; only ones seen in this window, following the same order as next-buffer.
+;; Also includes buffers recently viewed in the window, regardless of if it
+;; is similar.
 (defun my/tab-line-tabs ()
-  (let* ((bufs (buffer-list (selected-frame)))
-         (visiting-file (my/is-file-buffer))
-         (tabs (if visiting-file (my/only-file-buffers bufs)
-                 (my/only-non-file-buffers bufs))))
-    tabs
-    (sort tabs (lambda (a b) (string< (buffer-name a) (buffer-name b))))))
+  (let* ((win (selected-window))
+         (bufs (buffer-list (selected-frame)))
+         (show-files (eq 'file (my/get-window-type win)))
+         (similar-tabs (if show-files (my/only-file-buffers bufs)
+                         (my/only-non-file-buffers bufs)))
+         (recent (mapcar #'car (append (window-next-buffers)
+                                       (window-prev-buffers))))
+         (tabs (seq-uniq (append (list (current-buffer)) similar-tabs recent)))
+         (filtered (seq-remove (lambda (x) (my/any-regexp-matches-string-p
+                                            tab-line-hide-regexps
+                                            (buffer-name x)))
+                               tabs)))
+    (sort filtered (lambda (a b) (string< (buffer-name a) (buffer-name b))))))
 (setq tab-line-tabs-function 'my/tab-line-tabs)
 
 ;; Use C-tab to navigate in displayed tab order instead of LRU order
@@ -349,7 +387,7 @@ consider it a pop-up and also close the window."
 (keymap-global-set "C-<backspace>" 'backward-kill-space-or-word)
 
 ;; Other window, but prioritize the minibuffer when active
-(defun select-minibuffer-or-other-window (&rest args)
+(defun minibuffer-or-other-window (&rest args)
   (interactive "p\ni\np")
   (cond ((active-minibuffer-window)
          (select-frame-set-input-focus (window-frame (active-minibuffer-window)))
@@ -367,21 +405,25 @@ consider it a pop-up and also close the window."
   (let ((current-mode (or mode major-mode)))
     (message "%s" (cons current-mode (my/major-mode-parents current-mode)))))
 
-
-(defun my/make-follow-buffer-output (buf)
-  (lambda (&rest _)
-    (when-let ((win (get-buffer-window buf)))
-      (with-selected-window win
+(defun my/follow-output (_ _ pre-len)
+  (when (= 0 pre-len)
+    (when-let ((visible-window (get-buffer-window)))
+      (with-selected-window visible-window
         (goto-char (point-max))
-        (ignore-errors (backward-char 1))
-        (recenter -1)))))
+        (unless (eq (point-max) (point-min))
+          (backward-char 1))
+        (recenter -1 nil)))))
+;; It looks like the *Messages* buffer doesn't fire after-change-functions.
+;; We can hack this to work by making it fire after set-minibuffer-message.
+(defun my/scroll-messages-buffer (&rest _)
+  (when-let ((msg-win (get-buffer-window (messages-buffer))))
+    (with-selected-window msg-win (my/follow-output nil nil 0))))
+(advice-add 'set-minibuffer-message :after 'my/scroll-messages-buffer)
 
-(defun my/setup-follow-buffer-output ()
-  (add-hook 'after-change-functions (my/make-follow-buffer-output (current-buffer)) 0 'local))
+(defun my/setup-follow-output ()
+  (add-hook 'after-change-functions 'my/follow-output 0 'local))
 
-(add-hook 'compilation-mode-hook 'my/setup-follow-buffer-output)
-(add-hook 'messages-buffer-mode-hook 'my/setup-follow-buffer-output) ;; this doesn't seem consistent
-(kill-buffer (get-buffer "*Messages*"))
+(add-hook 'compilation-mode-hook 'my/setup-follow-output)
 
 ;; Monkey patch helper macro
 (defmacro with-function-replaced (target-fn new-fn &rest body)
@@ -395,6 +437,12 @@ consider it a pop-up and also close the window."
          (fset ,target-fn ,old-fn)
          ,block-result))))
 
+;; Get rid of the annoying forced delay when auto save data exists
+(defun my/find-file-advice (fn &rest args)
+  (with-function-replaced 'sit-for 'ignore
+    (apply fn args)))
+(advice-add 'find-file :around 'my/find-file-advice)
+
 ;; customize-group specifically uses pop-to-buffer-same-window
 (defun my/customize-group-advice (fn &rest args)
   (let ((switch-to-buffer-obey-display-actions t))
@@ -403,36 +451,54 @@ consider it a pop-up and also close the window."
 (advice-add 'customize-group :around 'my/customize-group-advice)
 (add-hook 'Custom-mode-hook 'tab-line-mode)
 
+;; Make source file links from help buffers always open in a read-only buffer.
+;; TODO: This is applying to links in backtraces as well, maybe change that
+(defun my/after-help-source-link (&rest _)
+  (unless (buffer-modified-p)
+    (setq buffer-read-only t)
+    (view-mode)))
+(advice-add 'help-function-def--button-function :after 'my/after-help-source-link)
+
 
 (defun my/buffer-is-read-only (buf)
   (and (buffer-local-value 'buffer-read-only (get-buffer buf))
        (buffer-file-name (get-buffer buf))))
 
+;; Helper functions used in my/find-bottom-window
+
+(defun my/windows-not-touching-top (windows)
+  (seq-filter (lambda (x) (not (= 0 (window-top-line x)))) windows))
+
+(defun my/windows-sorted-closest-to-bottom (windows)
+  (sort windows (lambda (a b) (> (nth 3 (window-edges a))
+                                 (nth 3 (window-edges b))))))
 
 (defun my/find-bottom-window ()
   "Find the bottom-most window, excluding the minibuffer and any window in the
 upper-half of the frame"
-  (let* ((windows (remove (active-minibuffer-window) (window-list)))
-         (bot (if (active-minibuffer-window)
-                  (- (frame-height) (window-height (active-minibuffer-window)))
-                (frame-height)))
-         (eligible (seq-filter (lambda (x) (not (= 0 (window-top-line x))))
-                               windows))
-         (sorted (sort eligible (lambda (a b) (> (nth 3 (window-edges a))
-                                                 (nth 3 (window-edges b)))))))
+  (let* ((windows (seq-remove (lambda (x)
+                                (string-prefix-p "*Completions" (buffer-name (window-buffer x))))
+                              (window-list)))
+         (eligible (my/windows-not-touching-top windows))
+         (sorted (my/windows-sorted-closest-to-bottom eligible)))
     (or (car sorted)
-        (split-root-window-below (- (min (truncate (frame-height) 5) 16))))))
+        (split-root-window-below (- (min (truncate (frame-height) 3) 16))))))
+
+(defun my/find-existing-special-window ()
+  (when-let ((special-windows (my/get-windows-with-type 'special)))
+    (car (my/windows-sorted-closest-to-bottom special-windows))))
 
 (defun my/display-buffer-in-bottom-tab (buffer alist)
-  (let* ((candidate-win (my/find-bottom-window))
+  (let* ((candidate-win (or (my/find-existing-special-window)
+                            (my/find-bottom-window)))
          (actual-win (or (and candidate-win
                               (window--display-buffer buffer candidate-win 'reuse alist))
                          (display-buffer-at-bottom buffer alist))))
     (when actual-win
-      (with-selected-window actual-win (tab-line-mode))
+      (my/set-window-type actual-win 'special)
       actual-win)))
 
-
+;; TODO: Prevent editable file buffers from showing up in the bottom window
 (defun my/display-file-buffer-in-same-window (buffer alist)
     "If we're trying to display a file buffer in a window that is already
 showing a file buffer, reuse it. Otherwise use the most recently focused window
@@ -446,18 +512,26 @@ of display-buffer-alist, but every attempt I made failed."
 (setq display-tex-shell-buffer-action '(my/display-buffer-in-bottom-tab ()))
 
 ;; Note that Custom-mode seems to set its mode _after_ the window is created,
-;; so we have to match by name.
+;; so we have to match by name as well.
 (defconst bottom-window-modes
   '(special-mode compilation-mode comint-mode Custom-mode))
+(defconst bottom-window-regexps
+  '("\\*Custom" "\\*e?shell\\*" "\\*Shortdoc"))
 
-;; TODO: Advise help-function-def--button-function to set read-only and use view-mode
 (setq display-buffer-alist
-      `(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
-         nil
-         (window-parameters (mode-line-format . none)))
+      `(
+      ;; ("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+      ;;    nil
+        ;;    (window-parameters (mode-line-format . none)))
+        ("\\*Completions\\*"
+         (display-buffer-reuse-window display-buffer-at-bottom)
+         ;; (direction . down)
+         ;; (window-parameters (mode-line-format . none))
+         )
         ("\\*Async-native-compile-log\\*"
          (display-buffer-no-window))
-        ((or "\\*Custom" "\\*e?shell\\*" ,@(mapcar (apply-partially #'cons 'derived-mode) bottom-window-modes))
+        ((or ,@bottom-window-regexps
+             ,@(mapcar (apply-partially #'cons 'derived-mode) bottom-window-modes))
          (my/display-buffer-in-bottom-tab)
          (mode ,@bottom-window-modes))
         (my/buffer-is-read-only
@@ -486,10 +560,10 @@ of display-buffer-alist, but every attempt I made failed."
 
 (setq initial-scratch-message nil)
 
-(defun my/replace-scratch (file)
+(defun my/follow-recent-file (file)
   (let ((new-buf (find-file file)))
-    (delete-other-windows)
-    (kill-buffer "*scratch*")))
+    (kill-buffer "*scratch*")
+    (pop-to-buffer new-buf)))
 
 (defun my/recent-files-scratch-buffer ()
   "Display recent files in the scratch buffer."
@@ -501,7 +575,7 @@ of display-buffer-alist, but every attempt I made failed."
       (dolist (f (take 10 file-name-history))
         (when (file-exists-p f)
           (let ((txt (apply #'propertize f 'font-lock-face '(variable-pitch link)
-                            (button--properties #'my/replace-scratch f nil))))
+                            (button--properties #'my/follow-recent-file f nil))))
             (insert "  • " txt "\n")))))
     (insert "\n")
     (goto-char (point-max)))

@@ -4,49 +4,54 @@
 (add-hook 'elpaca-after-init-hook (apply-partially #'my/user-load "custom.el"))
 
 ;; TODO: Move theme override stuff to theme-init.el
-(elpaca sublime-themes
-  (load-theme 'mccarthy t)
-  (set-face-attribute 'default nil :foreground "#444")
-  (set-face-attribute 'font-lock-builtin-face nil :foreground "#111")
-  (set-face-attribute 'font-lock-string-face nil :foreground "#2c6415")
-  (set-face-attribute 'font-lock-comment-face nil :foreground "#888"
-                      :inherit '(my/default-light))
-  (set-face-attribute 'font-lock-comment-delimiter-face nil :foreground "#888"
-                      :inherit '(my/default-light))
-  (set-face-attribute 'font-lock-doc-face nil :inherit '(my/default-light))
-  (set-face-attribute 'show-paren-match nil
-                      :box '(:line-width (-1 . -1))
-                      :weight 'black
-                      :background "white")
-  (set-face-attribute 'show-paren-mismatch nil
-                      :foreground "white"
-                      :background "IndianRed4"
-                      :inverse-video nil)
-  (set-face-attribute 'trailing-whitespace nil
-                      :background "gainsboro")
-  (set-face-attribute 'isearch-fail nil :underline "red"
-                      :foreground "red3" :background 'unspecified)
-  (set-face-attribute 'highlight nil :background "LightBlue1")
-  (set-face-attribute 'region nil :background "LightBlue1")
-  (set-face-attribute 'mode-line nil :inherit '(variable-pitch))
-  (set-face-attribute 'mode-line-inactive nil :inherit '(variable-pitch))
-  (face-spec-set 'whitespace-tab '((t (:foreground "gray80" :background unspecified))))
-  (let ((bg "#f6f7f8")
-        (inactive-bg "#c6c7c8")
-        (line-bg "#e6e7e8")
-        (h 110))
-    (face-spec-set 'window-divider-first-pixel `((t (:foreground ,bg))))
-    (face-spec-set 'window-divider-last-pixel `((t (:foreground ,bg))))
-    (set-face-attribute 'tab-line-tab nil :background bg :box 'unspecified :height h
-                        :underline `(:color ,bg :position 0))
-    (set-face-attribute 'tab-line-tab-current nil :foreground "black" :background bg
-                        :box 'unspecified :height h :underline `(:color ,bg :position 0))
-    (set-face-attribute 'tab-line-highlight nil :box 'unspecified :underline t :height h
-                        :background 'unspecified :foreground 'unspecified :inherit nil)
-    (set-face-attribute 'tab-line-tab-modified nil :weight 'bold :foreground 'unspecified :height h)
-    (set-face-attribute 'tab-line-tab-inactive nil :background inactive-bg :height h
-                        :underline `(:color ,inactive-bg :position 0))
-    (set-face-attribute 'tab-line nil :background line-bg :underline `(:color ,inactive-bg :position 0))))
+(when nil
+  (elpaca sublime-themes
+    (load-theme 'mccarthy t)
+    (set-face-attribute 'default nil :foreground "#444")
+    (set-face-attribute 'font-lock-builtin-face nil :foreground "#111")
+    (set-face-attribute 'font-lock-string-face nil :foreground "#2c6415")
+    (set-face-attribute 'font-lock-comment-face nil :foreground "#888"
+                        :inherit '(my/default-light))
+    (set-face-attribute 'font-lock-comment-delimiter-face nil :foreground "#888"
+                        :inherit '(my/default-light))
+    (set-face-attribute 'font-lock-doc-face nil :inherit '(my/default-light))
+    (set-face-attribute 'show-paren-match nil
+                        :box '(:line-width (-1 . -1))
+                        :weight 'black
+                        :background "white")
+    (set-face-attribute 'show-paren-mismatch nil
+                        :foreground "white"
+                        :background "IndianRed4"
+                        :inverse-video nil)
+    (set-face-attribute 'trailing-whitespace nil
+                        :background "gainsboro")
+    (set-face-attribute 'isearch-fail nil :underline "red"
+                        :foreground "red3" :background 'unspecified)
+    (set-face-attribute 'highlight nil :background "LightBlue1")
+    (set-face-attribute 'region nil :background "LightBlue1")
+    (face-spec-set 'hl-line '((t (:background "LightBlue1" :underline t :extend t))))
+    (set-face-attribute 'hl-line nil :background "LightBlue1")
+    (set-face-attribute 'mode-line nil :inherit '(variable-pitch))
+    (set-face-attribute 'mode-line-inactive nil :inherit '(variable-pitch))
+    (face-spec-set 'whitespace-tab '((t (:foreground "gray80" :background unspecified))))
+    (let ((bg "#f6f7f8")
+          (inactive-bg "#c6c7c8")
+          (line-bg "#e6e7e8")
+          (h 110))
+      (face-spec-set 'window-divider-first-pixel `((t (:foreground ,bg))))
+      (face-spec-set 'window-divider-last-pixel `((t (:foreground ,bg))))
+      (set-face-attribute 'tab-line-tab nil :background bg :box 'unspecified :height h
+                          :underline `(:color ,bg :position 0))
+      (set-face-attribute 'tab-line-tab-current nil :foreground "black" :background bg
+                          :box 'unspecified :height h :underline `(:color ,bg :position 0))
+      (set-face-attribute 'tab-line-highlight nil :box 'unspecified :underline t :height h
+                          :background 'unspecified :foreground 'unspecified :inherit nil)
+      (set-face-attribute 'tab-line-tab-modified nil :weight 'bold :foreground 'unspecified :height h)
+      (set-face-attribute 'tab-line-tab-inactive nil :background inactive-bg :height h
+                          :underline `(:color ,inactive-bg :position 0))
+      (set-face-attribute 'tab-line nil :background line-bg :underline `(:color ,inactive-bg :position 0)))
+    )
+  )
 
 (elpaca doom-modeline
   (column-number-mode)
@@ -83,7 +88,34 @@
   (keymap-global-set "C-h B" 'embark-bindings)
   (setq prefix-help-command 'embark-prefix-help-command))
 
+(elpaca lsp-mode)
+(elpaca lsp-ui
+  (defun my/greedy-peek-expand (ref-alist)
+    (mapcar #'car ref-alist))
+  (setq lsp-ui-peek-expand-function 'my/greedy-peek-expand)
+  (setq lsp-ui-peek-enable t)
+  (setq lsp-ui-peek-always-show t)
+  (setq lsp-ui-peek-show-directory nil)
+  (defun my/lsp-maps ()
+    (define-key lsp-ui-mode-map [remap xref-find-definitions] 'lsp-ui-peek-find-definitions)
+    (define-key lsp-ui-mode-map [remap xref-find-references] 'lsp-ui-peek-find-references))
+  (add-hook 'lsp-configure-hook 'my/lsp-maps)
+  (setq lsp-ui-sideline-show-code-actions t)
+  (setq lsp-ui-doc-enable t)
+  (setq lsp-ui-doc-position 'point)
+  (setq lsp-ui-doc-include-signature t)
+  (setq lsp-ui-doc-use-webkit t)
+  )
+
 (elpaca consult
+  (defun current-lsp-consult-symbols ()
+    (interactive)
+    (cond ((bound-and-true-p eglot-mode)
+           (consult-eglot-symbols))
+          ((and (bound-and-true-p lsp-mode)
+                (bound-and-true-p consult-lsp-symbols))
+           (consult-lsp-symbols))
+          (t (consult-line-multi t ""))))
   (keymap-global-set "C-M-x" 'consult-mode-command)
   (keymap-global-set "C-x b" 'consult-buffer)
   (keymap-global-set "C-M-:" 'consult-complex-command)
@@ -108,7 +140,8 @@
   (keymap-global-set "M-s k" 'consult-keep-lines)
   (keymap-global-set "M-s f" 'consult-focus-lines)
   (keymap-global-set "M-s h" 'consult-isearch-history)
-  (keymap-global-set "M-s e" 'consult-eglot-symbols)
+  (keymap-global-set "M-s s" 'current-lsp-consult-symbols)
+  (keymap-global-set "M-s M-s" 'current-lsp-consult-symbols)
   (keymap-set isearch-mode-map "M-h" 'consult-isearch-history)
   (keymap-set isearch-mode-map "M-s h" 'consuilt-isearch-history)
   (keymap-set isearch-mode-map "M-s l" 'consult-line)
@@ -118,6 +151,7 @@
   (setq consult-narrow-key "C--")
   (setq register-preview-delay 0.25
         register-preview-function #'consult-register-format)
+  (add-hook 'completion-list-mode-hook 'consult-preview-at-point-mode)
   (advice-add 'register-preview :override 'consult-register-window)
   (setq xref-show-xrefs-function 'consult-xref
         xref-show-definitions-function 'consult-xref)
@@ -135,15 +169,14 @@
         vertico-resize t)
   (vertico-mode)
   (vertico-reverse-mode)
-  ;; Not actually using now, but keeping for possible future use
-  ;; (vertico-multiform-mode)
-  ;; (setq vertico-multiform-commands '()
-  ;;       vertico-multiform-categories '())
-  (keymap-set vertico-map "TAB" 'minibuffer-complete)
+  (vertico-mouse-mode)
+  (keymap-set vertico-map "<tab>" 'minibuffer-complete)
   (keymap-set vertico-map "M-P" 'previous-line-x8)
   (keymap-set vertico-map "M-N" 'next-line-x8)
   (keymap-set vertico-map "<prior>" 'vertico-scroll-up)
   (keymap-set vertico-map "<next>" 'vertico-scroll-down)
+  (defun my/vertico-inverse (args) (list (- (car args))))
+  (advice-add 'vertico-mouse--scroll-up :filter-args 'my/vertico-inverse)
   (defun my/crm-indicator (args)
     (cons (format "[CRM%s] %s"
                   (replace-regexp-in-string
@@ -152,6 +185,7 @@
                   (car args))
           (cdr args)))
   (advice-add 'completing-read-multiple :filter-args 'my/crm-indicator))
+
 
 (elpaca corfu
   (setq corfu-cycle t
@@ -173,10 +207,7 @@
   (corfu-history-mode)
   (require 'savehist)
   (add-to-list 'savehist-additional-variables 'corfu-history)
-  (defun corfu--preview-current-p ()
-    (and corfu-preview-current (>= corfu--index 0)
-         corfu--input
-         (not (seq-contains-p (car corfu--input) corfu-separator)))))
+  )
 
 (elpaca cape
   (add-hook 'completion-at-point-functions #'cape-dabbrev)
@@ -187,6 +218,7 @@
 
 (elpaca marginalia
   (marginalia-mode)
+  (setcdr (assoc 'package marginalia-annotator-registry) '(builtin))
   (keymap-set minibuffer-local-map "M-M" 'marginalia-cycle))
 
 (elpaca orderless
@@ -197,6 +229,8 @@
 
 (elpaca consult-eglot)
 (elpaca consult-eglot-embark (consult-eglot-embark-mode))
+(elpaca consult-lsp
+  (keymap-global-set "M-g d" 'consult-lsp-diagnostics))
 
 ;; Not sure I want to keep this
 ;; (elpaca yasnippet)
@@ -207,8 +241,6 @@
 ;; TODO: https://bard.github.io/emacs-run-command/quickstart
 ;; (elpaca run-command)
 
-(elpaca lsp-mode)
-(elpaca lsp-ui)
 
 (elpaca ace-window
   (face-spec-set 'aw-leading-char-face
@@ -216,13 +248,24 @@
                        :inherit (variable-pitch)))))
   (keymap-global-set "M-o" 'ace-window))
 
-;;;; Misc small QoL packages
+(elpaca markdown-mode
+  (setq markdown-display-remote-images t)
+  (setq markdown-enable-highlighting-syntax t)
+  (setq markdown-enable-wiki-links t)
+  (setq markdown-split-window-direction 'right)
+  (setq markdown-command (or (executable-find "multimarkdown")
+                             markdown-command))
+  (add-to-list 'auto-mode-alist '("README\\.md\\'" . gfm-mode))
+  (add-hook 'markdown-mode-hook 'word-wrap-whitespace-mode)
+  (add-hook 'markdown-view-mode-hook 'word-wrap-whitespace-mode)
+  (add-hook 'gfm-mode-hook 'word-wrap-whitespace-mode)
+  (add-hook 'gfm-view-mode-hook 'word-wrap-whitespace-mode))
 
 (elpaca form-feed-st
   (global-form-feed-st-mode)
   (set-face-attribute 'form-feed-st-line nil :foreground "grey75"))
 
-(elpaca '(adaptive-wrap :host github :repo "emacsmirror/adaptive-wrap" :branch "master")
+(elpaca adaptive-wrap
   (setq adaptive-wrap-extra-indent 1)
   (add-hook 'prog-mode-hook 'adaptive-wrap-prefix-mode))
 

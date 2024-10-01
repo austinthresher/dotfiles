@@ -56,17 +56,17 @@ Example usage:
 ;; (define-mode-face my/shell-face '(((eshell-mode shell-mode) fringe default))
 ;;   '((t (:background "gray30"))))
 
-(define-mode-face my/info-face '((Info-mode default header-line header-line-highlight))
+(define-mode-face my/variable-face
+  '((Info-mode
+     default header-line header-line-highlight)
+    ((markdown-mode gfm-mode markdown-view-mode gfm-view-mode)
+     default markdown-blockquote-face)
+    )
   '((t (:inherit (variable-pitch)))))
 
 
 ;;;; Indicate when the minibuffer is active
 
-(defface my/minibuffer-focused nil "Text when minibuffer has focus")
-(defface my/minibuffer-prompt-focused nil "Prompt when minibuffer has focus")
-(face-spec-set 'my/minibuffer-focused '((t (:foreground "black" :background unspecified))))
-(face-spec-set 'my/minibuffer-prompt-focused
-               '((t (:foreground "DarkGreen" :background unspecified))))
 (defface my/minibuffer-unfocused nil "Text when minibuffer is unfocused")
 (defface my/minibuffer-prompt-unfocused nil "Prompt when minibuffer is unfocused")
 (face-spec-set 'my/minibuffer-unfocused '((t (:foreground "grey60" :background unspecified))))
@@ -74,16 +74,20 @@ Example usage:
                '((t (:foreground "grey80" :background unspecified) :weight normal)))
 
 (defun my/highlight-minibuffer-when-active (&rest _)
-  (unless (framep corfu--frame) ;; hack for now, interfering with corfu
-    (cond ((eq (selected-window) (active-minibuffer-window))
-           (face-remap-set-base 'minibuffer-prompt 'my/minibuffer-prompt-focused)
-           (face-remap-set-base 'fringe 'my/minibuffer-focused)
-           (face-remap-set-base 'default 'my/minibuffer-focused))
-          ((active-minibuffer-window)
-           (with-selected-window (active-minibuffer-window)
-             (face-remap-set-base 'minibuffer-prompt 'my/minibuffer-prompt-unfocused)
-             (face-remap-set-base 'fringe 'my/minibuffer-unfocused)
-             (face-remap-set-base 'default 'my/minibuffer-unfocused))))))
-;; Disabling to test if this is what's interfering with corfu
-;; Update: I _think_ it's something that gets turned on with eglot
-;; (add-hook 'window-selection-change-functions 'my/highlight-minibuffer-when-active)
+  (cond ((minibuffer-window-active-p (selected-window))
+         (face-remap-set-base 'minibuffer-prompt 'minibuffer-prompt)
+         (face-remap-set-base 'fringe 'fringe)
+         (face-remap-set-base 'default 'default)
+         (face-remap-set-base 'completions-annotations 'completions-annotations)
+         (t
+          (when-let ((win (minibuffer-window)))
+            (with-selected-window win
+              (face-remap-set-base 'minibuffer-prompt 'my/minibuffer-prompt-unfocused)
+              (face-remap-set-base 'fringe 'my/minibuffer-unfocused)
+              (face-remap-set-base 'default 'my/minibuffer-unfocused)
+              (face-remap-set-base 'completions-annotations 'my/minibuffer-unfocused)))))))
+(add-hook 'window-selection-change-functions 'my/highlight-minibuffer-when-active)
+
+(add-hook 'minibuffer-exit-hook (lambda () "bye"))
+
+(load-theme 'leuven t)
