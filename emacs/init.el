@@ -41,21 +41,7 @@
 
 (setq imenu-auto-rescan t)
 
-(setq alternate-fontname-alist
-      '(("Iosevka NFP" "Iosevka Nerd Font Propo" "courier" "fixed")
-        ("IosevkaTermSlab NFP" "IosevkaTermSlab Nerd Font Propo" "courier" "fixed")
-        ("JetBrainsMono NF" "JetBrainsMonoNL NF" "Consolas" "FreeMono" "courier" "fixed")
-        ("Roboto Condensed" "Roboto" "Arial" "helv" "helvetica" "fixed")))
-(setq face-font-family-alternatives '(("Monospace" "Iosevka NF")
-                                      ("Monospace Serif" "JetBrainsMono NF")
-                                      ("Sans Serif" "Roboto Condensed")
-                                      ("helv" "helvetica" "arial" "fixed")))
-(set-face-font 'default "Iosevka NFP-11")
-(set-face-font 'fixed-pitch "IosevkaTermSlab NFP-11:weight=normal")
-(set-face-font 'fixed-pitch-serif "IosevkaTermSlab NFP-11:weight=normal")
-(set-face-font 'variable-pitch "Roboto Condensed-11:weight=semilight")
-;; Windows doesn't respect font weight settings, requiring a different family instead
-(defface my/default-light '((t (:family "Iosevka NFP Light" :inherit (default)))) "Light default font")
+
 
 (setq inhibit-compacting-font-caches t)
 
@@ -131,8 +117,8 @@
 ;; Use advice here instead of tab-line-tab-name-function so that it's after
 ;; propertize has been applied to the text.
 (defun my/tab-line-tab-custom (name)
-  (let* ((bg-col (face-attribute (get-text-property 0 'face name) :background))
-         (space (propertize "  " 'face `(:background ,bg-col :underline nil)))
+  (let* ((face (get-text-property 0 'face name))
+         (space (propertize "  " 'face `(:underline nil :inherit ,face)))
          (name (concat space name space)))
     ;; help-echo is redundant and blocks other tabs
     (ignore-errors (remove-text-properties 0 (length name) '(help-echo nil) name))
@@ -154,7 +140,7 @@
 (setq cua-virtual-rectangle-edges nil)
 (cua-selection-mode t)
 
-(keymap-global-set "C-x SPC" 'cua-rectangle-mark-mode)
+;;(keymap-global-set "C-x SPC" 'cua-rectangle-mark-mode)
 (keymap-global-unset "C-h t")
 (keymap-global-unset "<f1> t")
 (keymap-global-unset "M-ESC :")
@@ -393,7 +379,7 @@ consider it a pop-up and also close the window."
          (select-frame-set-input-focus (window-frame (active-minibuffer-window)))
          (select-window (active-minibuffer-window)))
         (t (apply #'funcall-interactively #'other-window args))))
-(keymap-global-set "C-x O" 'select-minibuffer-or-other-window)
+(keymap-global-set "C-x O" 'minibuffer-or-other-window)
 
 ;; Useful for debugging display-buffer-alist and similar
 (defun my/major-mode-parents (mode)
@@ -438,10 +424,8 @@ consider it a pop-up and also close the window."
          ,block-result))))
 
 ;; Get rid of the annoying forced delay when auto save data exists
-(defun my/find-file-advice (fn &rest args)
-  (with-function-replaced 'sit-for 'ignore
-    (apply fn args)))
-(advice-add 'find-file :around 'my/find-file-advice)
+;; This might be breaking something
+;;(fset 'sit-for #'ignore)
 
 ;; customize-group specifically uses pop-to-buffer-same-window
 (defun my/customize-group-advice (fn &rest args)
