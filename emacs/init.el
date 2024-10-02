@@ -21,6 +21,9 @@
 (show-paren-mode)
 (defun my/trailing-whitespace () (setq-local show-trailing-whitespace t))
 (add-hook 'prog-mode-hook 'my/trailing-whitespace)
+(setopt global-hl-line-sticky-flag nil)
+(setopt hl-line-sticky-flag nil)
+(add-hook 'prog-mode-hook 'hl-line-mode)
 
 (setq whitespace-style '(face tabs tab-mark))
 (add-hook 'prog-mode-hook 'whitespace-mode)
@@ -42,7 +45,6 @@
 (setq imenu-auto-rescan t)
 
 
-
 (setq inhibit-compacting-font-caches t)
 
 (setq backup-directory-alist '(("." . "~/.emacs-backups")))
@@ -56,6 +58,8 @@
 (setq custom-unlispify-tag-names nil)
 (setq custom-unlispify-menu-entries nil)
 (setq shell-kill-buffer-on-exit t)
+(setq eshell-kill-on-exit t)
+(setq eshell-scroll-to-bottom-on-input 'this)
 (setq window-resize-pixelwise t)
 (setq text-scale-mode-step 1.05)
 (setq switch-to-buffer-obey-display-actions nil)
@@ -108,7 +112,7 @@
 (setq-default indent-tabs-mode nil)
 (indent-tabs-mode -1)
 
-;;(setq tab-line-close-tab-function 'kill-buffer)
+(setq tab-line-close-tab-function 'kill-buffer)
 (setq tab-line-new-button-show nil)
 (setq tab-line-close-button-show nil)
 ;; TODO: Re-enable showing modified in tab-line but make sure it updates in every window
@@ -140,7 +144,6 @@
 (setq cua-virtual-rectangle-edges nil)
 (cua-selection-mode t)
 
-;;(keymap-global-set "C-x SPC" 'cua-rectangle-mark-mode)
 (keymap-global-unset "C-h t")
 (keymap-global-unset "<f1> t")
 (keymap-global-unset "M-ESC :")
@@ -516,7 +519,8 @@ of display-buffer-alist, but every attempt I made failed."
          (display-buffer-no-window))
         ((or ,@bottom-window-regexps
              ,@(mapcar (apply-partially #'cons 'derived-mode) bottom-window-modes))
-         (my/display-buffer-in-bottom-tab)
+         (display-buffer-reuse-window
+          my/display-buffer-in-bottom-tab)
          (mode ,@bottom-window-modes))
         (my/buffer-is-read-only
          (display-buffer-reuse-mode-window display-buffer-at-bottom)
@@ -536,11 +540,13 @@ of display-buffer-alist, but every attempt I made failed."
 
 
 (when (treesit-available-p)
+  (setq treesit-font-lock-level 4)
   (when (treesit-language-available-p 'cmake)
     (add-to-list 'auto-mode-alist '("CMakeLists.txt" . cmake-ts-mode))
     (add-to-list 'auto-mode-alist '("\\.cmake\\'" . cmake-ts-mode))))
 
-(my/user-load "theme-init.el")
+;;(my/user-load "theme-init.el")
+(load-theme 'mostly-mono t)
 
 (setq initial-scratch-message nil)
 
@@ -552,15 +558,15 @@ of display-buffer-alist, but every attempt I made failed."
 (defun my/recent-files-scratch-buffer ()
   "Display recent files in the scratch buffer."
   (with-current-buffer (get-scratch-buffer-create)
-    (insert "Welcome to Emacs ")
+    (insert "\n    Welcome to Emacs ")
     (insert (format "%s.%s!\n\n" emacs-major-version emacs-minor-version))
-    (insert (propertize "Recent Files" 'font-lock-face 'bold) "\n")
+    (insert (propertize "    Recent Files" 'font-lock-face 'bold) "\n")
     (when file-name-history
       (dolist (f (take 10 file-name-history))
         (when (file-exists-p f)
           (let ((txt (apply #'propertize f 'font-lock-face '(variable-pitch link)
                             (button--properties #'my/follow-recent-file f nil))))
-            (insert "  • " txt "\n")))))
+            (insert "      • " txt "\n")))))
     (insert "\n")
     (goto-char (point-max)))
   (unless (cdr command-line-args)

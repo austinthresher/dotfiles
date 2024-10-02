@@ -1,5 +1,8 @@
 ;; -*- lexical-binding: t -*-
 
+;;;; Macros and helper functions that are useful for taming community themes.
+;;;; Currently not necessary while using my own theme.
+
 ;;;; Add a hook that runs after a theme is loaded or enabled
 
 (defvar after-load-theme-hook nil)
@@ -198,4 +201,4 @@ Example usage:
              (face-remap-set-base 'completions-annotations 'my/minibuffer-unfocused))))))
 (add-hook 'window-selection-change-functions 'my/highlight-minibuffer-when-active)
 
-(load-theme 'leuven t)
+;; (load-theme 'leuven t)
