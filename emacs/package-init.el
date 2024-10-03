@@ -4,39 +4,69 @@
 (add-hook 'elpaca-after-init-hook (apply-partially #'my/user-load "custom.el"))
 (setq elpaca-queue-limit 8)
 
+;; A lot of packages have this as a pre-req, even though I don't use it.
+(elpaca yasnippet)
+
+;; elpaca is yelling at me about this
+(elpaca jsonrpc)
+(elpaca eldoc)
+(elpaca eglot)
+
 (elpaca doom-modeline
-  (column-number-mode)
-  (line-number-mode)
-  (setq doom-modeline-buffer-file-name-style 'relative-from-project
-        doom-modeline-buffer-encoding 'nondefault
-        doom-modeline-icon t
-        doom-modeline-major-mode-color-icon nil
-        doom-modeline-major-mode-icon nil
-        doom-modeline-buffer-state-icon t
-        doom-modeline-unicode-fallback t
-        doom-modeline-highlight-modified-buffer-name t
-        doom-modeline-display-misc-in-all-mode-lines nil
-        doom-modeline-height 28
-        doom-modeline-minor-modes t)
-  (setq nerd-icons-color-icons nil)
-  (doom-modeline-mode)
-  ;; TODO: Move this stuff into the theme
-  (dolist (face (list 'doom-modeline-buffer-file 'doom-modeline-project-dir
-                      'doom-modeline-project-root-dir 'doom-modeline-project-parent-dir))
-    (set-face-attribute face nil :inherit '(variable-pitch)))
-  (set-face-attribute 'doom-modeline-bar nil
-                      :inherit '(mode-line-active)
-                      :foreground 'unspecified :background 'unspecified)
-  (set-face-attribute 'doom-modeline-bar-inactive nil
-                      :inherit '(mode-line-inactive)
-                      :foreground 'unspecified :background 'unspecified)
-  (set-face-attribute 'doom-modeline-buffer-minor-mode nil
-                      :foreground "grey95" :inherit nil)
-  (set-face-attribute 'doom-modeline-buffer-modified nil
-                      :foreground 'unspecified ;"DarkOrange"
-                      :weight 'bold
-                      :inherit '(variable-pitch))
-  (set-face-attribute 'doom-modeline-warning nil :foreground "lemon chiffon"))
+  (defun my/setup-doom ()
+    (column-number-mode)
+    (line-number-mode)
+    (setq doom-modeline-buffer-file-name-style 'relative-from-project
+          doom-modeline-buffer-encoding 'nondefault
+          doom-modeline-icon t
+          doom-modeline-major-mode-color-icon nil
+          doom-modeline-major-mode-icon nil
+          doom-modeline-buffer-state-icon t
+          doom-modeline-unicode-fallback t
+          doom-modeline-highlight-modified-buffer-name nil
+          doom-modeline-display-misc-in-all-mode-lines nil
+          doom-modeline-height 28
+          doom-modeline-minor-modes t)
+    (setq nerd-icons-color-icons nil)
+    (doom-modeline-mode)
+    (defun my/window-number-style (txt)
+      (propertize (concat " " txt) 'face
+                  (if (and (doom-modeline--active)
+                           (not (active-minibuffer-window)))
+                      '(:foreground "#CC7777")
+                    '(:foreground "#FFFFFF" :weight bold))))
+    (doom-modeline-def-modeline 'main
+      '(eldoc bar modals matches follow buffer-info remote-host buffer-position
+              word-count selection-info)
+      '(compilation objed-state misc-info persp-name battery grip debug repl
+                    lsp minor-modes input-method indent-info buffer-encoding
+                    process major-mode vcs check window-number))
+    (advice-add 'doom-modeline-segment--window-number :filter-return 'my/window-number-style)
+    ;; TODO: Move this stuff into the theme
+    (dolist (face (list 'doom-modeline-buffer-file 'doom-modeline-project-dir
+                        'doom-modeline-project-root-dir 'doom-modeline-project-parent-dir
+                        'doom-modeline-buffer-path))
+      (set-face-attribute face nil :inherit '(variable-pitch)))
+    (dolist (face (list 'doom-modeline-lsp-warning 'doom-modeline-lsp-error
+                        'doom-modeline-lsp-success 'doom-modeline-repl-success
+                        'doom-modeline-repl-warning 'doom-modeline-urgent
+                        'doom-modeline-warning 'doom-modeline-info
+                        'doom-modeline-emphasis))
+      (set-face-attribute face nil :weight 'normal))
+    (set-face-attribute 'doom-modeline-bar nil
+                        :inherit '(mode-line-active)
+                        :foreground 'unspecified :background 'unspecified)
+    (set-face-attribute 'doom-modeline-bar-inactive nil
+                        :inherit '(mode-line-inactive)
+                        :foreground 'unspecified :background 'unspecified)
+    (set-face-attribute 'doom-modeline-buffer-minor-mode nil
+                        :foreground "grey95" :inherit nil)
+    (set-face-attribute 'doom-modeline-buffer-modified nil
+                        :foreground 'unspecified ;"DarkOrange"
+                        :weight 'bold
+                        :inherit '(variable-pitch))
+    (set-face-attribute 'doom-modeline-warning nil :foreground "lemon chiffon"))
+  (add-hook 'elpaca-after-init-hook 'my/setup-doom))
 
 (elpaca minions
   (minions-mode)
@@ -48,27 +78,9 @@
   (keymap-global-set "C-h B" 'embark-bindings)
   (setq prefix-help-command 'embark-prefix-help-command))
 
-(elpaca lsp-mode
-  (setq lsp-enable-snippet nil)
-  (setq lsp-headerline-breadcrumb-enable nil)
-  (setq lsp-headerline-breadcrumb-enable-diagnostics nil)
-  )
-(elpaca lsp-ui
-  (defun my/greedy-peek-expand (ref-alist)
-    (mapcar #'car ref-alist))
-  (setq lsp-ui-peek-expand-function 'my/greedy-peek-expand)
-  (setq lsp-ui-peek-enable t)
-  (setq lsp-ui-peek-always-show t)
-  (setq lsp-ui-peek-show-directory nil)
-  (defun my/lsp-maps ()
-    (define-key lsp-ui-mode-map [remap xref-find-definitions] 'lsp-ui-peek-find-definitions)
-    (define-key lsp-ui-mode-map [remap xref-find-references] 'lsp-ui-peek-find-references))
-  (add-hook 'lsp-configure-hook 'my/lsp-maps)
-  (setq lsp-ui-sideline-show-code-actions t)
-  (setq lsp-ui-doc-enable t)
-  (setq lsp-ui-doc-position 'point)
-  (setq lsp-ui-doc-include-signature t)
-  )
+(elpaca rainbow-delimiters
+  (setq rainbow-delimiters-outermost-only-face-count 1)
+  (add-hook 'lisp-data-mode-hook 'rainbow-delimiters-mode))
 
 (elpaca consult
   (keymap-global-set "C-M-x" 'consult-mode-command)
@@ -95,8 +107,7 @@
   (keymap-global-set "M-s k" 'consult-keep-lines)
   (keymap-global-set "M-s f" 'consult-focus-lines)
   (keymap-global-set "M-s h" 'consult-isearch-history)
-  (keymap-global-set "M-s s" 'consult-lsp-symbols)
-  (keymap-global-set "M-s M-s" 'consult-lsp-symbols)
+  (keymap-global-set "M-s e" 'consult-eglot-symbols)
   (keymap-set isearch-mode-map "M-h" 'consult-isearch-history)
   (keymap-set isearch-mode-map "M-s h" 'consuilt-isearch-history)
   (keymap-set isearch-mode-map "M-s l" 'consult-line)
@@ -141,7 +152,6 @@
           (cdr args)))
   (advice-add 'completing-read-multiple :filter-args 'my/crm-indicator))
 
-
 (elpaca corfu
   (setq corfu-cycle t
         corfu-popupinfo-delay '(0.25 . 0.1)
@@ -184,24 +194,16 @@
 
 (elpaca consult-eglot)
 (elpaca consult-eglot-embark (consult-eglot-embark-mode))
-(elpaca consult-lsp
-  (keymap-global-set "M-g d" 'consult-lsp-diagnostics))
 
-;; Not sure I want to keep this
-;; (elpaca yasnippet)
-;; (elpaca yasnippet-snippets)
-;; (elpaca consult-yasnippet
-;;   (setq consult-yasnippet-use-thing-at-point t))
+
 
 ;; TODO: https://bard.github.io/emacs-run-command/quickstart
 ;; (elpaca run-command)
 
-
-(elpaca ace-window
-  (face-spec-set 'aw-leading-char-face
-                 '((t (:height 360 :foreground "red"
-                       :inherit (variable-pitch)))))
-  (keymap-global-set "M-o" 'ace-window))
+ (elpaca winum
+   (setq winum-auto-setup-mode-line nil)
+   (winum-mode)
+     (winum-set-keymap-prefix (kbd "M-o")))
 
 (elpaca markdown-mode
   (setq markdown-display-remote-images t)

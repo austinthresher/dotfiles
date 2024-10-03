@@ -24,7 +24,9 @@
 ;; NOTE: Need to actually load custom file if not loading packages.
 ;; Otherwise, custom is loaded in elpaca-after-init-hook
 ;;(my/user-load "custom.el")
-(my/user-load "package-init.el")
+
+(my/user-load "theme-init.el")
+(load-theme 'mostly-mono t)
 
 (setopt show-paren-delay 0)
 (setopt show-paren-when-point-inside-paren t)
@@ -60,7 +62,7 @@
 (setq backup-directory-alist '(("." . "~/.emacs-backups")))
 (setq fit-window-to-buffer-horizontally t)
 (setq read-minibuffer-restore-windows nil)
-(setq resize-mini-windows t)
+(setq resize-mini-windows 'grow-only)
 (setq vc-follow-symlinks t)
 (setq history-delete-duplicates t)
 (setq set-mark-command-repeat-pop t)
@@ -97,7 +99,7 @@
 ;; (setopt help-at-pt-timer-delay 0.25)
 ;; (setopt help-at-pt-display-when-idle '(keymap local-map button kbd-help))
 
-(setq eldoc-idle-delay 0.05)
+;(setq eldoc-idle-delay 0.05)
 (setq minibuffer-beginning-of-buffer-movement t)
 (setq minibuffer-prompt-properties
       '(read-only t cursor-intangible t face minibuffer-prompt))
@@ -144,9 +146,9 @@
 (tool-bar-mode -1)
 (context-menu-mode)
 (undelete-frame-mode)
-(auto-save-mode -1)
 (savehist-mode)
 (add-to-list 'savehist-additional-variables 'file-name-history)
+(setq kill-buffer-delete-auto-save-files t)
 
 (setq cua-auto-mark-last-change t)
 (setq cua-auto-tabify-rectangles nil)
@@ -154,6 +156,10 @@
 (setq cua-enable-rectangle-auto-help t)
 (setq cua-virtual-rectangle-edges nil)
 (cua-selection-mode t)
+
+(require 'rect)
+(keymap-set rectangle-mark-mode-map "C-i" 'string-insert-rectangle)
+(keymap-set rectangle-mark-mode-map "C-r" 'replace-rectangle)
 
 (keymap-global-unset "C-h t")
 (keymap-global-unset "<f1> t")
@@ -183,9 +189,6 @@
 (keymap-global-set "M-n" 'next-line-x8)
 (keymap-global-set "M-p" 'previous-line-x8)
 
-;; Might not need this anymore?
-;; (keymap-global-set "ESC ESC" 'keyboard-quit)
-
 (defun kill-current-buffer () (interactive) (kill-buffer (current-buffer)))
 (keymap-global-set "C-x k" 'kill-current-buffer)
 (keymap-global-set "C-x K" 'kill-buffer-and-window)
@@ -205,6 +208,12 @@ consider it a pop-up and also close the window."
 
 (defun other-other-window () (interactive) (other-window -1))
 (keymap-global-set "C-c o" 'other-other-window)
+
+(keymap-global-set "C-x w q" 'bury-buffer)
+(keymap-global-set "C-x w h" 'windmove-left)
+(keymap-global-set "C-x w l" 'windmove-right)
+(keymap-global-set "C-x w j" 'windmove-down)
+(keymap-global-set "C-x w k" 'windmove-up)
 
 (keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
 (keymap-global-set "<mode-line> <mouse-3>" 'mouse-buffer-menu)
@@ -291,26 +300,20 @@ consider it a pop-up and also close the window."
 (defun my/get-window-type (&optional win)
   (let* ((w (or win (selected-window)))
          (win-type (window-parameter w 'my/window-type)))
-    (or win-type
-        (set-window-parameter w 'my/window-type
-                              (if (my/is-file-buffer (window-buffer w))
-                                  'file
-                                'special)))))
+    (unless (window-minibuffer-p w)
+      (or win-type
+          (set-window-parameter w 'my/window-type
+                                (if (my/is-file-buffer (window-buffer w))
+                                    'file
+                                  'special))))))
 
 (defun my/get-windows-with-type (type &optional frame)
   (seq-filter (lambda (w) (eq (my/get-window-type w) type)) (window-list frame)))
 
-(defconst tab-line-hide-regexps
-  '("\\*Async-native-compile-log\\*"
-    "\\*Completions\\*"
-    "\\*EGLOT.*events\\*"
-    ))
-
-(defun my/any-regexp-matches-string-p (regexps str)
-  (catch 'match
-    (dolist (regexp regexps)
-      (when (string-match-p regexp str)
-        (throw 'match regexp)))))
+(defconst tab-line-hide-regexp
+  (rx (or "*Async-native-compile-log*"
+          "*Completions*"
+          (seq "*EGLOT" (* anything) "events*"))))
 
 ;; Modified tab-line-tabs-window-buffers to include all similar buffers, not
 ;; only ones seen in this window, following the same order as next-buffer.
@@ -325,9 +328,8 @@ consider it a pop-up and also close the window."
          (recent (mapcar #'car (append (window-next-buffers)
                                        (window-prev-buffers))))
          (tabs (seq-uniq (append (list (current-buffer)) similar-tabs recent)))
-         (filtered (seq-remove (lambda (x) (my/any-regexp-matches-string-p
-                                            tab-line-hide-regexps
-                                            (buffer-name x)))
+         (filtered (seq-remove (lambda (x) (string-match-p tab-line-hide-regexp
+                                                           (buffer-name x)))
                                tabs)))
     (sort filtered (lambda (a b) (string< (buffer-name a) (buffer-name b))))))
 (setq tab-line-tabs-function 'my/tab-line-tabs)
@@ -471,11 +473,20 @@ consider it a pop-up and also close the window."
   (sort windows (lambda (a b) (> (nth 3 (window-edges a))
                                  (nth 3 (window-edges b))))))
 
+(defconst not-bottom-window-regexp
+  (rx (or "*Completions"
+          " *Minibuf-"
+          " *Echo")))
+
+;; TODO: Split this into bottom left / bottom right. Bottom right for misc special,
+;; bottom left for help / doc / etc.
+
 (defun my/find-bottom-window ()
   "Find the bottom-most window, excluding the minibuffer and any window in the
 upper-half of the frame"
   (let* ((windows (seq-remove (lambda (x)
-                                (string-prefix-p "*Completions" (buffer-name (window-buffer x))))
+                                (string-match-p not-bottom-window-regexp
+                                                (buffer-name (window-buffer x))))
                               (window-list)))
          (eligible (my/windows-not-touching-top windows))
          (sorted (my/windows-sorted-closest-to-bottom eligible)))
@@ -487,7 +498,10 @@ upper-half of the frame"
     (car (my/windows-sorted-closest-to-bottom special-windows))))
 
 (defun my/display-buffer-in-bottom-tab (buffer alist)
-  (let* ((candidate-win (or (my/find-existing-special-window)
+  (let* ((maybe-existing-win (seq-remove #'window-minibuffer-p
+                                         (get-buffer-window-list buffer)))
+         (candidate-win (or (car maybe-existing-win)
+                            (my/find-existing-special-window)
                             (my/find-bottom-window)))
          (actual-win (or (and candidate-win
                               (window--display-buffer buffer candidate-win 'reuse alist))
@@ -512,26 +526,20 @@ of display-buffer-alist, but every attempt I made failed."
 ;; Note that Custom-mode seems to set its mode _after_ the window is created,
 ;; so we have to match by name as well.
 (defconst bottom-window-modes
-  '(special-mode compilation-mode comint-mode Custom-mode))
+  '(special-mode compilation-mode comint-mode Custom-mode eat-mode term-mode
+                 reb-mode reb-lisp-mode))
+
 (defconst bottom-window-regexps
-  '("\\*Custom" "\\*e?shell\\*" "\\*Shortdoc"))
+  '("\\*Custom" "\\*e?shell\\*" "\\*Shortdoc" "\\*RE-Builder\\*"))
 
 (setq display-buffer-alist
-      `(
-      ;; ("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
-      ;;    nil
-        ;;    (window-parameters (mode-line-format . none)))
-        ("\\*Completions\\*"
-         (display-buffer-reuse-window display-buffer-at-bottom)
-         ;; (direction . down)
-         ;; (window-parameters (mode-line-format . none))
-         )
+      `(("\\*Completions\\*"
+         (display-buffer-reuse-window display-buffer-at-bottom))
         ("\\*Async-native-compile-log\\*"
          (display-buffer-no-window))
         ((or ,@bottom-window-regexps
              ,@(mapcar (apply-partially #'cons 'derived-mode) bottom-window-modes))
-         (display-buffer-reuse-window
-          my/display-buffer-in-bottom-tab)
+         (my/display-buffer-in-bottom-tab)
          (mode ,@bottom-window-modes))
         (my/buffer-is-read-only
          (display-buffer-reuse-mode-window display-buffer-at-bottom)
@@ -550,14 +558,14 @@ of display-buffer-alist, but every attempt I made failed."
          (mode prog-mode text-mode fundamental-mode))))
 
 
+(my/user-load "package-init.el")
+
+
 (when (treesit-available-p)
   (setq treesit-font-lock-level 4)
   (when (treesit-language-available-p 'cmake)
     (add-to-list 'auto-mode-alist '("CMakeLists.txt" . cmake-ts-mode))
     (add-to-list 'auto-mode-alist '("\\.cmake\\'" . cmake-ts-mode))))
-
-;;(my/user-load "theme-init.el")
-(load-theme 'mostly-mono t)
 
 (setq initial-scratch-message nil)
 
