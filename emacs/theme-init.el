@@ -14,16 +14,6 @@
 
 ;;;; Prep fonts to be loaded after any theme
 
-(setq alternate-fontname-alist
-      '(("Iosevka NFP" "Iosevka Nerd Font Propo" "courier" "fixed")
-        ("IosevkaTermSlab NFP" "IosevkaTermSlab Nerd Font Propo" "courier" "fixed")
-        ("JetBrainsMono NF" "JetBrainsMonoNL NF" "Consolas" "FreeMono" "courier" "fixed")
-        ("Roboto Condensed" "Roboto" "Arial" "helv" "helvetica" "fixed")))
-(setq face-font-family-alternatives '(("Monospace" "Iosevka NF")
-                                      ("Monospace Serif" "JetBrainsMono NF")
-                                      ("Sans Serif" "Roboto Condensed")
-                                      ("helv" "helvetica" "arial" "fixed")))
-
 ;; Windows doesn't respect font weight settings, requiring a different family instead
 (defface my/default-light '((t (:family "Iosevka NFP Light" :inherit (default)))) "Light default font")
 

@@ -7,6 +7,16 @@
 (setq inhibit-startup-screen t)
 (defun display-startup-echo-area-message ())
 
+(setq alternate-fontname-alist
+      '(("Iosevka NFP" "Iosevka Nerd Font Propo" "courier" "fixed")
+        ("IosevkaTermSlab NFP" "IosevkaTermSlab Nerd Font Propo" "courier" "fixed")
+        ("JetBrainsMono NF" "JetBrainsMonoNL NF" "Consolas" "FreeMono" "courier" "fixed")
+        ("Roboto Condensed" "Roboto" "Arial" "helv" "helvetica" "fixed")))
+(setq face-font-family-alternatives '(("Monospace" "Iosevka NF")
+                                      ("Monospace Serif" "JetBrainsMono NF")
+                                      ("Sans Serif" "Roboto Condensed")
+                                      ("helv" "helvetica" "arial" "fixed")))
+
 (defun my/user-load (filename)
   (load (expand-file-name filename user-emacs-directory) 'noerror 'nomessage))
 
@@ -67,6 +77,7 @@
 (setq line-move-visual nil)
 (setq cursor-in-non-selected-windows nil)
 (setq c-ts-mode-indent-style 'k&r)
+(setq c-ts-mode-indent-offset 4)
 (setq c-default-style '((c-mode . "stroustrup")
                         (c++-mode . "stroustrup")
                         (java-mode . "java")

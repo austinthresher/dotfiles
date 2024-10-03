@@ -16,6 +16,7 @@
         doom-modeline-unicode-fallback t
         doom-modeline-highlight-modified-buffer-name t
         doom-modeline-display-misc-in-all-mode-lines nil
+        doom-modeline-height 28
         doom-modeline-minor-modes t)
   (setq nerd-icons-color-icons nil)
   (doom-modeline-mode)
