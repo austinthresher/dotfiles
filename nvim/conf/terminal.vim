@@ -1,58 +1,39 @@
 " Load terminal colorscheme values
 runtime conf/terminal_colors.vim
 
-function! TermFocused()
-    if b:term_mode
-        sil! exec 'norm i | redraw!'
-    endif
+function! s:InitializeTerm()
+    silent setlocal nobuflisted winhl=Normal:Terminal nonumber winfixheight
+    let b:term_title = substitute(b:term_title,
+                \ 'term://\(.*\)//[0-9]*:\(.*\)', '\1$ \2', '')
+    redraw!
 endfunc
 
-function! InitializeTerm()
-    " Unlist terminals so we don't hit them with bprev / bnext
-    silent set nobuflisted
-    " This buffer variable will remember if we want to auto-enter
-    " terminal mode when we re-focus the buffer.
-    " This is set to false by the <esc><esc> keybind in maps.vim
-    " and reset to true the next time we enter terminal mode
-    let b:term_mode = v:true
-    autocmd BufEnter <buffer> call TermFocused()
-    autocmd TermEnter <buffer> let b:term_mode = v:true
-endfunc
+let g:terminal_color_0  = g:term_black
+let g:terminal_color_1  = g:term_red
+let g:terminal_color_2  = g:term_green
+let g:terminal_color_3  = g:term_yellow
+let g:terminal_color_4  = g:term_blue
+let g:terminal_color_5  = g:term_purple
+let g:terminal_color_6  = g:term_cyan
+let g:terminal_color_7  = g:term_white
+let g:terminal_color_8  = g:term_br_black
+let g:terminal_color_9  = g:term_br_red
+let g:terminal_color_10 = g:term_br_green
+let g:terminal_color_11 = g:term_br_yellow
+let g:terminal_color_12 = g:term_br_blue
+let g:terminal_color_13 = g:term_br_purple
+let g:terminal_color_14 = g:term_br_cyan
+let g:terminal_color_15 = g:term_br_white
 
-" If we're in Neovim, redirect to Neovim-specific setup.
-if has('nvim')
-    runtime conf/nvim_terminal.vim
-    finish
-endif
+" Let Ctrl+W swap windows / etc
+tnoremap <C-W> <C-\><C-N><C-W>
 
-command! -nargs=* -complete=file Terminal terminal <args>
-command! -nargs=* -complete=file TTerminal terminal <args>
-
-" Commenting this out because I'm getting used to Ctrl+W to switch panes
-"set termwinkey=<ins>
-let g:terminal_ansi_colors = [
-        \ g:term_black,
-        \ g:term_red,
-        \ g:term_green,
-        \ g:term_yellow,
-        \ g:term_blue,
-        \ g:term_purple,
-        \ g:term_cyan,
-        \ g:term_white,
-        \ g:term_br_black,
-        \ g:term_br_red,
-        \ g:term_br_green,
-        \ g:term_br_yellow,
-        \ g:term_br_blue,
-        \ g:term_br_purple,
-        \ g:term_br_cyan,
-        \ g:term_br_white
-    \ ]
-
+" Most of the above functions need to be called on certain autocommands
 augroup TerminalAG
     autocmd!
-    " Terminal FG / BG are set separately from colors 0-15
     autocmd ColorScheme *
-                \ exec 'hi Terminal guifg='.g:term_fg.' guibg='.g:term_bg
-    autocmd TerminalOpen * call InitializeTerm()
+                \ exec 'hi Terminal guifg=' .. g:term_fg .. ' guibg=' .. g:term_bg |
+                \ exec 'hi ExitOK guifg=#22CC22 guibg=#262626' |
+                \ exec 'hi ExitError guifg=#CC2222 guibg=#262626'
+    autocmd TermOpen * call s:InitializeTerm()
 augroup END

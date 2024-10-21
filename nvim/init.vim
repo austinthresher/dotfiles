@@ -50,21 +50,23 @@ call Include('quickfix.vim')
 call Include('nvim_build.vim', has('nvim'))
 call Include('plugin_config.lua', has('nvim'))
 
-" Set a colorscheme, falling back to the next if it isn't available
-"try
-"    colorscheme catppuccin-mocha
-"catch
-    try
-        colorscheme lyra
-    catch
-        colorscheme slate
-    endtry
-"endtry
+function! FixColors() abort
+    hi Normal guibg=#ffffff
+endfunc
 
-" nvui ignores ginit.vim for some reason
-if exists('g:nvui')
-    runtime ginit.vim
-endif
+augroup FixTheme
+    autocmd!
+    autocmd ColorScheme * call FixColors()
+augroup END
+
+" Set a colorscheme, falling back to the next if it isn't available
+try
+    "colorscheme lyra
+    colorscheme onehalf-lush
+catch
+    colorscheme quiet
+    set background=light
+endtry
 
 " This autocommand is a hook for .vimrc.local to override any previous config
 doautocmd <nomodeline> User PostConfig

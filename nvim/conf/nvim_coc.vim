@@ -6,18 +6,14 @@ let g:coc_global_extensions = [
             \ 'coc-sh',
             \ 'coc-jedi',
             \ 'coc-yaml',
-            \ 'coc-lightbulb'
+            \ 'coc-lightbulb',
+            \ 'coc-lua'
             \ ]
 
 if has('win32')
     let g:coc_global_extensions += ['coc-omnisharp']
 endif
 
-" Warn for missing shellcheck so that we notice linting isn't happening
-augroup Shellcheck
-    au!
-    au FileType sh if !executable('shellcheck') | echomsg "shellcheck not found" | endif
-augroup END
 
 " Scroll floating window when visible, taken from coc help
 if has('nvim-0.4.0') || has('patch-8.2.0750')

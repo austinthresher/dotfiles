@@ -14,19 +14,45 @@ endif
 " Came along with the stack overflow addition
 set ttimeout ttimeoutlen=50
 
-" Double-tap = to format the current block instead of just the current line
-" This would be far less verbose if we didn't preserve the cursor location
-function! FormatInPlace()
+" Used to just be for FormatInPlace, but I realize this is useful
+" for other things too. There's probably some built-in way to do
+" this that I'm missing, but it works.
+
+function! ExecPreservingCursor(cmd)
     let l:pos = winsaveview()
     let l:oldlen = col([l:pos.lnum, "$"])
-    normal! =ip
+    execute a:cmd
     let l:diff = l:oldlen - col([l:pos.lnum, "$"])
     let l:pos.col = l:pos.col - l:diff
     let l:pos.curswant = l:pos.curswant - l:diff
     call winrestview(l:pos)
 endfunc
 
-nnoremap == <Cmd>call FormatInPlace()<CR>
+" Double-tap = to format the current block instead of just the current line
+nnoremap == <Cmd>call ExecPreservingCursor('normal! =ip')<CR>
+
+" Make swapping between vim and emacs slightly less painful.
+" Emacs uses 'o' for 'other', vim uses 'o' for 'only'.
+nnoremap <c-w>o <c-w>p
+
+function! EvalSelection() abort
+    exec "normal! gv"
+    let l:lines = getregion(getpos("."), getpos("v"),
+                \ {'type': mode() }
+                \ )
+    echo join(l:lines, "\n")
+    silent exec "normal! \<esc>gv:source\<cr>"
+endfunc
+
+function! EvalParagraph() abort
+    exec "normal! vip\<esc>"
+    call EvalSelection()
+endfunc
+
+" Eval selection as vimscript
+xnoremap <silent> <leader>xe :<C-w>call EvalSelection()<cr>
+nnoremap <silent> <leader>xe :call ExecPreservingCursor("call EvalParagraph()")<CR>
+
 
 " Use tab and shift-tab to indent lines
 nnoremap <tab> >>
@@ -47,8 +73,6 @@ xnoremap <silent> <c-l> <cmd>noh<cr><esc>
 nnoremap * *N
 
 function! TermNormalMode()
-    " See terminal.vim
-    let b:term_mode = v:false
     call feedkeys("\<c-\>\<c-n>")
 endfunc
 
@@ -108,7 +132,7 @@ endfunc
 nnoremap <leader>H :call SynStack()<CR>
 
 " Change working directory to current file location
-command CD cd %:p:h
+command! CD cd %:p:h
 
 " Vim 'sentences' aren't very useful for code. Move to next or prev parens.
 function! NextParen()
@@ -156,14 +180,51 @@ function! HexToDec(num)
     exec "norm! ciw" . l:dec
 endfunc
 
-nnoremap <leader>x <Cmd>call DecToHex(expand("<cexpr>"))<cr>
-nnoremap <leader>X <Cmd>call HexToDec(expand("<cexpr>"))<cr>
+command! DecToHex :call DecToHex(expand("<cexpr>"))
+command! HexToDec :call HexToDec(expand("<cexpr>"))
+
+
+function! SetWindowLocked(lock, msg='') abort
+    if a:lock
+        if &l:equalalways == v:true
+            setlocal noequalalways
+        endif
+        setlocal winfixheight
+    else
+        if &l:equalalways == v:false
+            setlocal equalalways
+        endif
+        setlocal nowinfixheight
+    endif
+    if a:msg != ''
+        echo a:msg
+    endif
+endfunc
+
+" Easy way to 'unlock' or lock a window.
+nnoremap <silent> <C-w>u <Cmd>call SetWindowLocked(v:false, 'Window Unlocked')<CR>
+nnoremap <silent> <C-w>U <Cmd>call SetWindowLocked(v:true, 'Window Locked')<CR>
+
+" Wrap VSSplitAbove from visual-split, but also set a fixed size
+function! SplitAboveFixed(cmd) abort
+    exec "normal! \<esc>" .. a:cmd .. ":VSSplitAbove\<cr>"
+    wincmd p
+    setlocal winfixheight
+    setlocal noequalalways
+    wincmd p
+endfunc
+
+nnoremap <silent> <leader>vs <Cmd>call SplitAboveFixed('vip')<CR>
+xnoremap <silent> <leader>vs <Cmd>call SplitAboveFixed('gv')<CR>
+" Mnemonic is 'focus'
+nnoremap <silent> <leader>vf vip:VSResize<CR>
+xnoremap <silent> <leader>vf :VSResize<CR>
 
 " Swap _ and - so I don't keep accidentally opening dirvish
 nnoremap _ <Plug>(dirvish_up)
 nnoremap - _
 
-" Toggle conceal
+" Toggle conceal, used to toggle vim-lambdify and similar
 function! ToggleConceal()
     if &conceallevel == 0
         setlocal conceallevel=2
@@ -189,16 +250,11 @@ xnoremap Q B
 nnoremap <c-q> q
 xnoremap <c-q> q
 
-" Reformat C-style function prototypes to span multiple lines.
-" Uses equalprg to fix the formatting after.
-" Will get confused if commas exist anywhere except between arguments.
-function! MultiLinePrototype()
-    let l:line = getline(".")
-    let l:line = substitute(l:line, ",\s*", ",\r", "g")
-    let l:line = substitute(l:line, "(", "(\r", "")
-    let l:lines = split(l:line, "\r")
-    call setline(".", l:lines[0])
-    call append(".", l:lines[1:])
-    normal! =ip
-endfunction
-nnoremap <leader>c <Cmd>call MultiLinePrototype()<cr>
+nnoremap <s-return> <Plug>(ReplSendLine)
+xnoremap <return> <Plug>(ReplSend)
+" Hacky way to get 'Send Paragraph' out of the text object motion
+nnoremap <leader><leader>c <Plug>(ReplSend)
+nmap <c-s-return> <leader><leader>cip
+
+
+" TODO: Ctrl+Shift+V to paste from global reg

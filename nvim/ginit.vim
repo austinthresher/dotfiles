@@ -1,6 +1,6 @@
 let $MYGVIMRC = expand('<sfile>:p')
 
-let g:font_name = "Cascadia Code"
+let g:font_name = "Iosevka"
 
 " Automatically source $MYGVIMRC after write.
 augroup AutoReloadRC
@@ -18,59 +18,14 @@ if exists("*GuiShowContextMenu")
     snoremap <silent><RightMouse> <C-G>:call GuiShowContextMenu()<CR>gv
 endif
 
-"nvim-qt
-if exists(':GuiAdaptiveColor')
-    GuiAdaptiveColor 1
-endif
-if exists(':GuiAdaptiveFont')
-    GuiAdaptiveFont 1
-endif
-if exists(':GuiAdaptiveStyle')
-    GuiAdaptiveStyle Fusion
-endif
-if exists(':GuiRenderLigatures')
-    GuiRenderLigatures 0
-endif
-if exists(':GuiPopupmenu')
-    GuiPopupmenu 0
-endif
-if exists(':GuiTabline')
-    GuiTabline 0
-endif
-
-if exists('g:nvui')
-    if has('win32')
-        NvuiFrameless v:true
-    endif
-    NvuiCursorHideWhileTyping v:true
-    NvuiAnimationsEnabled v:true
-    NvuiMoveAnimationDuration 0.0
-    NvuiMoveAnimationFrametime 0.0
-    NvuiCursorAnimationDuration 0.05
-    NvuiTitlebarColors #eeeeee #262626
-
-    function! ChangeTransparency()
-        let alpha = max([20, min([100, input("Transparency (1-100): ")])]) / 100.0
-        NvuiOpacity alpha
-    endfunc
-    noremap <leader>t <Cmd>call ChangeTransparency()<CR>
-    nnoremap <A-CR> <Cmd>NvuiToggleFullscreen<CR>
-
-    let g:default_font_size = 11
-else
-    let g:default_font_size = 12
-endif
+let g:default_font_size = 18
 
 " Set the font and allow Ctrl +/- and Ctrl Scrollwheel resizing
 let g:font_size = g:default_font_size
 function! SetFontSize(size)
     let g:font_size = a:size
-    if exists(':GuiFont')
-        exec 'GuiFont! ' .. g:font_name .. ':h' .. g:font_size
-    else
-        if has('gui_gtk') | let l:sep = ' ' | else | let l:sep = ':h' | endif
-        let &guifont=g:font_name .. l:sep .. g:font_size
-    endif
+    if has('gui_gtk') | let l:sep = ' ' | else | let l:sep = ':h' | endif
+    let &guifont=g:font_name .. l:sep .. g:font_size
     redraw!
 endfunc
 noremap <C-ScrollWheelUp> :call SetFontSize(g:font_size+1)<CR>
@@ -79,26 +34,34 @@ noremap <C-=> :call SetFontSize(g:font_size+1)<CR>
 noremap <C--> :call SetFontSize(g:font_size-1)<CR>
 noremap <C-0> :call SetFontSize(g:default_font_size)<CR>
 " GVim doesn't like Ctrl+ any of the above
-noremap <leader>fi :call SetFontSize(g:font_size+1)<CR>
-noremap <leader>fo :call SetFontSize(g:font_size-1)<CR>
-noremap <leader>f0 :call SetFontSize(g:default_font_size)<CR>
+" noremap <leader>fi :call SetFontSize(g:font_size+1)<CR>
+" noremap <leader>fo :call SetFontSize(g:font_size-1)<CR>
+" noremap <leader>f0 :call SetFontSize(g:default_font_size)<CR>
 
 call SetFontSize(g:default_font_size)
 
-" Set the window title to the filename
 set title
-function! SetWindowTitle(bufcount_offset)
-    let l:tabs = gettabinfo()
-    " This glitched out with multiple tabs, which I don't really use, so
-    " just pause title updates while another tab is open
-    if len(l:tabs) == 1
-        let l:nbuf = len(getbufinfo({'buflisted':1,'bufloaded':1})) + a:bufcount_offset
-        if l:nbuf > 1
-            let &titlestring = '[' . l:nbuf . '] ' . expand("%:t")
-        else
-            let &titlestring = expand("%:t")
-        endif
-    endif
-endfunc
-autocmd! BufDelete * call SetWindowTitle(-1)
-autocmd! BufEnter * call SetWindowTitle(0)
+
+if exists("g:neovide")
+    let g:neovide_padding_left = 1
+    let g:neovide_padding_right = 1
+    let g:neovide_padding_top = 1
+    let g:neovide_padding_bottom = 0
+    let g:neovide_scroll_animation_length = 0.05
+    let g:neovide_position_animation_length = 0.05
+    let g:neovide_cursor_animation_length = 0.025
+    let g:neovide_cursor_trail_size = 0.5
+    let g:neovide_theme = 'light'
+    let g:experimental_layer_grouping = v:true
+    let g:neovide_cursor_antialiasing = v:true
+    let g:neovide_cursor_smooth_blink = v:true
+    set guicursor=n-v-c:block,i-ci-ve:ver25,r-cr:hor20,o:hor50
+      \,i-ci-ve-r-cr:blinkwait10-blinkoff400-blinkon250
+      \,a:Cursor/lCursor
+      \,sm:block-blinkwait10-blinkoff150-blinkon175
+    let g:neovide_text_gamma = 0.8
+    let g:neovide_text_contrast = 0.1
+    let g:neovide_floating_z_height = 5
+    let g:neovide_light_radius = 2
+    let g:neovide_scale_factor = 1.0
+endif

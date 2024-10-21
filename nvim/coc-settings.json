@@ -5,9 +5,10 @@
     "diagnostic.infoSign": "·",
     "diagnostic.hintSign": "·",
     "diagnostic.checkCurrentLine": true,
-    //"diagnostic.virtualText": true,
-    //"diagnostic.virtualTextLimitInOneLine": 1,
-    //"diagnostic.virtualTextAlign": "right",
+    "diagnostic.virtualText": false,
+    "diagnostic.virtualTextLimitInOneLine": 1,
+    "diagnostic.virtualTextAlign": "right",
+    "diagnostic.virtualTextCurrentLineOnly": false,
     "suggest.selection": "first",
     "suggest.noselect": true,
     "coc.source.file.enable": false,
@@ -16,7 +17,7 @@
     //"[c][cpp]": {
     //    "semanticTokens.enable": true
     //},
-    "inlayHint.enable": false,
+    "inlayHint.enable": true,
     "tree.key.activeFilter": "<S-f>",
     "tree.key.actions": "<cr>",
     "workspace.openResourceCommand": "",
@@ -24,7 +25,7 @@
     "lightbulb.text": {
         //"default": "",
         //"quickfix": ""
-        "default": "",
+        "default": "",
         "quickfix": ""
     }
 }

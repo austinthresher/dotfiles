@@ -32,6 +32,10 @@ hi def link QuickfixMessage String
 hi def link QuickfixEntry Comment
 hi def link QuickfixGCCFlag NonText
 
-hi QuickFixLine ctermfg=NONE ctermbg=237 guifg=NONE guibg=#333333
+if &background == 'dark'
+    hi QuickFixLine ctermfg=NONE ctermbg=237 guifg=NONE guibg=#333333
+else
+    hi QuickFixLine ctermfg=NONE ctermbg=81 guifg=NONE guibg=#eaeafa
+endif
 
 let b:current_syntax = "qf"

@@ -21,7 +21,7 @@ function! ToggleQuickfix()
     endif
 endfunction
 
-nnoremap <silent> <M-q> :call ToggleQuickfix()<cr>
+nnoremap <silent> <leader>q :call ToggleQuickfix()<cr>
 
 let s:type = {'e': 'error', 'w': 'warning', 'i': 'info', 'n': 'note'}
 function! QuickFixTextFunc(info) abort

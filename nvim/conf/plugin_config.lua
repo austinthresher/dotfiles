@@ -74,21 +74,25 @@ function term_status()
     return '%#ExitError#exited ' .. exit_code
 end
 
-actual_theme = lualine_theme
-if vim.cmd("call has('nvim-0.8')") then
-    found, catppuccin = pcall(require, 'catppuccin')
-    if found then
-        actual_theme = "catppuccin"
-        catppuccin.setup {
-            custom_highlights = function(colors)
-                return {
-                    Todo = {fg=colors.peach, bg=colors.none, style={}}
-                }
-            end
-        }
-    end
-end
-actual_theme = lualine_theme
+local actual_theme
+
+-- actual_theme = lualine_theme
+-- if vim.cmd("call has('nvim-0.8')") then
+--     found, catppuccin = pcall(require, 'catppuccin')
+--     if found then
+--         actual_theme = "catppuccin"
+--         catppuccin.setup {
+--             custom_highlights = function(colors)
+--                 return {
+--                     Todo = {fg=colors.peach, bg=colors.none, style={}}
+--                 }
+--             end
+--         }
+--     end
+-- end
+
+-- works well with both light and dark themes
+actual_theme = "dracula"
 
 found, lualine = pcall(require, 'lualine')
 if found then lualine.setup {
@@ -104,18 +108,19 @@ if found then lualine.setup {
     sections = {
         lualine_a = {'mode'},
         lualine_b = {
-            { 'branch', cond = exclude_term },
-            { 'diff', cond = exclude_term },
-            { 'diagnostics', cond = exclude_term },
+            -- { 'branch', cond = exclude_term },
+            -- { 'diff', cond = exclude_term },
         },
         lualine_c = {
-            { 'filename', path = 1, cond = exclude_term },
-            { 'b:term_title', cond = term },
+            { "filename", path = 1, cond = exclude_term },
+            { "b:term_title", cond = term },
+            { "g:coc_status", cond = exclude_term }
         },
         lualine_x = {
             { 'encoding', cond = exclude_term },
             { 'fileformat', cond = exclude_term },
             { 'filetype', cond = exclude_term },
+            { 'diagnostics', cond = exclude_term },
             { term_status, cond = term },
         },
         lualine_y = { {'progress', cond = exclude_term } },
@@ -128,7 +133,7 @@ if found then lualine.setup {
             { 'filename', path = 1, cond = exclude_term },
             { 'b:term_title', cond = term },
         },
-        lualine_x = { 
+        lualine_x = {
             { 'location', cond = exclude_term },
             { term_status, cond = term },
         },
