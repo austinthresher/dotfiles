@@ -34,6 +34,7 @@ nnoremap == <Cmd>call ExecPreservingCursor('normal! =ip')<CR>
 " Make swapping between vim and emacs slightly less painful.
 " Emacs uses 'o' for 'other', vim uses 'o' for 'only'.
 nnoremap <c-w>o <c-w>p
+tnoremap <c-w>o <c-w>p
 
 function! EvalSelection() abort
     exec "normal! gv"
@@ -252,6 +253,7 @@ xnoremap <c-q> q
 
 nnoremap <s-return> <Plug>(ReplSendLine)
 xnoremap <return> <Plug>(ReplSend)
+xnoremap <s-return> <Plug>(ReplSend)
 " Hacky way to get 'Send Paragraph' out of the text object motion
 nnoremap <leader><leader>c <Plug>(ReplSend)
 nmap <c-s-return> <leader><leader>cip

@@ -143,6 +143,7 @@ function! s:PostBuild(job_id, data, event) dict
         call setbufvar(s:post_build_buf, 'exited', v:false)
         call termopen(s:post_build_cmd, {'on_exit': function('s:PostPostBuild')})
         call setbufvar(s:post_build_buf, 'term_title', 'post build: ' .. s:post_build_cmd)
+        norm! G
         wincmd p
     endif
     call delete(s:tempfile)
@@ -177,7 +178,7 @@ function! Build(cmd='', force_prompt=v:false) abort
                 \ .. s:tempfile .. ' && exit ${PIPESTATUS[0]}'
     call termopen(l:cmd, { 'on_exit': function('s:PostBuild') })
     call setbufvar(s:build_buf, 'term_title', 'build: ' .. s:build_cmd)
-    norm G
+    norm! G
     wincmd p
     let s:building = v:true
 endfunc
