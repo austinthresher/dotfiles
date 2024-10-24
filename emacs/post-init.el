@@ -2,12 +2,35 @@
 
 (load-theme 'modus-operandi t)
 
+(set-frame-font "Iosevka 15" t t)
+
+(setq truncate-lines nil)
+(setq fast-but-imprecise-scrolling nil) ; check if this fixes vertico-mouse
+(setq idle-update-delay 0.1)
+(setq show-paren-delay 0)
 (setq mouse-1-click-follows-link t)
+(setq mouse-wheel-progressive-speed nil)
+(setq shell-kill-buffer-on-exit t)
+(setq eshell-kill-on-exit t)
+(setq eshell-scroll-to-bottom-on-input 'this)
+(setq c-ts-mode-indent-style 'k&r)
+(setq c-ts-mode-indent-offset 4)
+(setq c-default-style '((c-mode . "stroustrup")
+                        (c++-mode . "stroustrup")
+                        (java-mode . "java")
+                        (awk-mode . "awk")
+                        (other . "k&r")))
+
+(setq set-message-functions '(inhibit-message set-minibuffer-message))
+(add-to-list 'inhibit-message-regexps "Cleaning up the recentf")
 
 (add-hook 'after-init-hook #'global-auto-revert-mode)
 (add-hook 'after-init-hook #'recentf-mode)
 (add-hook 'after-init-hook #'savehist-mode)
 (add-hook 'after-init-hook #'save-place-mode)
+(add-hook 'after-init-hook #'minibuffer-depth-indicate-mode)
+(add-hook 'after-init-hook #'pixel-scroll-precision-mode)
+
 
 (setq evil-want-keybinding nil)
 (use-package evil
@@ -16,9 +39,16 @@
   (setq evil-undo-system 'undo-fu)
   (setq evil-want-integration t)
   (setq evil-want-keybinding nil)
+  :custom
+  (evil-disable-insert-state-bindings t)
+  (evil-shift-round nil)
   :config
   (evil-select-search-module 'evil-search-module 'evil-search)
   (define-key evil-window-map (kbd "o") 'evil-window-mru)
+  (define-key evil-normal-state-map (kbd "<tab>") ">>")
+  (define-key evil-normal-state-map (kbd "<backtab>") "<<")
+  (define-key evil-visual-state-map (kbd "<tab>") ">")
+  (define-key evil-visual-state-map (kbd "<backtab>") "<")
   (evil-mode 1))
 
 (use-package evil-collection
@@ -26,12 +56,34 @@
   :ensure t
   :config (evil-collection-init))
 
+(with-eval-after-load "evil-collection"
+  (defun clear-highlight-and-recenter (&optional arg)
+    (interactive "P")
+    (evil-ex-nohighlight)
+    (recenter-top-bottom arg))
+  (keymap-global-set "C-l" 'clear-highlight-and-recenter)
+  ;; Make == execute vip=
+  (defun indent-paragraph-or-evil-indent (fn beg end)
+    ;; Condition from original evil-indent
+    (if (and (= beg (line-beginning-position))
+             (= end (line-beginning-position 2)))
+        (save-excursion
+          (execute-kbd-macro (read-kbd-macro "vip=")))
+      (funcall fn beg end)))
+  (advice-add 'evil-indent :around 'indent-paragraph-or-evil-indent)
+  )
+
+;; Fix mouse clicks in Customize buffers
+(with-eval-after-load "evil"
+  (with-eval-after-load "custom"
+    (evil-make-overriding-map custom-mode-map)))
+
 (use-package undo-fu
   :ensure t
   :commands (undo-fu-only-undo
-	     undo-fu-only-redo
-	     undo-fu-only-redo-all
-	     undo-fu-disable-checkpoint)
+             undo-fu-only-redo
+             undo-fu-only-redo-all
+             undo-fu-disable-checkpoint)
   :custom
   (undo-limit (* 3 160000))
   (undo-strong-limit (* 3 240000)))
@@ -59,22 +111,46 @@
 (with-eval-after-load "evil"
   (evil-define-operator my/evil-comment-or-uncomment (beg end)
     "Toggle comment for the region between BEG and END."
-    (interactive "<r>"
+    (interactive "<r>")
     (comment-or-uncomment-region beg end))
-  (evil-define-key 'normal 'global (kbd "gc") 'my/evil-comment-or-uncomment)))
+  (evil-define-key 'normal 'global (kbd "gc") 'my/evil-comment-or-uncomment))
 
 (use-package vterm
   :ensure t
   :defer t
   :commands vterm
   :config (setq vterm-timer-delay 0.01))
+
+(use-package devdocs
+  :ensure t)
  
 (use-package vertico
-  ;; (Note: It is recommended to also enable the savehist package.)
   :ensure t
   :defer t
-  :commands vertico-mode
-  :hook (after-init . vertico-mode))
+  :commands (vertico-mode vertico-reverse-mode vertico-mouse-mode)
+  :bind (:map vertico-map
+              ("<prior>" . vertico-scroll-up)
+              ("<next>" . vertico-scroll-down))
+  :custom
+  (vertico-cycle t)
+  (vertico-scroll-margin 1)
+  (vertico-resize t)
+  :hook
+  (after-init . vertico-mode)
+  (after-init . vertico-reverse-mode)
+  (after-init . vertico-mouse-mode))
+
+(with-eval-after-load "vertico"
+  (defun my/vertico-inverse (args) (list (- (car args))))
+  (advice-add 'vertico-mouse--scroll-up :filter-args 'my/vertico-inverse)
+  (defun my/crm-indicator (args)
+    (cons (format "[CRM%s] %s"
+                  (replace-regexp-in-string
+                   "\\`\\[.*?]\\*\\|\\[.*?]\\*\\'" ""
+                   crm-separator)
+                  (car args))
+          (cdr args)))
+  (advice-add 'completing-read-multiple :filter-args 'my/crm-indicator))
 
 (use-package orderless
   ;; Vertico leverages Orderless' flexible matching capabilities, allowing users
@@ -96,30 +172,22 @@
   :hook (after-init . marginalia-mode))
 
 (use-package embark
-  ;; Embark is an Emacs package that acts like a context menu, allowing
-  ;; users to perform context-sensitive actions on selected items
-  ;; directly from the completion interface.
   :ensure t
   :defer t
-  :bind
-  (("C-." . embark-act)         ;; pick some comfortable binding
-   ("C-;" . embark-dwim)        ;; good alternative: M-.
-   ("C-h B" . embark-bindings)) ;; alternative for `describe-bindings'
-
-  :init
-  (setq prefix-help-command #'embark-prefix-help-command)
-
+  :bind (("C-." . embark-act)
+         ("C-," . embark-dwim)
+         ("C-h B" . embark-bindings))
+  :init (setq prefix-help-command #'embark-prefix-help-command)
   :config
-  ;; Hide the mode line of the Embark live/completions buffers
-  (add-to-list 'display-buffer-alist
-               '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
-                 nil
-                 (window-parameters (mode-line-format . none)))))
+  ;;(add-to-list 'display-buffer-alist
+  ;;             '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+  ;;               nil
+  ;;               (window-parameters (mode-line-format . none))))
+  )
 
 (use-package embark-consult
   :ensure t
-  :hook
-  (embark-collect-mode . consult-preview-at-point-mode))
+  :hook (embark-collect-mode . consult-preview-at-point-mode))
 
 (use-package consult
   :ensure t
@@ -202,25 +270,30 @@
    :preview-key '(:debounce 0.4 any))
   (setq consult-narrow-key "<"))
 
+
 (use-package corfu
   :ensure t
   :defer t
-  :commands (corfu-mode global-corfu-mode)
-
-  :hook ((prog-mode . corfu-mode)
-         (shell-mode . corfu-mode)
-         (eshell-mode . corfu-mode))
-
+  :commands (corfu-mode global-corfu-mode corfu-popupinfo-mode)
+  :hook ((after-init . global-corfu-mode)
+         (after-init . corfu-popupinfo-mode))
+  :bind (:map corfu-map
+              ("<prior>" . corfu-scroll-down)
+              ("<next>" . corfu-scroll-up)
+              ("<tab>" . corfu-expand)
+              ("<return>" . corfu-send))
   :custom
+  (corfu-cycle t)
+  (corfu-preselect 'valid)
+  (corfu-preview-current nil)
+  (corfu-on-exact-match 'show)
+  (corfu-popupinfo-delay 0.1)
+  (corfu-popupinfo-hide nil)
+  (corfu-quit-no-match 'separator)
   ;; Hide commands in M-x which do not apply to the current mode.
   (read-extended-command-predicate #'command-completion-default-include-p)
-  ;; Disable Ispell completion function. As an alternative try `cape-dict'.
   (text-mode-ispell-word-completion nil)
-  (tab-always-indent 'complete)
-
-  ;; Enable Corfu
-  :config
-  (global-corfu-mode))
+  (tab-always-indent 'complete))
 
 (use-package cape
   :ensure t
@@ -234,7 +307,17 @@
   (add-hook 'completion-at-point-functions #'cape-file)
   (add-hook 'completion-at-point-functions #'cape-elisp-block))
 
+(use-package form-feed-st
+  :ensure t
+  :hook (after-init . global-form-feed-st-mode))
+
 (show-paren-mode t)
+
+(use-package yasnippet
+  :ensure t
+  :hook (after-init . yas-global-mode))
+
+(use-package yasnippet-snippets :ensure t)
 
 (use-package uniquify
   :ensure nil
@@ -243,22 +326,33 @@
   (uniquify-after-kill-buffer-p t)
   (uniquify-ignore-buffers-re "^\\*"))
 
+(use-package pdf-tools
+  :ensure t
+  :defer t
+  :hook (after-init . pdf-loader-install))
+
 (use-package simple-modeline
   :ensure t
   :hook (after-init . simple-modeline-mode)
   :custom (simple-modeline-word-count-modes nil))
 
+(use-package org
+  :ensure nil
+  :hook (org-mode . org-indent-mode))
+
 (use-package minions
   :ensure t
   :custom
-  (minions-mode-line-delimiters '(" " . " "))
+  (minions-mode-line-delimiters '(" " . ""))
   :hook (after-init . minions-mode))
 
 (use-package winner-mode
   :ensure nil
+  :bind (:map evil-window-map
+              ("u" . winner-undo)
+              ("C-r" . winner-redo))
   :custom (winner-dont-bind-my-keys t)
   :hook (after-init . winner-mode))
-
 
 (defun my/colorize (text fg bg)
   (propertize text 'face `(:foreground ,fg :background ,bg)))
@@ -271,7 +365,7 @@
         ("visual"  "#fff576")
         ("replace" "#ff8f88")
         ("emacs"   "#ffddff")
-        (t 'unspecified))
+        (_ 'unspecified))
     'unspecified))
 
 (defun my/vim-state ()
@@ -287,7 +381,7 @@
       (defun my/modeline-modes ()
         (if (mode-line-window-selected-p)
             minions-mode-line-modes
-          ""))
+          (format-mode-line mode-name)))
       (defun my/modeline-position ()
         (if (mode-line-window-selected-p)
             `(:propertize ("▏%3l : %2C") face (:background ,(my/vim-color)))
@@ -306,3 +400,46 @@
       (set-face-attribute 'fringe nil :background "white")
       )))
 
+(keymap-global-set "C-x k" 'kill-current-buffer)
+(keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
+(keymap-global-set "<mode-line> <mouse-3>" 'mouse-buffer-menu)
+
+(when (treesit-available-p)
+  (setq treesit-font-lock-level 4)
+  (when (treesit-language-available-p 'cmake)
+    (add-to-list 'auto-mode-alist '("CMakeLists.txt" . cmake-ts-mode))
+    (add-to-list 'auto-mode-alist '("\\.cmake\\'" . cmake-ts-mode))))
+
+(defun recompile-or-prompt ()
+  (interactive)
+  (if (string= compile-command "make -k ")
+      ;; Subtle change from the default to make this not trigger a second time
+      (progn (setq compile-command "make -k")
+             (call-interactively 'compile))
+    (call-interactively 'recompile)))
+
+(keymap-global-set "<f5>" 'recompile-or-prompt)
+(keymap-global-set "<f6>" 'compile)
+
+;;(display-buffer-base-action '(display-buffer-same-window))
+(setq switch-to-prev-buffer-skip-regexp (rx (seq bos (or "*" " "))))
+(setq window-sides-slots '(1 0 0 2))
+(setq fit-window-to-buffer-horizontally t)
+(setq
+ display-buffer-alist
+ `(
+   (,(rx (seq bos (or "*" " *")
+             (or "Help" "Customize" "info" "eldoc" "Occur" "grep")))
+    display-buffer-in-side-window
+    (side . bottom) (slot . -1) (preserve-size . (nil . t)))
+   (,(rx (seq bos (or "*" " *")
+             (or "compilation" "shell" "eshell" "terminal" "vterm")))
+    display-buffer-in-side-window
+    (side . bottom) (slot . 1) (preserve-size . (nil . t)))
+   ((mode comint-mode)
+    display-buffer-in-side-window
+    (side . bottom) (slot . 1) (preserve-size . (nil . t)))
+   (,(rx (seq bos (or "*" " *")))
+    (display-buffer-in-side-window display-buffer-no-window)
+    (side . bottom))
+   ))
