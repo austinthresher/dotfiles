@@ -9,6 +9,7 @@
     "diagnostic.virtualTextLimitInOneLine": 1,
     "diagnostic.virtualTextAlign": "right",
     "diagnostic.virtualTextCurrentLineOnly": false,
+    "inlayHint.display": false,
     "suggest.selection": "first",
     "suggest.noselect": true,
     "coc.source.file.enable": false,

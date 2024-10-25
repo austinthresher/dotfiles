@@ -340,6 +340,17 @@
   :ensure nil
   :hook (org-mode . org-indent-mode))
 
+(use-package eglot
+  :ensure nil
+  :custom (eglot-ignored-server-capabilities '(:inlayHintProvider)))
+
+;; The actual package is stale and hasn't merged any fixes in a while
+(when (minimal-emacs-load-user-init "treesit-auto.el")
+  (setq treesit-auto-install 'prompt)
+  (treesit-auto-add-to-auto-mode-alist 'all)
+  (global-treesit-auto-mode))
+
+
 (use-package minions
   :ensure t
   :custom
