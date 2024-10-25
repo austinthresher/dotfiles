@@ -2,7 +2,8 @@
 
 (load-theme 'modus-operandi t)
 
-(set-frame-font "Iosevka 15" t t)
+(set-face-attribute 'default nil :family "Iosevka" :height 150)
+(set-face-attribute 'variable-pitch nil :family "Iosevka Aile")
 
 (setq truncate-lines nil)
 (setq fast-but-imprecise-scrolling nil) ; check if this fixes vertico-mouse
@@ -23,6 +24,7 @@
 
 (setq set-message-functions '(inhibit-message set-minibuffer-message))
 (add-to-list 'inhibit-message-regexps "Cleaning up the recentf")
+(add-to-list 'inhibit-message-regexps "Mark saved")
 
 (add-hook 'after-init-hook #'global-auto-revert-mode)
 (add-hook 'after-init-hook #'recentf-mode)
@@ -31,7 +33,7 @@
 (add-hook 'after-init-hook #'minibuffer-depth-indicate-mode)
 (add-hook 'after-init-hook #'pixel-scroll-precision-mode)
 
-
+;; TODO: Eval minibuffer escape to quit
 (setq evil-want-keybinding nil)
 (use-package evil
   :ensure t
@@ -42,6 +44,12 @@
   :custom
   (evil-disable-insert-state-bindings t)
   (evil-shift-round nil)
+  (evil-want-empty-ex-last-command nil)
+  (evil-echo-state nil)
+  (evil-ex-search-persistent-highlight t)
+  (evil-move-beyond-eol t)
+  (evil-move-cursor-back nil)
+  (evil-split-window-below t)
   :config
   (evil-select-search-module 'evil-search-module 'evil-search)
   (define-key evil-window-map (kbd "o") 'evil-window-mru)
@@ -49,6 +57,19 @@
   (define-key evil-normal-state-map (kbd "<backtab>") "<<")
   (define-key evil-visual-state-map (kbd "<tab>") ">")
   (define-key evil-visual-state-map (kbd "<backtab>") "<")
+  ;; Evil doesn't give an option to hide the previous search term.
+  ;; Always show a blank prompt when performing a search.
+  (defun my/hide-prev-search (args)
+    (if (string-prefix-p "evil-ex-search" (symbol-name this-command))
+        `(,(car args) "" ,@(cddr args))
+      args))
+  (advice-add 'read-string :filter-args 'my/hide-prev-search)
+  (defun my/auto-clear-anzu (&rest _) (anzu--reset-status))
+  (advice-add 'evil-force-normal-state :after 'evil-ex-nohighlight)
+  (advice-add 'evil-next-line :after 'my/auto-clear-anzu)
+  (advice-add 'evil-previous-line :after 'my/auto-clear-anzu)
+  (advice-add 'evil-forward-char :after 'my/auto-clear-anzu)
+  (advice-add 'evil-backward-char :after 'my/auto-clear-anzu)
   (evil-mode 1))
 
 (use-package evil-collection
@@ -57,11 +78,6 @@
   :config (evil-collection-init))
 
 (with-eval-after-load "evil-collection"
-  (defun clear-highlight-and-recenter (&optional arg)
-    (interactive "P")
-    (evil-ex-nohighlight)
-    (recenter-top-bottom arg))
-  (keymap-global-set "C-l" 'clear-highlight-and-recenter)
   ;; Make == execute vip=
   (defun indent-paragraph-or-evil-indent (fn beg end)
     ;; Condition from original evil-indent
@@ -73,10 +89,21 @@
   (advice-add 'evil-indent :around 'indent-paragraph-or-evil-indent)
   )
 
-;; Fix mouse clicks in Customize buffers
+(use-package evil-anzu
+  :ensure t
+  :custom (anzu-cons-mode-line-p nil)
+  :config
+  (require 'evil-anzu) ; Somehow this is necessary
+  (global-anzu-mode)
+  )
+
 (with-eval-after-load "evil"
+  ;; Fix mouse clicks in Customize buffers
   (with-eval-after-load "custom"
-    (evil-make-overriding-map custom-mode-map)))
+    (evil-make-overriding-map custom-mode-map))
+  (with-eval-after-load "yasnippet"
+    (evil-make-overriding-map yas-minor-mode-map))
+  )
 
 (use-package undo-fu
   :ensure t
@@ -122,13 +149,17 @@
   :config (setq vterm-timer-delay 0.01))
 
 (use-package devdocs
-  :ensure t)
+  :ensure t
+  :commands devdocs-lookup
+  :bind ("C-h D" . devdocs-lookup))
  
 (use-package vertico
   :ensure t
   :defer t
   :commands (vertico-mode vertico-reverse-mode vertico-mouse-mode)
-  :bind (:map vertico-map
+  :bind (:map minibuffer-mode-map
+              ("<tab>" . completion-at-point)
+         :map vertico-map
               ("<prior>" . vertico-scroll-up)
               ("<next>" . vertico-scroll-down))
   :custom
@@ -163,9 +194,6 @@
   (completion-category-overrides '((file (styles partial-completion)))))
 
 (use-package marginalia
-  ;; Marginalia allows Embark to offer you preconfigured actions in more contexts.
-  ;; In addition to that, Marginalia also enhances Vertico by adding rich
-  ;; annotations to the completion candidates displayed in Vertico's interface.
   :ensure t
   :defer t
   :commands (marginalia-mode marginalia-cycle)
@@ -177,13 +205,7 @@
   :bind (("C-." . embark-act)
          ("C-," . embark-dwim)
          ("C-h B" . embark-bindings))
-  :init (setq prefix-help-command #'embark-prefix-help-command)
-  :config
-  ;;(add-to-list 'display-buffer-alist
-  ;;             '("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
-  ;;               nil
-  ;;               (window-parameters (mode-line-format . none))))
-  )
+  :init (setq prefix-help-command #'embark-prefix-help-command))
 
 (use-package embark-consult
   :ensure t
@@ -277,11 +299,13 @@
   :commands (corfu-mode global-corfu-mode corfu-popupinfo-mode)
   :hook ((after-init . global-corfu-mode)
          (after-init . corfu-popupinfo-mode))
-  :bind (:map corfu-map
-              ("<prior>" . corfu-scroll-down)
-              ("<next>" . corfu-scroll-up)
-              ("<tab>" . corfu-expand)
-              ("<return>" . corfu-send))
+  :bind (("<tab>" . indent-for-tab-command)
+         ("C-SPC" . completion-at-point) ; for when tab isn't usable
+         :map corfu-map
+         ("<prior>" . corfu-scroll-down)
+         ("<next>" . corfu-scroll-up)
+         ("<tab>" . corfu-expand)
+         ("<return>" . corfu-send))
   :custom
   (corfu-cycle t)
   (corfu-preselect 'valid)
@@ -294,6 +318,7 @@
   (read-extended-command-predicate #'command-completion-default-include-p)
   (text-mode-ispell-word-completion nil)
   (tab-always-indent 'complete))
+
 
 (use-package cape
   :ensure t
@@ -315,7 +340,35 @@
 
 (use-package yasnippet
   :ensure t
-  :hook (after-init . yas-global-mode))
+  :hook (after-init . yas-global-mode)
+  :custom (yas-alias-to-yas/prefix-p nil)
+  :bind (:map yas-minor-mode-map
+         ("C-i" . yas-expand)
+         ("C-S-i" . yas-insert-snippet)
+         :map yas-keymap
+         ("C-n" . yas-next-field)
+         ("C-p" . yas-prev-field)
+         ("S-<return>" . newline)
+         ("<return>" . yas-next-field)         
+         ("<tab>" . yas-next-field)
+         )
+  :config
+  (define-key yas-minor-mode-map (kbd "<tab>") nil)
+  (define-key yas-minor-mode-map (kbd "TAB") nil)
+  (define-key yas-minor-mode-map (kbd "S-TAB") nil)
+  (define-key yas-keymap (kbd "TAB") nil)
+  (defun my/correct-yas-pos ()
+    (evil-normal-state)
+    ;(evil-forward-char 1 nil :noerror)
+    )
+  (defun my/ensure-insert ()
+    (unless (eq evil-state 'insert)
+      ;(evil-append 1)
+      (evil-insert 1)
+      ))
+  (add-hook 'yas-after-exit-snippet-hook 'my/correct-yas-pos)
+  (add-hook 'yas-before-expand-snippet-hook 'my/ensure-insert)
+  )
 
 (use-package yasnippet-snippets :ensure t)
 
@@ -338,18 +391,35 @@
 
 (use-package org
   :ensure nil
-  :hook (org-mode . org-indent-mode))
+  ;:hook (org-mode . org-indent-mode)
+  :custom
+  (org-pretty-entitites t)
+  )
+
+(use-package org-modern
+  :disabled t
+  :ensure t
+  :after org
+  :config
+  (global-org-modern-mode)
+  (set-face-attribute 'org-modern-symbol nil :family "Iosevka"))
 
 (use-package eglot
   :ensure nil
   :custom (eglot-ignored-server-capabilities '(:inlayHintProvider)))
+
+(use-package isearch
+  :ensure nil
+  :custom
+  (isearch-lazy-count t)
+  (lazy-count-prefix-format "[%s/%s] "))
+  
 
 ;; The actual package is stale and hasn't merged any fixes in a while
 (when (minimal-emacs-load-user-init "treesit-auto.el")
   (setq treesit-auto-install 'prompt)
   (treesit-auto-add-to-auto-mode-alist 'all)
   (global-treesit-auto-mode))
-
 
 (use-package minions
   :ensure t
@@ -395,21 +465,26 @@
           (format-mode-line mode-name)))
       (defun my/modeline-position ()
         (if (mode-line-window-selected-p)
-            `(:propertize ("▏%3l : %2C") face (:background ,(my/vim-color)))
+            `(:propertize ("▏" "%3l : %2C ") face (:background ,(my/vim-color)))
           ""))
-      (defun my/modeline-extend (result)
-        (concat result (my/colorize " " "black" (my/vim-color))))
-      (advice-add 'simple-modeline--format :filter-return 'my/modeline-extend)
-      (setopt simple-modeline-segments
-              '((my/evil-state
-                 simple-modeline-segment-modified
-                 simple-modeline-segment-buffer-name)
-                (simple-modeline-segment-misc-info
-                 simple-modeline-segment-vc
-                 my/modeline-modes
-                 my/modeline-position)))
-      (set-face-attribute 'fringe nil :background "white")
-      )))
+      (defun my/modeline-search ()
+        (if (mode-line-window-selected-p)
+            (concat " " (anzu--update-mode-line))
+          ""))
+    (defun my/modeline-extend (result)
+      (concat result (my/colorize " " "black" (my/vim-color))))
+    (advice-add 'simple-modeline--format :filter-return 'my/modeline-extend)
+    (setopt simple-modeline-segments
+            '((my/evil-state
+               simple-modeline-segment-modified
+               simple-modeline-segment-buffer-name
+               my/modeline-search)
+              (simple-modeline-segment-misc-info
+               simple-modeline-segment-vc
+               my/modeline-modes
+               my/modeline-position)))
+    (set-face-attribute 'fringe nil :background "white")
+    )))
 
 (keymap-global-set "C-x k" 'kill-current-buffer)
 (keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
@@ -432,6 +507,8 @@
 (keymap-global-set "<f5>" 'recompile-or-prompt)
 (keymap-global-set "<f6>" 'compile)
 
+(keymap-set minibuffer-mode-map "<escape>" 'abort-minibuffers)
+
 ;;(display-buffer-base-action '(display-buffer-same-window))
 (setq switch-to-prev-buffer-skip-regexp (rx (seq bos (or "*" " "))))
 (setq window-sides-slots '(1 0 0 2))
@@ -439,12 +516,16 @@
 (setq
  display-buffer-alist
  `(
+   ("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+    nil
+    (window-parameters (mode-line-format . none)))
    (,(rx (seq bos (or "*" " *")
-             (or "Help" "Customize" "info" "eldoc" "Occur" "grep")))
+              (or "Help" "Customize" "info" "eldoc" "Occur" "grep"
+                  "devdocs")))
     display-buffer-in-side-window
     (side . bottom) (slot . -1) (preserve-size . (nil . t)))
    (,(rx (seq bos (or "*" " *")
-             (or "compilation" "shell" "eshell" "terminal" "vterm")))
+              (or "compilation" "shell" "eshell" "terminal" "vterm")))
     display-buffer-in-side-window
     (side . bottom) (slot . 1) (preserve-size . (nil . t)))
    ((mode comint-mode)
