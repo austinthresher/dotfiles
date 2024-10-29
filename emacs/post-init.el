@@ -1,9 +1,15 @@
-;;; FILENAME.el --- DESCRIPTION -*- no-byte-compile: t; lexical-binding: t; -*-
+;;; -*- no-byte-compile: t; lexical-binding: t; -*-
 
+;;;; Packages to look into:
+;;;; auto-yasnippet
+
+
+(setq modus-themes-headings
+      (quote ((t . (variable-pitch medium 1.1)))))
 (load-theme 'modus-operandi t)
 
 (set-face-attribute 'default nil :family "Iosevka" :height 150)
-(set-face-attribute 'variable-pitch nil :family "Iosevka Aile")
+(set-face-attribute 'variable-pitch nil :family "Roboto Condensed")
 
 (setq truncate-lines nil)
 (setq fast-but-imprecise-scrolling nil) ; check if this fixes vertico-mouse
@@ -33,7 +39,6 @@
 (add-hook 'after-init-hook #'minibuffer-depth-indicate-mode)
 (add-hook 'after-init-hook #'pixel-scroll-precision-mode)
 
-;; TODO: Eval minibuffer escape to quit
 (setq evil-want-keybinding nil)
 (use-package evil
   :ensure t
@@ -42,7 +47,6 @@
   (setq evil-want-integration t)
   (setq evil-want-keybinding nil)
   :custom
-  (evil-disable-insert-state-bindings t)
   (evil-shift-round nil)
   (evil-want-empty-ex-last-command nil)
   (evil-echo-state nil)
@@ -78,6 +82,7 @@
   :config (evil-collection-init))
 
 (with-eval-after-load "evil-collection"
+  (setopt evil-disable-insert-state-bindings t)
   ;; Make == execute vip=
   (defun indent-paragraph-or-evil-indent (fn beg end)
     ;; Condition from original evil-indent
@@ -142,6 +147,9 @@
     (comment-or-uncomment-region beg end))
   (evil-define-key 'normal 'global (kbd "gc") 'my/evil-comment-or-uncomment))
 
+(message "hello")
+(message "world")
+
 (use-package vterm
   :ensure t
   :defer t
@@ -152,28 +160,50 @@
   :ensure t
   :commands devdocs-lookup
   :bind ("C-h D" . devdocs-lookup))
- 
+
 (use-package vertico
   :ensure t
   :defer t
   :commands (vertico-mode vertico-reverse-mode vertico-mouse-mode)
   :bind (:map minibuffer-mode-map
               ("<tab>" . completion-at-point)
+              ("C-S-k" . kill-line)
          :map vertico-map
-              ("<prior>" . vertico-scroll-up)
-              ("<next>" . vertico-scroll-down))
+              ("<next>" . vertico-scroll-up)
+              ("<prior>" . vertico-scroll-down))
   :custom
   (vertico-cycle t)
   (vertico-scroll-margin 1)
   (vertico-resize t)
   :hook
   (after-init . vertico-mode)
-  (after-init . vertico-reverse-mode)
-  (after-init . vertico-mouse-mode))
-
-(with-eval-after-load "vertico"
-  (defun my/vertico-inverse (args) (list (- (car args))))
-  (advice-add 'vertico-mouse--scroll-up :filter-args 'my/vertico-inverse)
+  (after-init . vertico-mouse-mode)
+  :config
+  ;; Consult seems to force vertico--allow-prompt, this gets around it
+  (defun vertico-next-skip-prompt (&optional n)
+    (interactive "p")
+    (let ((vertico-cycle t))
+      (vertico-next n)
+      (when (eq vertico--index -1)
+        (vertico-next 1))
+      vertico--index))
+  (defun vertico-previous-skip-prompt (&optional n)
+    (interactive "p")
+    (let ((vertico-cycle t))
+      (vertico-previous n)
+      (when (eq vertico--index -1)
+        (vertico-previous 1))
+      vertico--index))
+  (keymap-set vertico-map "C-j" 'vertico-next-skip-prompt)
+  (keymap-set vertico-map "C-k" 'vertico-previous-skip-prompt)
+  (cl-defmethod vertico--display-candidates (lines)
+    "Put the vertico prompt at the bottom without reversing the entire display"
+    (move-overlay vertico--candidates-ov (point-min) (point-min))
+    (let ((string (apply #'concat lines)))
+      (add-face-text-property 0 (length string) 'default 'append string)
+      (overlay-put vertico--candidates-ov 'before-string string)
+      (overlay-put vertico--candidates-ov 'after-string nil))
+    (vertico--resize-window (length lines)))
   (defun my/crm-indicator (args)
     (cons (format "[CRM%s] %s"
                   (replace-regexp-in-string
@@ -182,6 +212,7 @@
                   (car args))
           (cdr args)))
   (advice-add 'completing-read-multiple :filter-args 'my/crm-indicator))
+
 
 (use-package orderless
   ;; Vertico leverages Orderless' flexible matching capabilities, allowing users
@@ -213,6 +244,7 @@
 
 (use-package consult
   :ensure t
+  :demand t
   :bind (;; C-c bindings in `mode-specific-map'
          ("C-c M-x" . consult-mode-command)
          ("C-c h" . consult-history)
@@ -253,7 +285,7 @@
          ("M-s l" . consult-line)
          ("M-s L" . consult-line-multi)
          ("M-s k" . consult-keep-lines)
-         ("M-s u" . consult-focus-lines)
+         ("M-s f" . consult-focus-lines)
          ;; Isearch integration
          ("M-s e" . consult-isearch-history)
          :map isearch-mode-map
@@ -282,6 +314,29 @@
         xref-show-definitions-function #'consult-xref)
 
   :config
+  (defun consult-buffer-only ()
+    "`consult-buffer` narrowed to only show buffers"
+    (interactive)
+    (consult-buffer '(consult--source-buffer)))
+  (keymap-global-set "C-x B" 'consult-buffer-only)
+  (defun my/vertico-previous-one-time (&rest _)
+    (interactive)
+    (advice-remove 'vertico--update 'my/vertico-previous-one-time)
+    (vertico-previous-skip-prompt)
+    (vertico-previous-skip-prompt))
+  (defun consult-next-buffer ()
+    (interactive)
+    (let ((vertico-count 5))
+      (consult-buffer-only)))
+  (defun consult-previous-buffer ()
+    (interactive)
+    (advice-add 'vertico--update :after 'my/vertico-previous-one-time)
+    (let ((vertico-count 5))
+      (consult-buffer-only)))
+
+  (keymap-set evil-motion-state-map "C-j" 'consult-next-buffer)
+  (keymap-set evil-motion-state-map "C-k" 'consult-previous-buffer)
+
   (consult-customize
    consult-theme :preview-key '(:debounce 0.2 any)
    consult-ripgrep consult-git-grep consult-grep
@@ -391,18 +446,44 @@
 
 (use-package org
   :ensure nil
-  ;:hook (org-mode . org-indent-mode)
+  :hook
+  (org-mode . auto-fill-mode)
+  :bind (("C-c C-o c" . org-capture)
+         :map org-mode-map
+         ("<backtab>" . org-shifttab)
+         ("<normal-state> <backtab>" . org-shifttab)
+         ("C-j" . consult-next-buffer)
+         ("C-k" . consult-previous-buffer)
+         ("<normal-state> C-j" . consult-next-buffer)
+         ("<normal-state> C-k" . consult-previous-buffer))
   :custom
   (org-pretty-entitites t)
-  )
-
-(use-package org-modern
-  :disabled t
-  :ensure t
-  :after org
+  (org-hide-emphasis-markers t)
+  (org-hide-leading-stars t)
+  (org-adapt-indentation t)
+  (org-ellipsis " ⤵")
+  (org-cycle-separator-lines 1)
   :config
-  (global-org-modern-mode)
-  (set-face-attribute 'org-modern-symbol nil :family "Iosevka"))
+  (unless (file-exists-p org-directory) (make-directory org-directory t))
+  (setq org-default-notes-file
+        (concat (file-name-as-directory org-directory) "notes")))
+
+(use-package org-superstar
+  :ensure t
+  :hook (org-mode . org-superstar-mode)
+  :custom (org-superstar-special-todo-items t))
+
+(use-package org-variable-pitch
+  :ensure t
+  :hook (after-init . org-variable-pitch-setup))
+
+(use-package compile
+  :ensure nil
+  :bind (:map compilation-mode-map
+              ("C-j" . consult-next-buffer)
+              ("C-k" . consult-previous-buffer)
+              ("<normal-state> C-j" . consult-next-buffer)
+              ("<normal-state> C-k" . consult-previous-buffer)))
 
 (use-package eglot
   :ensure nil
@@ -413,7 +494,7 @@
   :custom
   (isearch-lazy-count t)
   (lazy-count-prefix-format "[%s/%s] "))
-  
+
 
 ;; The actual package is stale and hasn't merged any fixes in a while
 (when (minimal-emacs-load-user-init "treesit-auto.el")
@@ -430,7 +511,7 @@
 (use-package winner-mode
   :ensure nil
   :bind (:map evil-window-map
-              ("u" . winner-undo)
+              ("u" . winner-undo) ; "C-w u" to undo a window change
               ("C-r" . winner-redo))
   :custom (winner-dont-bind-my-keys t)
   :hook (after-init . winner-mode))
@@ -507,8 +588,16 @@
 (keymap-global-set "<f5>" 'recompile-or-prompt)
 (keymap-global-set "<f6>" 'compile)
 
+(keymap-global-set "C-x C-m" 'pp-macroexpand-last-sexp)
+
 (keymap-set minibuffer-mode-map "<escape>" 'abort-minibuffers)
 
+;; Having the box cursor for the minibuffer is weird when it indicates
+;; normal mode everywhere else
+(defun my/local-bar-cursor () (setq-local cursor-type 'bar))
+(add-hook 'minibuffer-mode-hook 'my/local-bar-cursor)
+
+(setq switch-to-buffer-obey-display-actions nil)
 ;;(display-buffer-base-action '(display-buffer-same-window))
 (setq switch-to-prev-buffer-skip-regexp (rx (seq bos (or "*" " "))))
 (setq window-sides-slots '(1 0 0 2))
@@ -521,7 +610,7 @@
     (window-parameters (mode-line-format . none)))
    (,(rx (seq bos (or "*" " *")
               (or "Help" "Customize" "info" "eldoc" "Occur" "grep"
-                  "devdocs")))
+                  "devdocs" "Pp")))
     display-buffer-in-side-window
     (side . bottom) (slot . -1) (preserve-size . (nil . t)))
    (,(rx (seq bos (or "*" " *")
