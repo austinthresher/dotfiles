@@ -3,6 +3,9 @@
 ;;;; Packages to look into:
 ;;;; auto-yasnippet
 
+;;;; Cool packages that don't fit my current workflow:
+;;;; popup-switcher
+
 
 (setq modus-themes-headings
       (quote ((t . (variable-pitch medium 1.1)))))
@@ -12,14 +15,21 @@
 (set-face-attribute 'variable-pitch nil :family "Roboto Condensed")
 
 (setq truncate-lines nil)
-(setq fast-but-imprecise-scrolling nil) ; check if this fixes vertico-mouse
+(setq fast-but-imprecise-scrolling nil)
 (setq idle-update-delay 0.1)
 (setq show-paren-delay 0)
 (setq mouse-1-click-follows-link t)
 (setq mouse-wheel-progressive-speed nil)
+(setq mouse-wheel-scroll-amount '(0.2
+                                  ((shift) . 0.9)
+                                  ((control meta) . global-text-scale)
+                                  ((control) . text-scale)
+                                  ((meta) . hscroll)))
+(setq next-screen-context-lines 1)
 (setq shell-kill-buffer-on-exit t)
 (setq eshell-kill-on-exit t)
 (setq eshell-scroll-to-bottom-on-input 'this)
+(setq compilation-scroll-output t)
 (setq c-ts-mode-indent-style 'k&r)
 (setq c-ts-mode-indent-offset 4)
 (setq c-default-style '((c-mode . "stroustrup")
@@ -39,6 +49,18 @@
 (add-hook 'after-init-hook #'minibuffer-depth-indicate-mode)
 (add-hook 'after-init-hook #'pixel-scroll-precision-mode)
 
+(add-to-list 'auto-mode-alist '("bashrc" . sh-mode))
+
+(defun my/no-mode-line (&rest _)
+  "Add this as a hook to modes that should not have a modeline"
+  (setq-local mode-line-format nil))
+
+(defun my/no-fringes (&rest _)
+  "Add this as a hook to buffers that should not show fringes"
+  (setq-local left-fringe-width 1
+              right-fringe-width 1)
+  (set-window-buffer (selected-window) (current-buffer)))
+
 (setq evil-want-keybinding nil)
 (use-package evil
   :ensure t
@@ -57,10 +79,12 @@
   :config
   (evil-select-search-module 'evil-search-module 'evil-search)
   (define-key evil-window-map (kbd "o") 'evil-window-mru)
-  (define-key evil-normal-state-map (kbd "<tab>") ">>")
-  (define-key evil-normal-state-map (kbd "<backtab>") "<<")
-  (define-key evil-visual-state-map (kbd "<tab>") ">")
-  (define-key evil-visual-state-map (kbd "<backtab>") "<")
+  ;; These don't work with evil-cleverparens.
+  ;; TODO: Add a hook to include these in non-lisp modes
+  ;; (define-key evil-normal-state-map (kbd "<tab>") ">>")
+  ;; (define-key evil-normal-state-map (kbd "<backtab>") "<<")
+  ;; (define-key evil-visual-state-map (kbd "<tab>") ">")
+  ;; (define-key evil-visual-state-map (kbd "<backtab>") "<")
   ;; Evil doesn't give an option to hide the previous search term.
   ;; Always show a blank prompt when performing a search.
   (defun my/hide-prev-search (args)
@@ -91,24 +115,24 @@
         (save-excursion
           (execute-kbd-macro (read-kbd-macro "vip=")))
       (funcall fn beg end)))
-  (advice-add 'evil-indent :around 'indent-paragraph-or-evil-indent)
-  )
+  (advice-add 'evil-indent :around 'indent-paragraph-or-evil-indent))
+  
 
 (use-package evil-anzu
   :ensure t
   :custom (anzu-cons-mode-line-p nil)
   :config
   (require 'evil-anzu) ; Somehow this is necessary
-  (global-anzu-mode)
-  )
+  (global-anzu-mode))
+  
 
 (with-eval-after-load "evil"
   ;; Fix mouse clicks in Customize buffers
   (with-eval-after-load "custom"
     (evil-make-overriding-map custom-mode-map))
   (with-eval-after-load "yasnippet"
-    (evil-make-overriding-map yas-minor-mode-map))
-  )
+    (evil-make-overriding-map yas-minor-mode-map)))
+  
 
 (use-package undo-fu
   :ensure t
@@ -314,28 +338,33 @@
         xref-show-definitions-function #'consult-xref)
 
   :config
-  (defun consult-buffer-only ()
-    "`consult-buffer` narrowed to only show buffers"
-    (interactive)
-    (consult-buffer '(consult--source-buffer)))
+  (add-to-list 'consult-buffer-filter "\\`\\*Compile-Log\\*\\'")
+  (add-to-list 'consult-buffer-filter "\\`\\*Async-native-compile-log\\*\\'")
+  (defvar my/consult--source-buffer-no-star
+    `(:name "Buffer"
+            :narrow ?b
+            :category buffer
+            :face consult-buffer
+            :history buffer-name-history
+            :state ,#'consult--buffer-state
+            :default t
+            :items
+            ,(lambda ()
+               (consult--buffer-query :sort 'visibility
+                                      :as #'consult--buffer-pair
+                                      :exclude
+                                      `("\\`\\*" ,@consult-buffer-filter)))))
+  (defun consult-buffer-only (&optional arg)
+    "`consult-buffer` that only shows buffers. With prefix, show * buffers."
+    (interactive "P")
+    (if arg
+        (progn
+          (message "prefix")
+          (consult-buffer '(consult--source-buffer)))
+      (message "no prefix")
+      (consult-buffer '(my/consult--source-buffer-no-star))))
+      
   (keymap-global-set "C-x B" 'consult-buffer-only)
-  (defun my/vertico-previous-one-time (&rest _)
-    (interactive)
-    (advice-remove 'vertico--update 'my/vertico-previous-one-time)
-    (vertico-previous-skip-prompt)
-    (vertico-previous-skip-prompt))
-  (defun consult-next-buffer ()
-    (interactive)
-    (let ((vertico-count 5))
-      (consult-buffer-only)))
-  (defun consult-previous-buffer ()
-    (interactive)
-    (advice-add 'vertico--update :after 'my/vertico-previous-one-time)
-    (let ((vertico-count 5))
-      (consult-buffer-only)))
-
-  (keymap-set evil-motion-state-map "C-j" 'consult-next-buffer)
-  (keymap-set evil-motion-state-map "C-k" 'consult-previous-buffer)
 
   (consult-customize
    consult-theme :preview-key '(:debounce 0.2 any)
@@ -405,25 +434,25 @@
          ("C-p" . yas-prev-field)
          ("S-<return>" . newline)
          ("<return>" . yas-next-field)         
-         ("<tab>" . yas-next-field)
-         )
+         ("<tab>" . yas-next-field))
+         
   :config
   (define-key yas-minor-mode-map (kbd "<tab>") nil)
   (define-key yas-minor-mode-map (kbd "TAB") nil)
   (define-key yas-minor-mode-map (kbd "S-TAB") nil)
   (define-key yas-keymap (kbd "TAB") nil)
   (defun my/correct-yas-pos ()
-    (evil-normal-state)
+    (evil-normal-state))
     ;(evil-forward-char 1 nil :noerror)
-    )
+    
   (defun my/ensure-insert ()
     (unless (eq evil-state 'insert)
       ;(evil-append 1)
-      (evil-insert 1)
-      ))
+      (evil-insert 1)))
+      
   (add-hook 'yas-after-exit-snippet-hook 'my/correct-yas-pos)
-  (add-hook 'yas-before-expand-snippet-hook 'my/ensure-insert)
-  )
+  (add-hook 'yas-before-expand-snippet-hook 'my/ensure-insert))
+  
 
 (use-package yasnippet-snippets :ensure t)
 
@@ -452,10 +481,10 @@
          :map org-mode-map
          ("<backtab>" . org-shifttab)
          ("<normal-state> <backtab>" . org-shifttab)
-         ("C-j" . consult-next-buffer)
-         ("C-k" . consult-previous-buffer)
-         ("<normal-state> C-j" . consult-next-buffer)
-         ("<normal-state> C-k" . consult-previous-buffer))
+         ("C-j" . cycbuf-switch-to-next-buffer)
+         ("C-k" . cycbuf-switch-to-previous-buffer)
+         ("<normal-state> C-j" . cycbuf-switch-to-next-buffer)
+         ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer))
   :custom
   (org-pretty-entitites t)
   (org-hide-emphasis-markers t)
@@ -480,10 +509,10 @@
 (use-package compile
   :ensure nil
   :bind (:map compilation-mode-map
-              ("C-j" . consult-next-buffer)
-              ("C-k" . consult-previous-buffer)
-              ("<normal-state> C-j" . consult-next-buffer)
-              ("<normal-state> C-k" . consult-previous-buffer)))
+              ("C-j" . cycbuf-switch-to-next-buffer)
+              ("C-k" . cycbuf-switch-to-previous-buffer)
+              ("<normal-state> C-j" . cycbuf-switch-to-next-buffer)
+              ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer)))
 
 (use-package eglot
   :ensure nil
@@ -495,6 +524,67 @@
   (isearch-lazy-count t)
   (lazy-count-prefix-format "[%s/%s] "))
 
+(use-package cycbuf
+  :ensure t
+  :bind (:map evil-motion-state-map
+              ("C-j" . cycbuf-switch-to-next-buffer)
+              ("C-k" . cycbuf-switch-to-previous-buffer)
+              :map evil-normal-state-map
+              ("C-j" . cycbuf-switch-to-next-buffer)
+              ("C-k" . cycbuf-switch-to-previous-buffer))
+              
+  :config
+  (add-to-list 'cycbuf-dont-show-regexp "\\`\\*")
+  (setq cycbuf-max-window-height 5)
+  (setq cycbuf-file-name-replacements '(("/home/athr[^/]*/" "~/")))
+  (defconst cycbuf-header-lines-length 0)
+  (advice-add 'cycbuf-show-header :override #'ignore)
+  (defun my/cycbuf-set-window-height ()
+    (unless (one-window-p t)
+      (shrink-window (- (window-height)
+                        (+ (min (length cycbuf-current-list)
+                                cycbuf-max-window-height))))))
+  (defun my/goto-line (line)
+    (goto-char (point-min))
+    (forward-line (1- line)))
+  (defun my/cycbuf-layout-status-line (fn win buf)
+    ;; Prevent the original recentering logic.
+    ;; Also replace uses of goto-line because it sets the mark.
+    (cl-letf (((symbol-function #'recenter) #'ignore)
+              ((symbol-function #'goto-line) #'my/goto-line))
+      (funcall fn win buf))
+    (with-selected-window win
+      (let* ((max-scroll (- (length cycbuf-buffer-list) (window-height)))
+             (cur-line (line-number-at-pos))
+             (ideal-target (- cur-line (/ (+ 1 (window-height)) 2)))
+             (actual-target (max 0 (min max-scroll ideal-target))))
+        (set-window-vscroll nil actual-target))))
+  (advice-add 'cycbuf-set-window-height :override 'my/cycbuf-set-window-height)
+  (advice-add 'cycbuf-layout-status-line :around 'my/cycbuf-layout-status-line)
+  (add-hook 'cycbuf-mode-hook 'my/no-mode-line)
+  (add-hook 'cycbuf-mode-hook 'my/no-fringes)
+  (setq cycbuf-attributes-list
+        '(("Buffer"     cycbuf-get-name-length left  cycbuf-get-name)
+          (""           2                      left  "  ")
+          ("M"          1                      left  cycbuf-get-modified-string)
+          ("R"          2                      left  cycbuf-get-readonly-string)
+          (""           1                      left  " ")
+          ("Mode"      12                      left  cycbuf-get-mode-name)
+          (""           2                      left  "  ")
+          ("Directory"  cycbuf-get-file-length left cycbuf-get-file-name))))
+
+(use-package smartparens
+  :ensure t
+  :hook (prog-mode . smartparens-mode)
+  :config (require 'smartparens-config))
+
+(use-package evil-cleverparens
+  :ensure t
+  :hook (smartparens-mode . evil-cleverparens-mode))
+
+;;(use-package parinfer-rust-mode
+;;  :ensure t
+;;  :hook (emacs-lisp-mode . parinfer-rust-mode))
 
 ;; The actual package is stale and hasn't merged any fixes in a while
 (when (minimal-emacs-load-user-init "treesit-auto.el")
@@ -504,8 +594,7 @@
 
 (use-package minions
   :ensure t
-  :custom
-  (minions-mode-line-delimiters '(" " . ""))
+  :custom (minions-mode-line-delimiters '(" " . ""))
   :hook (after-init . minions-mode))
 
 (use-package winner-mode
@@ -552,20 +641,20 @@
         (if (mode-line-window-selected-p)
             (concat " " (anzu--update-mode-line))
           ""))
-    (defun my/modeline-extend (result)
-      (concat result (my/colorize " " "black" (my/vim-color))))
-    (advice-add 'simple-modeline--format :filter-return 'my/modeline-extend)
-    (setopt simple-modeline-segments
-            '((my/evil-state
-               simple-modeline-segment-modified
-               simple-modeline-segment-buffer-name
-               my/modeline-search)
-              (simple-modeline-segment-misc-info
-               simple-modeline-segment-vc
-               my/modeline-modes
-               my/modeline-position)))
-    (set-face-attribute 'fringe nil :background "white")
-    )))
+     (defun my/modeline-extend (result)
+       (concat result (my/colorize " " "black" (my/vim-color))))
+     (advice-add 'simple-modeline--format :filter-return 'my/modeline-extend)
+     (setopt simple-modeline-segments
+             '((my/evil-state
+                simple-modeline-segment-modified
+                simple-modeline-segment-buffer-name
+                my/modeline-search)
+               (simple-modeline-segment-misc-info
+                simple-modeline-segment-vc
+                my/modeline-modes
+                my/modeline-position)))
+     (set-face-attribute 'fringe nil :background "white"))))
+    
 
 (keymap-global-set "C-x k" 'kill-current-buffer)
 (keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
@@ -589,6 +678,7 @@
 (keymap-global-set "<f6>" 'compile)
 
 (keymap-global-set "C-x C-m" 'pp-macroexpand-last-sexp)
+(global-set-key [remap eval-last-sexp] 'pp-eval-last-sexp)
 
 (keymap-set minibuffer-mode-map "<escape>" 'abort-minibuffers)
 
@@ -622,5 +712,5 @@
     (side . bottom) (slot . 1) (preserve-size . (nil . t)))
    (,(rx (seq bos (or "*" " *")))
     (display-buffer-in-side-window display-buffer-no-window)
-    (side . bottom))
-   ))
+    (side . bottom))))
+   
