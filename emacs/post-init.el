@@ -463,6 +463,13 @@
   (uniquify-after-kill-buffer-p t)
   (uniquify-ignore-buffers-re "^\\*"))
 
+(use-package fennel-mode
+  :ensure t
+  :config
+  (add-to-list 'auto-mode-alist '("\\.fnl\\'" . fennel-mode))
+  (put 'when-let 'fennel-indent-function 1)
+  )
+
 (use-package pdf-tools
   :ensure t
   :defer t
@@ -575,7 +582,9 @@
 
 (use-package smartparens
   :ensure t
-  :hook (prog-mode . smartparens-mode)
+  :hook
+  (prog-mode . smartparens-mode)
+  (prog-mode . smartparens-strict-mode)
   :config (require 'smartparens-config))
 
 (use-package evil-cleverparens
