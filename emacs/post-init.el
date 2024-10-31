@@ -37,6 +37,7 @@
                         (java-mode . "java")
                         (awk-mode . "awk")
                         (other . "k&r")))
+(setq tab-width 8)
 
 (setq set-message-functions '(inhibit-message set-minibuffer-message))
 (add-to-list 'inhibit-message-regexps "Cleaning up the recentf")
@@ -77,6 +78,10 @@
   (evil-move-cursor-back nil)
   (evil-split-window-below t)
   :config
+  (setq evil-default-cursor '(box "#000000"))
+  (setq evil-emacs-state-cursor '(bar "#FF00FF"))
+  (setq evil-normal-state-cursor evil-default-cursor)
+  (setq evil-motion-state-cursor evil-default-cursor)
   (evil-select-search-module 'evil-search-module 'evil-search)
   (define-key evil-window-map (kbd "o") 'evil-window-mru)
   ;; These don't work with evil-cleverparens.
@@ -98,6 +103,9 @@
   (advice-add 'evil-previous-line :after 'my/auto-clear-anzu)
   (advice-add 'evil-forward-char :after 'my/auto-clear-anzu)
   (advice-add 'evil-backward-char :after 'my/auto-clear-anzu)
+  (advice-add 'windmove-do-window-select :after 'my/auto-clear-anzu)
+  (advice-add 'switch-to-buffer :after 'my/auto-clear-anzu)
+
   (evil-mode 1))
 
 (use-package evil-collection
@@ -171,9 +179,6 @@
     (comment-or-uncomment-region beg end))
   (evil-define-key 'normal 'global (kbd "gc") 'my/evil-comment-or-uncomment))
 
-(message "hello")
-(message "world")
-
 (use-package vterm
   :ensure t
   :defer t
@@ -192,7 +197,7 @@
   :bind (:map minibuffer-mode-map
               ("<tab>" . completion-at-point)
               ("C-S-k" . kill-line)
-         :map vertico-map
+              :map vertico-map
               ("<next>" . vertico-scroll-up)
               ("<prior>" . vertico-scroll-down))
   :custom
@@ -203,23 +208,6 @@
   (after-init . vertico-mode)
   (after-init . vertico-mouse-mode)
   :config
-  ;; Consult seems to force vertico--allow-prompt, this gets around it
-  (defun vertico-next-skip-prompt (&optional n)
-    (interactive "p")
-    (let ((vertico-cycle t))
-      (vertico-next n)
-      (when (eq vertico--index -1)
-        (vertico-next 1))
-      vertico--index))
-  (defun vertico-previous-skip-prompt (&optional n)
-    (interactive "p")
-    (let ((vertico-cycle t))
-      (vertico-previous n)
-      (when (eq vertico--index -1)
-        (vertico-previous 1))
-      vertico--index))
-  (keymap-set vertico-map "C-j" 'vertico-next-skip-prompt)
-  (keymap-set vertico-map "C-k" 'vertico-previous-skip-prompt)
   (cl-defmethod vertico--display-candidates (lines)
     "Put the vertico prompt at the bottom without reversing the entire display"
     (move-overlay vertico--candidates-ov (point-min) (point-min))
@@ -420,37 +408,43 @@
   :ensure t
   :hook (after-init . global-form-feed-st-mode))
 
-(show-paren-mode t)
+;; (show-paren-mode t)
+(use-package highlight-parentheses
+  :ensure t
+  :hook (minibuffer-setup . highlight-parentheses-minibuffer-setup)
+  :custom
+  (highlight-parentheses-colors
+   '("#005500" "#0000AA" "#550099" "#550000" "#333300"))
+  (highlight-parentheses-background-colors
+   '("#BBFFDD" "#BBDDFF" "#FFCCFF" "#FFDDDD" "#FFEECC"))
+  :config (global-highlight-parentheses-mode))
+
+;; magenta4 / plum1
 
 (use-package yasnippet
   :ensure t
   :hook (after-init . yas-global-mode)
   :custom (yas-alias-to-yas/prefix-p nil)
   :bind (:map yas-minor-mode-map
-         ("C-i" . yas-expand)
-         ("C-S-i" . yas-insert-snippet)
-         :map yas-keymap
-         ("C-n" . yas-next-field)
-         ("C-p" . yas-prev-field)
-         ("S-<return>" . newline)
-         ("<return>" . yas-next-field)         
-         ("<tab>" . yas-next-field))
-         
+              ("C-i" . yas-expand)
+              ("C-S-i" . yas-insert-snippet)
+              :map yas-keymap
+              ("C-n" . yas-next-field)
+              ("C-p" . yas-prev-field)
+              ("S-<return>" . newline)
+              ("<return>" . yas-next-field)         
+              ("<tab>" . yas-next-field))
+  
   :config
   (define-key yas-minor-mode-map (kbd "<tab>") nil)
   (define-key yas-minor-mode-map (kbd "TAB") nil)
   (define-key yas-minor-mode-map (kbd "S-TAB") nil)
   (define-key yas-keymap (kbd "TAB") nil)
-  (defun my/correct-yas-pos ()
-    (evil-normal-state))
-    ;(evil-forward-char 1 nil :noerror)
-    
   (defun my/ensure-insert ()
     (unless (eq evil-state 'insert)
-      ;(evil-append 1)
       (evil-insert 1)))
-      
-  (add-hook 'yas-after-exit-snippet-hook 'my/correct-yas-pos)
+  
+  (add-hook 'yas-after-exit-snippet-hook 'evil-normal-state)
   (add-hook 'yas-before-expand-snippet-hook 'my/ensure-insert))
   
 
@@ -467,8 +461,7 @@
   :ensure t
   :config
   (add-to-list 'auto-mode-alist '("\\.fnl\\'" . fennel-mode))
-  (put 'when-let 'fennel-indent-function 1)
-  )
+  (put 'when-let 'fennel-indent-function 1))
 
 (use-package pdf-tools
   :ensure t
@@ -531,6 +524,24 @@
   (isearch-lazy-count t)
   (lazy-count-prefix-format "[%s/%s] "))
 
+
+(defvar my/eldoc-help-message "")
+(use-package eldoc
+  :ensure nil
+  :config 
+  (defun my/eldoc-minibuffer-message (fn fmt-str &rest args)
+    (if (or (bound-and-true-p edebug-mode) (minibufferp))
+        (progn
+          (if (stringp fmt-str)
+              (setq my/eldoc-help-message (apply #'format-message fmt-str args))
+            (setq my/eldoc-help-message ""))
+          (force-mode-line-update t))
+      (apply fn fmt-str args)))
+  (advice-add 'eldoc-minibuffer-message :around 'my/eldoc-minibuffer-message)
+  (defun my/clear-eldoc-help-message ()
+    (setq my/eldoc-help-message ""))
+  (add-hook 'minibuffer-exit-hook 'my/clear-eldoc-help-message))
+
 (use-package cycbuf
   :ensure t
   :bind (:map evil-motion-state-map
@@ -539,7 +550,7 @@
               :map evil-normal-state-map
               ("C-j" . cycbuf-switch-to-next-buffer)
               ("C-k" . cycbuf-switch-to-previous-buffer))
-              
+  
   :config
   (add-to-list 'cycbuf-dont-show-regexp "\\`\\*")
   (setq cycbuf-max-window-height 5)
@@ -589,7 +600,12 @@
 
 (use-package evil-cleverparens
   :ensure t
+  :custom (evil-cleverparens-use-additional-bindings nil)
   :hook (smartparens-mode . evil-cleverparens-mode))
+
+(use-package aggressive-indent
+  :ensure t
+  :config (global-aggressive-indent-mode))
 
 ;;(use-package parinfer-rust-mode
 ;;  :ensure t
@@ -650,19 +666,30 @@
         (if (mode-line-window-selected-p)
             (concat " " (anzu--update-mode-line))
           ""))
-     (defun my/modeline-extend (result)
-       (concat result (my/colorize " " "black" (my/vim-color))))
-     (advice-add 'simple-modeline--format :filter-return 'my/modeline-extend)
-     (setopt simple-modeline-segments
-             '((my/evil-state
-                simple-modeline-segment-modified
-                simple-modeline-segment-buffer-name
-                my/modeline-search)
-               (simple-modeline-segment-misc-info
-                simple-modeline-segment-vc
-                my/modeline-modes
-                my/modeline-position)))
-     (set-face-attribute 'fringe nil :background "white"))))
+      (defun my/modeline-eldoc ()
+        (or 
+         (unless (string= "" my/eldoc-help-message)
+           (when (active-minibuffer-window)
+             (let ((bot-win (or (window-in-direction 'above (minibuffer-window))
+                                (minibuffer-selected-window)
+                                (get-largest-window))))
+               (when (eq (selected-window) bot-win)
+                 (concat " " my/eldoc-help-message " ")))))
+         ""))
+      (defun my/modeline-extend (result)
+        (concat result (my/colorize " " "black" (my/vim-color))))
+      (advice-add 'simple-modeline--format :filter-return 'my/modeline-extend)
+      (setopt simple-modeline-segments
+              '((my/evil-state
+                 simple-modeline-segment-modified
+                 simple-modeline-segment-buffer-name
+                 my/modeline-search
+                 my/modeline-eldoc)
+                (simple-modeline-segment-misc-info
+                 simple-modeline-segment-vc
+                 my/modeline-modes
+                 my/modeline-position)))
+      (set-face-attribute 'fringe nil :background "white"))))
     
 
 (keymap-global-set "C-x k" 'kill-current-buffer)
@@ -687,7 +714,6 @@
 (keymap-global-set "<f6>" 'compile)
 
 (keymap-global-set "C-x C-m" 'pp-macroexpand-last-sexp)
-(global-set-key [remap eval-last-sexp] 'pp-eval-last-sexp)
 
 (keymap-set minibuffer-mode-map "<escape>" 'abort-minibuffers)
 
