@@ -733,13 +733,10 @@
    ("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
     nil
     (window-parameters (mode-line-format . none)))
-   (,(rx (seq bos (or "*" " *")
-              (or "Help" "Customize" "info" "eldoc" "Occur" "grep"
-                  "devdocs" "Pp")))
+   ("\\`[ ]?\\*\\(Help\\|Customize\\|info\\|eldoc\\|Occur\\|grep\\|devdocs\\|Pp\\)"
     display-buffer-in-side-window
     (side . bottom) (slot . -1) (preserve-size . (nil . t)))
-   (,(rx (seq bos (or "*" " *")
-              (or "compilation" "shell" "eshell" "terminal" "vterm")))
+   ("\\`[ ]?\\*\\(compilation\\|[e]?shell\\|[v]?term\\|.*REPL\\)"
     display-buffer-in-side-window
     (side . bottom) (slot . 1) (preserve-size . (nil . t)))
    ((mode comint-mode)
