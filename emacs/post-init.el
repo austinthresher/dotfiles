@@ -6,6 +6,12 @@
 ;;;; Cool packages that don't fit my current workflow:
 ;;;; popup-switcher
 
+;;;; TODOs that probably require writing elisp:
+;;;; - Make keybinds for the mouse back/forward buttons that call appropriate
+;;;;   functions in the window under the mouse, based on the major mode of that
+;;;;   window's buffer. pdf-history-backward, help-go-back, etc.
+
+;;;; TODO: Fix mashing escape in Emacs State closing windows
 
 (setq modus-themes-headings
       (quote ((t . (variable-pitch medium 1.1)))))
@@ -38,6 +44,68 @@
                         (awk-mode . "awk")
                         (other . "k&r")))
 (setq tab-width 8)
+(setq blink-cursor-blinks 0)
+(setq blink-cursor-delay 0.2)
+(setq blink-cursor-interval 0.1)
+(setq blink-cursor-alist '((box . box) (hollow . hollow) (bar . bar)
+                           ((hbar . 2) . (hbar . 2))
+                           ((hbar . 4) . (hbar . 4))
+                           ((hbar . 6) . (hbar . 6))
+                           ((hbar . 16) . (hbar . 16))
+                           ((bar . 1) . (bar . 1))
+                           ((bar . 2) . (bar . 2))
+                           ((bar . 3) . (bar . 3))))
+(setq cursor-in-non-selected-windows nil)
+
+(defvar my/cursor-color-idx 0)
+(defun my/get-cursor-color ()
+  (nth my/cursor-color-idx
+       (if (and (boundp 'evil-state) (eq evil-state 'emacs))
+           '("#FF00FF" "#FF33FF" "#FF77FF" "#FFBBFF"
+             "#FFEEFF" "#FFBBFF" "#FF77FF" "#FF33FF")
+         '("#000000" "#333333" "#777777" "#BBBBBB"
+           "#EEEEEE" "#BBBBBB" "#777777" "#333333"))))
+
+(defvar my/underline-ov nil)
+
+(defun my/update-underline-color ()
+  (when (overlayp my/underline-ov)
+    (overlay-put my/underline-ov 'face
+                 `(:underline (:color ,(my/get-cursor-color) :position 0)))))
+
+(defun my/update-cursor-overlay (&rest _)
+  (or (ignore-errors
+        (if (not (eq evil-state 'normal))
+            (when (overlayp my/underline-ov) (delete-overlay my/underline-ov))
+          (unless (overlayp my/underline-ov)
+            (setq my/underline-ov (make-overlay (point) (point))))
+          (my/update-underline-color)
+          (let ((start (point)))
+            (save-excursion
+              (forward-char)
+              (move-overlay my/underline-ov start (point) (current-buffer)))))
+        t)
+      ;; If we had any errors, just delete the overlay entirely to try again
+      ;; next time.
+      (progn (when (overlayp my/underline-ov) (delete-overlay my/underline-ov))
+             (setq my/underline-ov nil))))
+
+(add-hook 'post-command-hook 'my/update-cursor-overlay)
+
+(defun my/cursor-color-reset (&rest _)
+  (setq my/cursor-color-idx 0)
+  (set-face-attribute 'cursor nil :background (my/get-cursor-color))
+  (my/update-underline-color))
+
+(defun my/cursor-color-advance (&rest _)
+  (setq my/cursor-color-idx (% (+ 1 my/cursor-color-idx) 8))
+  (set-face-attribute 'cursor nil :background (my/get-cursor-color))
+  (my/update-underline-color))
+
+(advice-add 'blink-cursor-start :before 'my/cursor-color-reset)
+(advice-add 'blink-cursor-end :before 'my/cursor-color-reset)
+(advice-add 'blink-cursor-timer-function :before 'my/cursor-color-advance)
+(blink-cursor-mode t)
 
 (setq set-message-functions '(inhibit-message set-minibuffer-message))
 (add-to-list 'inhibit-message-regexps "Cleaning up the recentf")
@@ -62,6 +130,10 @@
               right-fringe-width 1)
   (set-window-buffer (selected-window) (current-buffer)))
 
+(defun my/no-blink-cursor (&rest _)
+  "Add this as a hook to buffers that should not blink the cursor"
+  (setq-local blink-cursor-mode nil))
+
 (setq evil-want-keybinding nil)
 (use-package evil
   :ensure t
@@ -78,10 +150,14 @@
   (evil-move-cursor-back nil)
   (evil-split-window-below t)
   :config
-  (setq evil-default-cursor '(box "#000000"))
-  (setq evil-emacs-state-cursor '(bar "#FF00FF"))
+  (setq evil-default-cursor '((bar . 2)))
+  (setq evil-emacs-state-cursor '((bar . 2)))
+  (setq evil-insert-state-cursor '((bar . 1)))
   (setq evil-normal-state-cursor evil-default-cursor)
-  (setq evil-motion-state-cursor evil-default-cursor)
+  (setq evil-motion-state-cursor '((hbar . 2)))
+  (setq evil-visual-state-cursor 'box)
+  (setq evil-operator-state-cursor 'hollow)
+  (add-hook 'evil-normal-state-entry-hook 'my/cursor-color-reset)
   (evil-select-search-module 'evil-search-module 'evil-search)
   (define-key evil-window-map (kbd "o") 'evil-window-mru)
   ;; These don't work with evil-cleverparens.
@@ -408,7 +484,7 @@
   :ensure t
   :hook (after-init . global-form-feed-st-mode))
 
-;; (show-paren-mode t)
+(show-paren-mode -1)
 (use-package highlight-parentheses
   :ensure t
   :hook (minibuffer-setup . highlight-parentheses-minibuffer-setup)
@@ -418,8 +494,6 @@
   (highlight-parentheses-background-colors
    '("#BBFFDD" "#BBDDFF" "#FFCCFF" "#FFDDDD" "#FFEECC"))
   :config (global-highlight-parentheses-mode))
-
-;; magenta4 / plum1
 
 (use-package yasnippet
   :ensure t
@@ -446,7 +520,6 @@
   
   (add-hook 'yas-after-exit-snippet-hook 'evil-normal-state)
   (add-hook 'yas-before-expand-snippet-hook 'my/ensure-insert))
-  
 
 (use-package yasnippet-snippets :ensure t)
 
@@ -466,7 +539,9 @@
 (use-package pdf-tools
   :ensure t
   :defer t
-  :hook (after-init . pdf-loader-install))
+  :hook
+  (after-init . pdf-loader-install)
+  (pdf-view-mode . my/no-blink-cursor))
 
 (use-package simple-modeline
   :ensure t
@@ -591,17 +666,19 @@
           (""           2                      left  "  ")
           ("Directory"  cycbuf-get-file-length left cycbuf-get-file-name))))
 
-(use-package smartparens
-  :ensure t
-  :hook
-  (prog-mode . smartparens-mode)
-  (prog-mode . smartparens-strict-mode)
-  :config (require 'smartparens-config))
-
-(use-package evil-cleverparens
-  :ensure t
-  :custom (evil-cleverparens-use-additional-bindings nil)
-  :hook (smartparens-mode . evil-cleverparens-mode))
+;; These are causing too many issues with vim keybinds. I need to either set
+;; the bindings up manually or find an alternative.
+;; (use-package smartparens
+;;   :ensure t
+;;   :hook
+;;   (prog-mode . smartparens-mode)
+;;   (prog-mode . smartparens-strict-mode)
+;;   :config (require 'smartparens-config))
+;; 
+;; (use-package evil-cleverparens
+;;   :ensure t
+;;   :custom (evil-cleverparens-use-additional-bindings nil)
+;;   :hook (smartparens-mode . evil-cleverparens-mode))
 
 (use-package aggressive-indent
   :ensure t
@@ -636,18 +713,19 @@
 (defun my/vim-color ()
   (if (mode-line-window-selected-p)
       (pcase (symbol-name evil-state)
-        ("normal"  "#a4d5f9")
-        ("insert"  "#8adf80")
-        ("visual"  "#fff576")
-        ("replace" "#ff8f88")
-        ("emacs"   "#ffddff")
+        ("normal"   "#a4d5f9")
+        ("insert"   "#8adf80")
+        ("visual"   "#fff576")
+        ("replace"  "#ff8f88")
+        ("operator" "#d5a4f9")
+        ("emacs"    "#ffddff")
         (_ 'unspecified))
     'unspecified))
 
 (defun my/vim-state ()
   (if (mode-line-window-selected-p)
-    (let ((mode-text (concat " " (upcase (symbol-name evil-state)) "▕")))
-      (my/colorize mode-text "black" (my/vim-color)))
+      (let ((mode-text (concat " " (upcase (symbol-name evil-state)) "▕")))
+        (my/colorize mode-text "black" (my/vim-color)))
     ""))
 
 (with-eval-after-load "minions"
@@ -658,9 +736,19 @@
         (if (mode-line-window-selected-p)
             minions-mode-line-modes
           (format-mode-line mode-name)))
+      (defun my/modeline-position-default ()
+        `(:propertize ("▏ %3l : %2C ") face (:background ,(my/vim-color))))
+      (defun my/modeline-position-pdf ()
+        (require 'pdf-view)
+        (require 'pdf-info)
+        (let ((str (format "▏ Page %d/%d "
+                           (pdf-view-current-page)
+                           (pdf-info-number-of-pages))))
+          `(:propertize ,str face (:background ,(my/vim-color)))))
       (defun my/modeline-position ()
         (if (mode-line-window-selected-p)
-            `(:propertize ("▏" "%3l : %2C ") face (:background ,(my/vim-color)))
+            (cond ((eq major-mode 'pdf-view-mode) (my/modeline-position-pdf))
+                  (t (my/modeline-position-default)))
           ""))
       (defun my/modeline-search ()
         (if (mode-line-window-selected-p)
@@ -690,7 +778,8 @@
                  my/modeline-modes
                  my/modeline-position)))
       (set-face-attribute 'fringe nil :background "white"))))
-    
+
+
 
 (keymap-global-set "C-x k" 'kill-current-buffer)
 (keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
