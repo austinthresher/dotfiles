@@ -17,7 +17,7 @@
       (quote ((t . (variable-pitch medium 1.1)))))
 (load-theme 'modus-operandi t)
 
-(set-face-attribute 'default nil :family "Iosevka" :height 150)
+(set-face-attribute 'default nil :family "Iosevka" :height 130)
 (set-face-attribute 'variable-pitch nil :family "Roboto Condensed")
 
 (setq truncate-lines nil)
@@ -107,6 +107,8 @@
 (advice-add 'blink-cursor-timer-function :before 'my/cursor-color-advance)
 (blink-cursor-mode t)
 
+(global-prettify-symbols-mode t)
+
 (setq set-message-functions '(inhibit-message set-minibuffer-message))
 (add-to-list 'inhibit-message-regexps "Cleaning up the recentf")
 (add-to-list 'inhibit-message-regexps "Mark saved")
@@ -150,6 +152,7 @@
   (evil-move-cursor-back nil)
   (evil-split-window-below t)
   :config
+  (setq evil-lookup-func 'help-follow-symbol)
   (setq evil-default-cursor '((bar . 2)))
   (setq evil-emacs-state-cursor '((bar . 2)))
   (setq evil-insert-state-cursor '((bar . 1)))
@@ -208,15 +211,15 @@
   :config
   (require 'evil-anzu) ; Somehow this is necessary
   (global-anzu-mode))
-  
 
-(with-eval-after-load "evil"
-  ;; Fix mouse clicks in Customize buffers
-  (with-eval-after-load "custom"
-    (evil-make-overriding-map custom-mode-map))
-  (with-eval-after-load "yasnippet"
-    (evil-make-overriding-map yas-minor-mode-map)))
-  
+
+;; (with-eval-after-load "evil"
+;;   ;; Fix mouse clicks in Customize buffers
+;;   (with-eval-after-load "custom"
+;;     (evil-make-overriding-map custom-mode-map))
+;;   (with-eval-after-load "yasnippet"
+;;     (evil-make-overriding-map yas-minor-mode-map)))
+
 
 (use-package undo-fu
   :ensure t
@@ -254,6 +257,11 @@
     (interactive "<r>")
     (comment-or-uncomment-region beg end))
   (evil-define-key 'normal 'global (kbd "gc") 'my/evil-comment-or-uncomment))
+
+(use-package magit
+  :ensure t
+  :defer t
+  :commands magit)
 
 (use-package vterm
   :ensure t
@@ -447,7 +455,7 @@
   :commands (corfu-mode global-corfu-mode corfu-popupinfo-mode)
   :hook ((after-init . global-corfu-mode)
          (after-init . corfu-popupinfo-mode))
-  :bind (("<tab>" . indent-for-tab-command)
+  :bind (;;("<tab>" . indent-for-tab-command)
          ("C-SPC" . completion-at-point) ; for when tab isn't usable
          :map corfu-map
          ("<prior>" . corfu-scroll-down)
@@ -666,27 +674,29 @@
           (""           2                      left  "  ")
           ("Directory"  cycbuf-get-file-length left cycbuf-get-file-name))))
 
-;; These are causing too many issues with vim keybinds. I need to either set
-;; the bindings up manually or find an alternative.
-;; (use-package smartparens
-;;   :ensure t
-;;   :hook
-;;   (prog-mode . smartparens-mode)
-;;   (prog-mode . smartparens-strict-mode)
-;;   :config (require 'smartparens-config))
-;; 
-;; (use-package evil-cleverparens
-;;   :ensure t
-;;   :custom (evil-cleverparens-use-additional-bindings nil)
-;;   :hook (smartparens-mode . evil-cleverparens-mode))
+(use-package smartparens
+  :ensure t
+  :bind ("C-c C-s" . smartparens-strict-mode)
+  :hook
+  (prog-mode . smartparens-mode)
+  (smartpares-mode . smartparens-strict-mode)
+  :config (require 'smartparens-config))
+
+;; TODO: Set up movement keybinds that don't conflict with Vim muscle memory
+(use-package evil-cleverparens
+  :ensure t
+  :custom
+  (evil-cleverparens-use-additional-bindings nil)
+  (evil-cleverparens-use-additional-movement-keys nil)
+  :hook (smartparens-mode . evil-cleverparens-mode))
 
 (use-package aggressive-indent
   :ensure t
   :config (global-aggressive-indent-mode))
 
-;;(use-package parinfer-rust-mode
-;;  :ensure t
-;;  :hook (emacs-lisp-mode . parinfer-rust-mode))
+;; (use-package parinfer-rust-mode
+;;   :ensure t
+;;   :hook (emacs-lisp-mode . parinfer-rust-mode))
 
 ;; The actual package is stale and hasn't merged any fixes in a while
 (when (minimal-emacs-load-user-init "treesit-auto.el")
