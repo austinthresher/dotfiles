@@ -20,10 +20,11 @@
 (set-face-attribute 'default nil :family "Iosevka" :height 130)
 (set-face-attribute 'variable-pitch nil :family "Roboto Condensed")
 
+(show-paren-mode -1)
+
 (setq truncate-lines nil)
 (setq fast-but-imprecise-scrolling nil)
 (setq idle-update-delay 0.1)
-(setq show-paren-delay 0)
 (setq mouse-1-click-follows-link t)
 (setq mouse-wheel-progressive-speed nil)
 (setq mouse-wheel-scroll-amount '(0.2
@@ -455,8 +456,10 @@
   :commands (corfu-mode global-corfu-mode corfu-popupinfo-mode)
   :hook ((after-init . global-corfu-mode)
          (after-init . corfu-popupinfo-mode))
-  :bind (;;("<tab>" . indent-for-tab-command)
+  :bind (
          ("C-SPC" . completion-at-point) ; for when tab isn't usable
+         :map evil-insert-state-map
+         ("<tab>" . indent-for-tab-command)
          :map corfu-map
          ("<prior>" . corfu-scroll-down)
          ("<next>" . corfu-scroll-up)
@@ -492,7 +495,6 @@
   :ensure t
   :hook (after-init . global-form-feed-st-mode))
 
-(show-paren-mode -1)
 (use-package highlight-parentheses
   :ensure t
   :hook (minibuffer-setup . highlight-parentheses-minibuffer-setup)
@@ -674,13 +676,17 @@
           (""           2                      left  "  ")
           ("Directory"  cycbuf-get-file-length left cycbuf-get-file-name))))
 
+;; NOTE: Remember you can "fix" pairs with replace without toggling strict mode
 (use-package smartparens
   :ensure t
-  :bind ("C-c C-s" . smartparens-strict-mode)
   :hook
   (prog-mode . smartparens-mode)
-  (smartpares-mode . smartparens-strict-mode)
-  :config (require 'smartparens-config))
+  (smartparens-mode . smartparens-strict-mode)
+  :config
+  (require 'smartparens-config)
+  (set-face-attribute 'sp-pair-overlay-face nil
+                      :background "#F0F0F0"
+                      :inherit 'unspecified))
 
 ;; TODO: Set up movement keybinds that don't conflict with Vim muscle memory
 (use-package evil-cleverparens
@@ -692,11 +698,19 @@
 
 (use-package aggressive-indent
   :ensure t
-  :config (global-aggressive-indent-mode))
-
-;; (use-package parinfer-rust-mode
-;;   :ensure t
-;;   :hook (emacs-lisp-mode . parinfer-rust-mode))
+  :config
+  ;; Aggressive indent doesn't respond well to the way elisp indents ; and ;;
+  ;; comments differently. This is modified from the existing comment logic in
+  ;; aggressive-indent.el.
+  (add-to-list 'aggressive-indent-dont-indent-if
+               '(let ((line (thing-at-point 'line)))
+                  (and (stringp line)
+                       (stringp comment-start)
+                       (let ((c (substring comment-start 0 1)))
+                         ;; Whitespace, followed by any amount of the comment
+                         ;; starting character.
+                         (string-match (concat "\\`[[:blank:]]*" c "*") line)))))
+  (global-aggressive-indent-mode))
 
 ;; The actual package is stale and hasn't merged any fixes in a while
 (when (minimal-emacs-load-user-init "treesit-auto.el")
@@ -814,12 +828,29 @@
 
 (keymap-global-set "C-x C-m" 'pp-macroexpand-last-sexp)
 
+(keymap-global-unset "C-h t")
+(keymap-global-unset "<f1> t")
+
+;; I really want escape to do what it says
+(keymap-global-set "C-h ESC" 'keyboard-quit)
+(keymap-global-set "C-M-g" 'keyboard-quit)
+(keymap-global-unset "M-ESC :") ; the only default keybind prefixed by M-ESC
 (keymap-set minibuffer-mode-map "<escape>" 'abort-minibuffers)
+
+;; Prevents ESC from messing with splits
+(defun my/keyboard-escape-quit-advice (fn)
+  (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
+    (funcall fn)))
+(advice-add 'keyboard-escape-quit :around 'my/keyboard-escape-quit-advice)
 
 ;; Having the box cursor for the minibuffer is weird when it indicates
 ;; normal mode everywhere else
 (defun my/local-bar-cursor () (setq-local cursor-type 'bar))
 (add-hook 'minibuffer-mode-hook 'my/local-bar-cursor)
+
+(with-eval-after-load "rect"
+  (keymap-set rectangle-mark-mode-map "C-i" 'string-insert-rectangle)
+  (keymap-set rectangle-mark-mode-map "C-r" 'replace-rectangle))
 
 (setq switch-to-buffer-obey-display-actions nil)
 ;;(display-buffer-base-action '(display-buffer-same-window))
