@@ -1,18 +1,13 @@
 ;;; -*- no-byte-compile: t; lexical-binding: t; -*-
 
-;;;; Packages to look into:
-;;;; auto-yasnippet
+;; TODOs that probably require writing elisp:
+;; - Make keybinds for the mouse back/forward buttons that call appropriate
+;;   functions in the window under the mouse, based on the major mode of that
+;;   window's buffer. pdf-history-backward, help-go-back, etc.
 
-;;;; Cool packages that don't fit my current workflow:
-;;;; popup-switcher
 
-;;;; TODOs that probably require writing elisp:
-;;;; - Make keybinds for the mouse back/forward buttons that call appropriate
-;;;;   functions in the window under the mouse, based on the major mode of that
-;;;;   window's buffer. pdf-history-backward, help-go-back, etc.
-
-;;;; TODO: Fix mashing escape in Emacs State closing windows
-
+;;;; Theme and font
+;;;; ======================================================================
 (setq modus-themes-headings
       (quote ((t . (variable-pitch medium 1.1)))))
 (load-theme 'modus-operandi t)
@@ -20,7 +15,9 @@
 (set-face-attribute 'default nil :family "Iosevka" :height 130)
 (set-face-attribute 'variable-pitch nil :family "Roboto Condensed")
 
-(show-paren-mode -1)
+
+;;;; General settings
+;;;; ======================================================================
 
 (setq truncate-lines nil)
 (setq fast-but-imprecise-scrolling nil)
@@ -45,6 +42,11 @@
                         (awk-mode . "awk")
                         (other . "k&r")))
 (setq tab-width 8)
+
+
+;;;; Cursor customization
+;;;; ======================================================================
+
 (setq blink-cursor-blinks 0)
 (setq blink-cursor-delay 0.2)
 (setq blink-cursor-interval 0.1)
@@ -108,11 +110,17 @@
 (advice-add 'blink-cursor-timer-function :before 'my/cursor-color-advance)
 (blink-cursor-mode t)
 
-(global-prettify-symbols-mode t)
+
+;;;; Less noisy minibuffer
+;;;; ======================================================================
 
 (setq set-message-functions '(inhibit-message set-minibuffer-message))
 (add-to-list 'inhibit-message-regexps "Cleaning up the recentf")
 (add-to-list 'inhibit-message-regexps "Mark saved")
+
+
+;;;; Initial built-in minor modes
+;;;; ======================================================================
 
 (add-hook 'after-init-hook #'global-auto-revert-mode)
 (add-hook 'after-init-hook #'recentf-mode)
@@ -120,8 +128,24 @@
 (add-hook 'after-init-hook #'save-place-mode)
 (add-hook 'after-init-hook #'minibuffer-depth-indicate-mode)
 (add-hook 'after-init-hook #'pixel-scroll-precision-mode)
+(global-prettify-symbols-mode t)
+(show-paren-mode -1)
+
+
+;;;; File type associations
+;;;; ======================================================================
 
 (add-to-list 'auto-mode-alist '("bashrc" . sh-mode))
+
+(when (treesit-available-p)
+  (setq treesit-font-lock-level 4)
+  (when (treesit-language-available-p 'cmake)
+    (add-to-list 'auto-mode-alist '("CMakeLists.txt" . cmake-ts-mode))
+    (add-to-list 'auto-mode-alist '("\\.cmake\\'" . cmake-ts-mode))))
+
+
+;;;; Customization functions that can be used with hooks or advice
+;;;; ======================================================================
 
 (defun my/no-mode-line (&rest _)
   "Add this as a hook to modes that should not have a modeline"
@@ -137,9 +161,18 @@
   "Add this as a hook to buffers that should not blink the cursor"
   (setq-local blink-cursor-mode nil))
 
-(setq evil-want-keybinding nil)
-(use-package evil
-  :ensure t
+
+;;;; External Packages
+;;;; ======================================================================
+
+;; Enable extra use-package keywords
+(use-package general :ensure t :demand t)
+
+;; Fix elisp indentation of property lists
+(use-package fuco1-redef-lisp-indent :ensure t :demand t
+  :vc (:url "https://git.sr.ht/~razzi/fuco1-redef-lisp-indent.el"))
+
+(use-package evil :ensure t :demand t
   :init
   (setq evil-undo-system 'undo-fu)
   (setq evil-want-integration t)
@@ -163,13 +196,6 @@
   (setq evil-operator-state-cursor 'hollow)
   (add-hook 'evil-normal-state-entry-hook 'my/cursor-color-reset)
   (evil-select-search-module 'evil-search-module 'evil-search)
-  (define-key evil-window-map (kbd "o") 'evil-window-mru)
-  ;; These don't work with evil-cleverparens.
-  ;; TODO: Add a hook to include these in non-lisp modes
-  ;; (define-key evil-normal-state-map (kbd "<tab>") ">>")
-  ;; (define-key evil-normal-state-map (kbd "<backtab>") "<<")
-  ;; (define-key evil-visual-state-map (kbd "<tab>") ">")
-  ;; (define-key evil-visual-state-map (kbd "<backtab>") "<")
   ;; Evil doesn't give an option to hide the previous search term.
   ;; Always show a blank prompt when performing a search.
   (defun my/hide-prev-search (args)
@@ -185,45 +211,47 @@
   (advice-add 'evil-backward-char :after 'my/auto-clear-anzu)
   (advice-add 'windmove-do-window-select :after 'my/auto-clear-anzu)
   (advice-add 'switch-to-buffer :after 'my/auto-clear-anzu)
+  (evil-mode t)
+  ;; Fix mouse clicks in Customize buffers
+  (with-eval-after-load "custom"
+    (evil-make-overriding-map custom-mode-map))
+  (with-eval-after-load "yasnippet"
+    (evil-make-overriding-map yas-minor-mode-map))
+  ;; Toggle comments, example from evil docs
+  (evil-define-operator my/evil-comment-or-uncomment (beg end)
+    "Toggle comment for the region between BEG and END."
+    (interactive "<r>")
+    (comment-or-uncomment-region beg end))
+  :general-config
+  ('normal 'global "gc" 'my/evil-comment-or-uncomment)
+  ('evil-window-map "o" 'evil-window-mru)
+  ('visual "<tab>" 'evil-shift-right)
+  ('visual "<backtab>" 'evil-shift-left)
+  ('normal "<tab>" 'evil-shift-right-line)
+  ('normal "<backtab>" 'evil-shift-right-line))
 
-  (evil-mode 1))
-
-(use-package evil-collection
+(use-package evil-collection :ensure t
   :after evil
-  :ensure t
-  :config (evil-collection-init))
-
-(with-eval-after-load "evil-collection"
+  :config
+  (evil-collection-init)
+  ;; Make insert mode act like Emacs
   (setopt evil-disable-insert-state-bindings t)
-  ;; Make == execute vip=
-  (defun indent-paragraph-or-evil-indent (fn beg end)
+  ;; Make '==' execute 'vip='. I couldn't figure this out as a keybind.
+  (defun my/indent-paragraph-or-evil-indent (fn beg end)
     ;; Condition from original evil-indent
     (if (and (= beg (line-beginning-position))
              (= end (line-beginning-position 2)))
-        (save-excursion
-          (execute-kbd-macro (read-kbd-macro "vip=")))
+        (save-excursion (execute-kbd-macro (read-kbd-macro "vip=")))
       (funcall fn beg end)))
-  (advice-add 'evil-indent :around 'indent-paragraph-or-evil-indent))
-  
+  (advice-add 'evil-indent :around 'my/indent-paragraph-or-evil-indent))
 
-(use-package evil-anzu
-  :ensure t
+(use-package evil-anzu :ensure t
   :custom (anzu-cons-mode-line-p nil)
   :config
   (require 'evil-anzu) ; Somehow this is necessary
   (global-anzu-mode))
 
-
-;; (with-eval-after-load "evil"
-;;   ;; Fix mouse clicks in Customize buffers
-;;   (with-eval-after-load "custom"
-;;     (evil-make-overriding-map custom-mode-map))
-;;   (with-eval-after-load "yasnippet"
-;;     (evil-make-overriding-map yas-minor-mode-map)))
-
-
-(use-package undo-fu
-  :ensure t
+(use-package undo-fu :ensure t
   :commands (undo-fu-only-undo
              undo-fu-only-redo
              undo-fu-only-redo-all
@@ -232,59 +260,35 @@
   (undo-limit (* 3 160000))
   (undo-strong-limit (* 3 240000)))
 
-(use-package undo-fu-session
-  :ensure t
+(use-package undo-fu-session :ensure t
   :config (undo-fu-session-global-mode))
 
 (use-package goto-chg :ensure t)
 
-(use-package evil-visualstar
+(use-package evil-visualstar :ensure t
   :after evil
-  :ensure t
-  :defer t
   :commands global-evil-visualstar-mode
   :hook (after-init . global-evil-visualstar-mode))
 
-(use-package evil-surround
-  :after evil
-  :ensure t
-  :defer t
-  :commands global-evil-surround-mode
-  :hook (after-init . global-evil-surround-mode))
-
-(with-eval-after-load "evil"
-  (evil-define-operator my/evil-comment-or-uncomment (beg end)
-    "Toggle comment for the region between BEG and END."
-    (interactive "<r>")
-    (comment-or-uncomment-region beg end))
-  (evil-define-key 'normal 'global (kbd "gc") 'my/evil-comment-or-uncomment))
-
-(use-package magit
-  :ensure t
-  :defer t
+(use-package magit :ensure t :defer t
   :commands magit)
 
-(use-package vterm
-  :ensure t
-  :defer t
+(use-package vterm :ensure t :defer t
   :commands vterm
   :config (setq vterm-timer-delay 0.01))
 
-(use-package devdocs
-  :ensure t
+(use-package devdocs :ensure t
   :commands devdocs-lookup
   :bind ("C-h D" . devdocs-lookup))
 
-(use-package vertico
-  :ensure t
-  :defer t
+(use-package vertico :ensure t :defer t
   :commands (vertico-mode vertico-reverse-mode vertico-mouse-mode)
   :bind (:map minibuffer-mode-map
-              ("<tab>" . completion-at-point)
-              ("C-S-k" . kill-line)
-              :map vertico-map
-              ("<next>" . vertico-scroll-up)
-              ("<prior>" . vertico-scroll-down))
+         ("<tab>" . completion-at-point)
+         ("C-S-k" . kill-line)
+         :map vertico-map
+         ("<next>" . vertico-scroll-up)
+         ("<prior>" . vertico-scroll-down))
   :custom
   (vertico-cycle t)
   (vertico-scroll-margin 1)
@@ -310,40 +314,27 @@
           (cdr args)))
   (advice-add 'completing-read-multiple :filter-args 'my/crm-indicator))
 
-
-(use-package orderless
-  ;; Vertico leverages Orderless' flexible matching capabilities, allowing users
-  ;; to input multiple patterns separated by spaces, which Orderless then
-  ;; matches in any order against the candidates.
-  :ensure t
+(use-package orderless :ensure t
   :custom
   (completion-styles '(orderless basic))
   (completion-category-defaults nil)
   (completion-category-overrides '((file (styles partial-completion)))))
 
-(use-package marginalia
-  :ensure t
-  :defer t
+(use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
   :hook (after-init . marginalia-mode))
 
-(use-package embark
-  :ensure t
-  :defer t
+(use-package embark :ensure t :defer t
   :bind (("C-." . embark-act)
          ("C-," . embark-dwim)
          ("C-h B" . embark-bindings))
   :init (setq prefix-help-command #'embark-prefix-help-command))
 
-(use-package embark-consult
-  :ensure t
+(use-package embark-consult :ensure t
   :hook (embark-collect-mode . consult-preview-at-point-mode))
 
-(use-package consult
-  :ensure t
-  :demand t
-  :bind (;; C-c bindings in `mode-specific-map'
-         ("C-c M-x" . consult-mode-command)
+(use-package consult :ensure t :demand t
+  :bind (("C-c M-x" . consult-mode-command)
          ("C-c h" . consult-history)
          ("C-c k" . consult-kmacro)
          ("C-c m" . consult-man)
@@ -394,39 +385,34 @@
          :map minibuffer-local-map
          ("M-s" . consult-history)
          ("M-r" . consult-history))
-
   ;; Enable automatic preview at point in the *Completions* buffer.
   :hook (completion-list-mode . consult-preview-at-point-mode)
-
   :init
   ;; Optionally configure the register formatting. This improves the register
   (setq register-preview-delay 0.5
         register-preview-function #'consult-register-format)
-
   ;; Optionally tweak the register preview window.
   (advice-add #'register-preview :override #'consult-register-window)
-
   ;; Use Consult to select xref locations with preview
   (setq xref-show-xrefs-function #'consult-xref
         xref-show-definitions-function #'consult-xref)
-
   :config
   (add-to-list 'consult-buffer-filter "\\`\\*Compile-Log\\*\\'")
   (add-to-list 'consult-buffer-filter "\\`\\*Async-native-compile-log\\*\\'")
   (defvar my/consult--source-buffer-no-star
     `(:name "Buffer"
-            :narrow ?b
-            :category buffer
-            :face consult-buffer
-            :history buffer-name-history
-            :state ,#'consult--buffer-state
-            :default t
-            :items
-            ,(lambda ()
-               (consult--buffer-query :sort 'visibility
-                                      :as #'consult--buffer-pair
-                                      :exclude
-                                      `("\\`\\*" ,@consult-buffer-filter)))))
+      :narrow ?b
+      :category buffer
+      :face consult-buffer
+      :history buffer-name-history
+      :state ,#'consult--buffer-state
+      :default t
+      :items
+      ,(lambda ()
+         (consult--buffer-query :sort 'visibility
+                                :as #'consult--buffer-pair
+                                :exclude
+                                `("\\`\\*" ,@consult-buffer-filter)))))
   (defun consult-buffer-only (&optional arg)
     "`consult-buffer` that only shows buffers. With prefix, show * buffers."
     (interactive "P")
@@ -449,15 +435,11 @@
    :preview-key '(:debounce 0.4 any))
   (setq consult-narrow-key "<"))
 
-
-(use-package corfu
-  :ensure t
-  :defer t
+(use-package corfu :ensure t :defer t
   :commands (corfu-mode global-corfu-mode corfu-popupinfo-mode)
   :hook ((after-init . global-corfu-mode)
          (after-init . corfu-popupinfo-mode))
-  :bind (
-         ("C-SPC" . completion-at-point) ; for when tab isn't usable
+  :bind (("C-SPC" . completion-at-point) ; for when tab isn't usable
          :map evil-insert-state-map
          ("<tab>" . indent-for-tab-command)
          :map corfu-map
@@ -478,25 +460,18 @@
   (text-mode-ispell-word-completion nil)
   (tab-always-indent 'complete))
 
-
-(use-package cape
-  :ensure t
-  :defer t
+(use-package cape :ensure t :defer t
   :commands (cape-dabbrev cape-file cape-elisp-block)
   :bind ("C-c p" . cape-prefix-map)
   :init
-  ;; Add to the global default value of `completion-at-point-functions' which is
-  ;; used by `completion-at-point'.
   (add-hook 'completion-at-point-functions #'cape-dabbrev)
   (add-hook 'completion-at-point-functions #'cape-file)
   (add-hook 'completion-at-point-functions #'cape-elisp-block))
 
-(use-package form-feed-st
-  :ensure t
+(use-package form-feed-st :ensure t
   :hook (after-init . global-form-feed-st-mode))
 
-(use-package highlight-parentheses
-  :ensure t
+(use-package highlight-parentheses :ensure t
   :hook (minibuffer-setup . highlight-parentheses-minibuffer-setup)
   :custom
   (highlight-parentheses-colors
@@ -505,20 +480,18 @@
    '("#BBFFDD" "#BBDDFF" "#FFCCFF" "#FFDDDD" "#FFEECC"))
   :config (global-highlight-parentheses-mode))
 
-(use-package yasnippet
-  :ensure t
+(use-package yasnippet :ensure t
   :hook (after-init . yas-global-mode)
   :custom (yas-alias-to-yas/prefix-p nil)
   :bind (:map yas-minor-mode-map
-              ("C-i" . yas-expand)
-              ("C-S-i" . yas-insert-snippet)
-              :map yas-keymap
-              ("C-n" . yas-next-field)
-              ("C-p" . yas-prev-field)
-              ("S-<return>" . newline)
-              ("<return>" . yas-next-field)         
-              ("<tab>" . yas-next-field))
-  
+         ("C-i" . yas-expand)
+         ("C-S-i" . yas-insert-snippet)
+         :map yas-keymap
+         ("C-n" . yas-next-field)
+         ("C-p" . yas-prev-field)
+         ("S-<return>" . newline)
+         ("<return>" . yas-next-field)
+         ("<tab>" . yas-next-field))
   :config
   (define-key yas-minor-mode-map (kbd "<tab>") nil)
   (define-key yas-minor-mode-map (kbd "TAB") nil)
@@ -527,115 +500,39 @@
   (defun my/ensure-insert ()
     (unless (eq evil-state 'insert)
       (evil-insert 1)))
-  
   (add-hook 'yas-after-exit-snippet-hook 'evil-normal-state)
   (add-hook 'yas-before-expand-snippet-hook 'my/ensure-insert))
 
 (use-package yasnippet-snippets :ensure t)
 
-(use-package uniquify
-  :ensure nil
-  :custom
-  (uniquify-buffer-name-style 'forward)
-  (uniquify-after-kill-buffer-p t)
-  (uniquify-ignore-buffers-re "^\\*"))
-
-(use-package fennel-mode
-  :ensure t
+(use-package fennel-mode :ensure t
+  :mode "\\.fnl\\'"
   :config
-  (add-to-list 'auto-mode-alist '("\\.fnl\\'" . fennel-mode))
   (put 'when-let 'fennel-indent-function 1))
 
-(use-package pdf-tools
-  :ensure t
-  :defer t
+(use-package pdf-tools :ensure t :defer t
   :hook
   (after-init . pdf-loader-install)
   (pdf-view-mode . my/no-blink-cursor))
 
-(use-package simple-modeline
-  :ensure t
+(use-package simple-modeline :ensure t :demand t
   :hook (after-init . simple-modeline-mode)
   :custom (simple-modeline-word-count-modes nil))
 
-(use-package org
-  :ensure nil
-  :hook
-  (org-mode . auto-fill-mode)
-  :bind (("C-c C-o c" . org-capture)
-         :map org-mode-map
-         ("<backtab>" . org-shifttab)
-         ("<normal-state> <backtab>" . org-shifttab)
-         ("C-j" . cycbuf-switch-to-next-buffer)
-         ("C-k" . cycbuf-switch-to-previous-buffer)
-         ("<normal-state> C-j" . cycbuf-switch-to-next-buffer)
-         ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer))
-  :custom
-  (org-pretty-entitites t)
-  (org-hide-emphasis-markers t)
-  (org-hide-leading-stars t)
-  (org-adapt-indentation t)
-  (org-ellipsis " ⤵")
-  (org-cycle-separator-lines 1)
-  :config
-  (unless (file-exists-p org-directory) (make-directory org-directory t))
-  (setq org-default-notes-file
-        (concat (file-name-as-directory org-directory) "notes")))
-
-(use-package org-superstar
-  :ensure t
+(use-package org-superstar :ensure t
   :hook (org-mode . org-superstar-mode)
   :custom (org-superstar-special-todo-items t))
 
-(use-package org-variable-pitch
-  :ensure t
+(use-package org-variable-pitch :ensure t
   :hook (after-init . org-variable-pitch-setup))
 
-(use-package compile
-  :ensure nil
-  :bind (:map compilation-mode-map
-              ("C-j" . cycbuf-switch-to-next-buffer)
-              ("C-k" . cycbuf-switch-to-previous-buffer)
-              ("<normal-state> C-j" . cycbuf-switch-to-next-buffer)
-              ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer)))
-
-(use-package eglot
-  :ensure nil
-  :custom (eglot-ignored-server-capabilities '(:inlayHintProvider)))
-
-(use-package isearch
-  :ensure nil
-  :custom
-  (isearch-lazy-count t)
-  (lazy-count-prefix-format "[%s/%s] "))
-
-
-(defvar my/eldoc-help-message "")
-(use-package eldoc
-  :ensure nil
-  :config 
-  (defun my/eldoc-minibuffer-message (fn fmt-str &rest args)
-    (if (or (bound-and-true-p edebug-mode) (minibufferp))
-        (progn
-          (if (stringp fmt-str)
-              (setq my/eldoc-help-message (apply #'format-message fmt-str args))
-            (setq my/eldoc-help-message ""))
-          (force-mode-line-update t))
-      (apply fn fmt-str args)))
-  (advice-add 'eldoc-minibuffer-message :around 'my/eldoc-minibuffer-message)
-  (defun my/clear-eldoc-help-message ()
-    (setq my/eldoc-help-message ""))
-  (add-hook 'minibuffer-exit-hook 'my/clear-eldoc-help-message))
-
-(use-package cycbuf
-  :ensure t
+(use-package cycbuf :ensure t
   :bind (:map evil-motion-state-map
-              ("C-j" . cycbuf-switch-to-next-buffer)
-              ("C-k" . cycbuf-switch-to-previous-buffer)
-              :map evil-normal-state-map
-              ("C-j" . cycbuf-switch-to-next-buffer)
-              ("C-k" . cycbuf-switch-to-previous-buffer))
-  
+         ("C-j" . cycbuf-switch-to-next-buffer)
+         ("C-k" . cycbuf-switch-to-previous-buffer)
+         :map evil-normal-state-map
+         ("C-j" . cycbuf-switch-to-next-buffer)
+         ("C-k" . cycbuf-switch-to-previous-buffer))
   :config
   (add-to-list 'cycbuf-dont-show-regexp "\\`\\*")
   (setq cycbuf-max-window-height 5)
@@ -677,8 +574,7 @@
           ("Directory"  cycbuf-get-file-length left cycbuf-get-file-name))))
 
 ;; NOTE: Remember you can "fix" pairs with replace without toggling strict mode
-(use-package smartparens
-  :ensure t
+(use-package smartparens :ensure t
   :hook
   (prog-mode . smartparens-mode)
   (smartparens-mode . smartparens-strict-mode)
@@ -689,15 +585,13 @@
                       :inherit 'unspecified))
 
 ;; TODO: Set up movement keybinds that don't conflict with Vim muscle memory
-(use-package evil-cleverparens
-  :ensure t
+(use-package evil-cleverparens :ensure t
   :custom
   (evil-cleverparens-use-additional-bindings nil)
   (evil-cleverparens-use-additional-movement-keys nil)
   :hook (smartparens-mode . evil-cleverparens-mode))
 
-(use-package aggressive-indent
-  :ensure t
+(use-package aggressive-indent :ensure t
   :config
   ;; Aggressive indent doesn't respond well to the way elisp indents ; and ;;
   ;; comments differently. This is modified from the existing comment logic in
@@ -712,24 +606,116 @@
                          (string-match (concat "\\`[[:blank:]]*" c "*") line)))))
   (global-aggressive-indent-mode))
 
-;; The actual package is stale and hasn't merged any fixes in a while
+(use-package flycheck :ensure t :defer t
+  :config
+  (defun my/flycheck-mouse-next (event)
+    (interactive "e")
+    (with-selected-window (posn-window (event-start event))
+      (flycheck-next-error)))
+  (defun my/flycheck-mouse-prev (event)
+    (interactive "e")
+    (with-selected-window (posn-window (event-start event))
+      (flycheck-previous-error))))
+
+(use-package minions :ensure t
+  :custom (minions-mode-line-delimiters '(" " . ""))
+  :hook (after-init . minions-mode))
+
+;; This would be an external package, but the actual package is stale and
+;; hasn't merged any fixes in a while.
 (when (minimal-emacs-load-user-init "treesit-auto.el")
   (setq treesit-auto-install 'prompt)
   (treesit-auto-add-to-auto-mode-alist 'all)
   (global-treesit-auto-mode))
 
-(use-package minions
-  :ensure t
-  :custom (minions-mode-line-delimiters '(" " . ""))
-  :hook (after-init . minions-mode))
 
-(use-package winner-mode
-  :ensure nil
-  :bind (:map evil-window-map
-              ("u" . winner-undo) ; "C-w u" to undo a window change
-              ("C-r" . winner-redo))
+;;;; Internal Packages
+;;;; ======================================================================
+
+(use-package eshell :ensure nil
+  :general-config ('insert eshell-mode-map "<tab>" 'completion-at-point))
+
+(use-package winner-mode :ensure nil
+  :general
+  (:keymaps 'evil-window-map ; C-w prefix
+   "u" 'winner-undo
+   "C-r" 'winner-redo)
   :custom (winner-dont-bind-my-keys t)
   :hook (after-init . winner-mode))
+
+(use-package flymake :ensure nil
+  :config
+  (defun my/flymake-mouse-next (event)
+    (interactive "e")
+    (with-selected-window (posn-window (event-start event))
+      (flymake-goto-next-error)))
+  (defun my/flymake-mouse-prev (event)
+    (interactive "e")
+    (with-selected-window (posn-window (event-start event))
+      (flymake-goto-prev-error))))
+
+(use-package isearch :ensure nil
+  :custom
+  (isearch-lazy-count t)
+  (lazy-count-prefix-format "[%s/%s] "))
+
+(use-package eldoc :ensure nil
+  :init (defvar my/eldoc-help-message "")
+  :config 
+  (defun my/eldoc-minibuffer-message (fn fmt-str &rest args)
+    (if (or (bound-and-true-p edebug-mode) (minibufferp))
+        (progn
+          (if (stringp fmt-str)
+              (setq my/eldoc-help-message (apply #'format-message fmt-str args))
+            (setq my/eldoc-help-message ""))
+          (force-mode-line-update t))
+      (apply fn fmt-str args)))
+  (advice-add 'eldoc-minibuffer-message :around 'my/eldoc-minibuffer-message)
+  (defun my/clear-eldoc-help-message ()
+    (setq my/eldoc-help-message ""))
+  (add-hook 'minibuffer-exit-hook 'my/clear-eldoc-help-message))
+
+(use-package compile :ensure nil
+  :bind (:map compilation-mode-map
+         ("C-j" . cycbuf-switch-to-next-buffer)
+         ("C-k" . cycbuf-switch-to-previous-buffer)
+         ("<normal-state> C-j" . cycbuf-switch-to-next-buffer)
+         ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer)))
+
+(use-package eglot :ensure nil
+  :custom (eglot-ignored-server-capabilities '(:inlayHintProvider)))
+
+(use-package org :ensure nil
+  :hook (org-mode . auto-fill-mode)
+  :bind (("C-c C-o c" . org-capture)
+         :map org-mode-map
+         ("<backtab>" . org-shifttab)
+         ("<normal-state> <backtab>" . org-shifttab)
+         ("C-j" . cycbuf-switch-to-next-buffer)
+         ("C-k" . cycbuf-switch-to-previous-buffer)
+         ("<normal-state> C-j" . cycbuf-switch-to-next-buffer)
+         ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer))
+  :custom
+  (org-pretty-entitites t)
+  (org-hide-emphasis-markers t)
+  (org-hide-leading-stars t)
+  (org-adapt-indentation t)
+  (org-ellipsis " ⤵")
+  (org-cycle-separator-lines 1)
+  :config
+  (unless (file-exists-p org-directory) (make-directory org-directory t))
+  (setq org-default-notes-file
+        (concat (file-name-as-directory org-directory) "notes")))
+
+(use-package uniquify :ensure nil
+  :custom
+  (uniquify-buffer-name-style 'forward)
+  (uniquify-after-kill-buffer-p t)
+  (uniquify-ignore-buffers-re "^\\*"))
+
+
+;;;; Customized Mode Line
+;;;; ======================================================================
 
 (defun my/colorize (text fg bg)
   (propertize text 'face `(:foreground ,fg :background ,bg)))
@@ -752,68 +738,116 @@
         (my/colorize mode-text "black" (my/vim-color)))
     ""))
 
-(with-eval-after-load "minions"
-  (with-eval-after-load "simple-modeline"
-    (with-eval-after-load "evil"
-      (defun my/evil-state () '(:eval (my/vim-state)))
-      (defun my/modeline-modes ()
-        (if (mode-line-window-selected-p)
-            minions-mode-line-modes
-          (format-mode-line mode-name)))
-      (defun my/modeline-position-default ()
-        `(:propertize ("▏ %3l : %2C ") face (:background ,(my/vim-color))))
-      (defun my/modeline-position-pdf ()
-        (require 'pdf-view)
-        (require 'pdf-info)
-        (let ((str (format "▏ Page %d/%d "
-                           (pdf-view-current-page)
-                           (pdf-info-number-of-pages))))
-          `(:propertize ,str face (:background ,(my/vim-color)))))
-      (defun my/modeline-position ()
-        (if (mode-line-window-selected-p)
-            (cond ((eq major-mode 'pdf-view-mode) (my/modeline-position-pdf))
-                  (t (my/modeline-position-default)))
-          ""))
-      (defun my/modeline-search ()
-        (if (mode-line-window-selected-p)
-            (concat " " (anzu--update-mode-line))
-          ""))
-      (defun my/modeline-eldoc ()
-        (or 
-         (unless (string= "" my/eldoc-help-message)
-           (when (active-minibuffer-window)
-             (let ((bot-win (or (window-in-direction 'above (minibuffer-window))
-                                (minibuffer-selected-window)
-                                (get-largest-window))))
-               (when (eq (selected-window) bot-win)
-                 (concat " " my/eldoc-help-message " ")))))
-         ""))
-      (defun my/modeline-extend (result)
-        (concat result (my/colorize " " "black" (my/vim-color))))
-      (advice-add 'simple-modeline--format :filter-return 'my/modeline-extend)
-      (setopt simple-modeline-segments
-              '((my/evil-state
-                 simple-modeline-segment-modified
-                 simple-modeline-segment-buffer-name
-                 my/modeline-search
-                 my/modeline-eldoc)
-                (simple-modeline-segment-misc-info
-                 simple-modeline-segment-vc
-                 my/modeline-modes
-                 my/modeline-position)))
-      (set-face-attribute 'fringe nil :background "white"))))
+(defun my/make-check-text (status errors warnings info map)
+  (if (or (null status) (string= status ""))
+      (let* ((e (format "%s " errors))
+             (w (format "%s " warnings))
+             (i (format "%s" info)))
+        `((:propertize ,e mouse-face mode-line-highlight keymap ,map face error)
+          (:propertize ,w mouse-face mode-line-highlight keymap ,map face warning)
+          (:propertize ,i mouse-face mode-line-highlight keymap ,map face success)))
+    `(:propertize ,status mouse-face mode-line-highlight keymap ,map face warning)))
 
+(defun my/flycheck-status ()
+  (if (bound-and-true-p flycheck-mode)
+      (let ((map (make-sparse-keymap)))
+        (define-key map [mode-line down-mouse-1] flycheck-mode-menu-map)
+        (define-key map [mode-line wheel-down] 'my/flycheck-mouse-next)
+        (define-key map [mode-line wheel-up] 'my/flycheck-mouse-prev)
+        (if (eq flycheck-last-status-change 'finished)
+            (let* ((all (flycheck-count-errors flycheck-current-errors))
+                   (errors (cdr (or (assoc 'error all) '(nil . 0))))
+                   (warnings (cdr (or (assoc 'warning all) '(nil . 0))))
+                   (info (cdr (or (assoc 'info all) '(nil . 0)))))
+              (my/make-check-text "" errors warnings info map))
+          (my/make-check-text (symbol-name flycheck-last-status-change) 0 0 0 map)))
+    ""))
 
+(defun my/flymake-status ()
+  (if (bound-and-true-p flymake-mode)
+      (let ((map (make-sparse-keymap))
+            (status (flymake--mode-line-exception)))
+        (define-key map [mode-line down-mouse-1] 'flymake-menu)
+        (define-key map [mode-line wheel-down] 'my/flymake-mouse-next)
+        (define-key map [mode-line wheel-up] 'my/flymake-mouse-prev)
+        (if status
+            (my/make-check-text status 0 0 0 map)
+          (let* ((e (cadadr (flymake--mode-line-counter :error)))
+                 (w (cadadr (flymake--mode-line-counter :warning)))
+                 (i (cadadr (flymake--mode-line-counter :note))))
+            (my/make-check-text "" e w i map))))
+    ""))
+
+(defun my/evil-state () '(:eval (my/vim-state)))
+(defun my/modeline-modes ()
+  (if (mode-line-window-selected-p) 
+      minions-mode-line-modes
+    (format-mode-line mode-name)))
+(defun my/modeline-position-default ()
+  `(:propertize ("▏ %3l : %2C ") face (:background ,(my/vim-color))))
+(defun my/modeline-position-pdf ()
+  (require 'pdf-view)
+  (require 'pdf-info)
+  (let ((str (format "▏ Page %d/%d "
+                     (pdf-view-current-page)
+                     (pdf-info-number-of-pages))))
+    `(:propertize ,str face (:background ,(my/vim-color)))))
+(defun my/modeline-position ()
+  (if (mode-line-window-selected-p)
+      (cond ((eq major-mode 'pdf-view-mode) (my/modeline-position-pdf))
+            (t (my/modeline-position-default)))
+    ""))
+(defun my/modeline-search ()
+  (if (mode-line-window-selected-p)
+      (let ((search-info (anzu--update-mode-line)))
+        (if (null search-info)
+            ""
+          (concat "  ▏" search-info)))
+    ""))
+(defun my/modeline-eldoc ()
+  (or 
+   (unless (string= "" my/eldoc-help-message)
+     (when (active-minibuffer-window)
+       (let ((bot-win (or (window-in-direction 'above (minibuffer-window))
+                          (minibuffer-selected-window)
+                          (get-largest-window))))
+         (when (eq (selected-window) bot-win)
+           (concat " ▏" my/eldoc-help-message " ")))))
+   ""))
+(defun my/modeline-fly ()
+  (if (mode-line-window-selected-p)
+      (cond ((bound-and-true-p flymake-mode) '("" (:eval (my/flymake-status)) "▕ "))
+            ((bound-and-true-p flycheck-mode) '("" (:eval (my/flycheck-status)) "▕ "))
+            (t ""))
+    ""))
+(defun my/modeline-vc ()
+  (if (mode-line-window-selected-p)
+      '(vc-mode ("" vc-mode " ▕ "))
+    ""))
+(defun my/modeline-extend (result)
+  (concat result (my/colorize " " "black" (my/vim-color))))
+(advice-add 'simple-modeline--format :filter-return 'my/modeline-extend)
+(setopt simple-modeline-segments
+        '((my/evil-state
+           simple-modeline-segment-modified
+           simple-modeline-segment-buffer-name
+           my/modeline-search
+           my/modeline-eldoc)
+          (simple-modeline-segment-misc-info
+           my/modeline-fly
+           my/modeline-vc
+           my/modeline-modes
+           my/modeline-position)))
+(set-face-attribute 'fringe nil :background "white")
+
+;;;; Other keybinds
+;;;; ======================================================================
+
+;; TODO: Use general.el
 
 (keymap-global-set "C-x k" 'kill-current-buffer)
 (keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
 (keymap-global-set "<mode-line> <mouse-3>" 'mouse-buffer-menu)
-
-(when (treesit-available-p)
-  (setq treesit-font-lock-level 4)
-  (when (treesit-language-available-p 'cmake)
-    (add-to-list 'auto-mode-alist '("CMakeLists.txt" . cmake-ts-mode))
-    (add-to-list 'auto-mode-alist '("\\.cmake\\'" . cmake-ts-mode))))
 
 (defun recompile-or-prompt ()
   (interactive)
@@ -852,8 +886,11 @@
   (keymap-set rectangle-mark-mode-map "C-i" 'string-insert-rectangle)
   (keymap-set rectangle-mark-mode-map "C-r" 'replace-rectangle))
 
+
+;;;; Window layout and display-buffer-alist
+;;;; ======================================================================
+
 (setq switch-to-buffer-obey-display-actions nil)
-;;(display-buffer-base-action '(display-buffer-same-window))
 (setq switch-to-prev-buffer-skip-regexp (rx (seq bos (or "*" " "))))
 (setq window-sides-slots '(1 0 0 2))
 (setq fit-window-to-buffer-horizontally t)
@@ -875,4 +912,5 @@
    (,(rx (seq bos (or "*" " *")))
     (display-buffer-in-side-window display-buffer-no-window)
     (side . bottom))))
+
    
