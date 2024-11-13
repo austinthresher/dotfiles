@@ -8,12 +8,14 @@
 
 ;;;; Theme and font
 ;;;; ======================================================================
-(setq modus-themes-headings
-      (quote ((t . (variable-pitch medium 1.1)))))
+;; (setq modus-themes-headings
+;;       (quote ((t . (variable-pitch medium 1.1)))))
+(setq modus-themes-mixed-fonts t)
 (load-theme 'modus-operandi t)
 
-(set-face-attribute 'default nil :family "Iosevka" :height 130)
-(set-face-attribute 'variable-pitch nil :family "Roboto Condensed")
+(set-face-attribute 'default nil :family "Iosevka" :height 140)
+(set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 130)
+(set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
 
 
 ;;;; General settings
@@ -154,16 +156,42 @@
 (defun my/no-fringes (&rest _)
   "Add this as a hook to buffers that should not show fringes"
   (setq-local left-fringe-width 1
-              right-fringe-width 1)
+              right-fringe-width 1))
+
+(defun my/no-fringes-redisplay (&rest _)
+  "Performs the redisplay that is necessary for the fringes change to appear."
+  (my/no-fringes)
+  (set-window-buffer (selected-window) (current-buffer)))
+
+(defun my/margins (&rest _)
+  "Add this as a hook to buffers that should have extra margins"
+  (setq-local left-margin-width 1
+              right-margin-width 1))
+
+(defun my/margins-redisplay (&rest _)
+  "Performs the redisplay that is necessary for the margin change to appear."
+  (my/margins)
   (set-window-buffer (selected-window) (current-buffer)))
 
 (defun my/no-blink-cursor (&rest _)
   "Add this as a hook to buffers that should not blink the cursor"
   (setq-local blink-cursor-mode nil))
 
+(defun my/word-wrap (&rest _)
+  "Add this as a hook to force word wrap in a buffer"
+  (setq-local truncate-lines nil)
+  (word-wrap-whitespace-mode t))
+
 
 ;;;; External Packages
 ;;;; ======================================================================
+
+;; This would be an external package, but the actual package is stale and
+;; hasn't merged any fixes in a while.
+(when (minimal-emacs-load-user-init "treesit-auto.el")
+  (setq treesit-auto-install 'prompt)
+  (treesit-auto-add-to-auto-mode-alist 'all)
+  (global-treesit-auto-mode))
 
 ;; Enable extra use-package keywords
 (use-package general :ensure t :demand t)
@@ -225,6 +253,7 @@
   :general-config
   ('normal 'global "gc" 'my/evil-comment-or-uncomment)
   ('evil-window-map "o" 'evil-window-mru)
+  ('insert 'prog-mode-map "<tab>" 'indent-for-tab-command)
   ('visual "<tab>" 'evil-shift-right)
   ('visual "<backtab>" 'evil-shift-left)
   ('normal "<tab>" 'evil-shift-right-line)
@@ -273,9 +302,11 @@
 (use-package magit :ensure t :defer t
   :commands magit)
 
-(use-package vterm :ensure t :defer t
-  :commands vterm
-  :config (setq vterm-timer-delay 0.01))
+(use-package eat :ensure t
+  :hook ((eshell-load . eat-eshell-mode)
+         (eshell-load . eat-eshell-visual-command-mode))
+  :general-config
+  ('(normal insert) eat-mode-map "C-c P" 'eat-send-password))
 
 (use-package devdocs :ensure t
   :commands devdocs-lookup
@@ -440,8 +471,8 @@
   :hook ((after-init . global-corfu-mode)
          (after-init . corfu-popupinfo-mode))
   :bind (("C-SPC" . completion-at-point) ; for when tab isn't usable
-         :map evil-insert-state-map
-         ("<tab>" . indent-for-tab-command)
+         ;; :map evil-insert-state-map
+         ;; ("<tab>" . indent-for-tab-command)
          :map corfu-map
          ("<prior>" . corfu-scroll-down)
          ("<next>" . corfu-scroll-up)
@@ -562,7 +593,7 @@
   (advice-add 'cycbuf-set-window-height :override 'my/cycbuf-set-window-height)
   (advice-add 'cycbuf-layout-status-line :around 'my/cycbuf-layout-status-line)
   (add-hook 'cycbuf-mode-hook 'my/no-mode-line)
-  (add-hook 'cycbuf-mode-hook 'my/no-fringes)
+  (add-hook 'cycbuf-mode-hook 'my/no-fringes-redisplay)
   (setq cycbuf-attributes-list
         '(("Buffer"     cycbuf-get-name-length left  cycbuf-get-name)
           (""           2                      left  "  ")
@@ -621,18 +652,25 @@
   :custom (minions-mode-line-delimiters '(" " . ""))
   :hook (after-init . minions-mode))
 
-;; This would be an external package, but the actual package is stale and
-;; hasn't merged any fixes in a while.
-(when (minimal-emacs-load-user-init "treesit-auto.el")
-  (setq treesit-auto-install 'prompt)
-  (treesit-auto-add-to-auto-mode-alist 'all)
-  (global-treesit-auto-mode))
+(use-package markdown-mode :ensure t
+  :custom
+  (markdown-display-remote-images t)
+  (markdown-enable-highlighting-syntax t)
+  (markdown-fontify-code-blocks-natively t)
+  (markdown-hide-markup t)
+  (markdown-enable-wiki-links t)
+  (markdown-list-item-bullets '("•" "‣" "‧" "╴"))
+  :config
+  (general-add-hook (list 'markdown-mode-hook 'markdown-view-mode-hook
+                          'gfm-mode-hook 'gfm-view-mode-hook)
+                    (list 'my/word-wrap 'my/no-fringes 'my/margins 'variable-pitch-mode)))
 
 
 ;;;; Internal Packages
 ;;;; ======================================================================
 
 (use-package eshell :ensure nil
+  :custom (eshell-destroy-buffer-when-process-dies t)
   :general-config ('insert eshell-mode-map "<tab>" 'completion-at-point))
 
 (use-package winner-mode :ensure nil
@@ -712,6 +750,24 @@
   (uniquify-buffer-name-style 'forward)
   (uniquify-after-kill-buffer-p t)
   (uniquify-ignore-buffers-re "^\\*"))
+
+(use-package dired :ensure nil
+  :custom
+  (dired-free-space nil)
+  :config
+  (setq dired-x-hands-off-my-keys t)
+  (require 'dired-x)
+  (setopt dired-omit-files "\\`\\.")
+  ;; Always open directories in the same window, files in another window
+  (defun my/dired-mouse-find-file-smart (event)
+    (interactive "e" dired-mode)
+    (dired-mouse-find-file event
+                           'find-file-other-window
+                           'find-alternate-file))
+  (advice-add 'dired-mouse-find-file-other-window :override
+              'my/dired-mouse-find-file-smart)
+  (add-hook 'dired-mode-hook 'dired-hide-details-mode)
+  (add-hook 'dired-mode-hook 'dired-omit-mode))
 
 
 ;;;; Customized Mode Line
@@ -901,6 +957,9 @@
     nil
     (window-parameters (mode-line-format . none)))
    ("\\`[ ]?\\*\\(Help\\|Customize\\|info\\|eldoc\\|Occur\\|grep\\|devdocs\\|Pp\\)"
+    display-buffer-in-side-window
+    (side . bottom) (slot . -1) (preserve-size . (nil . t)))
+   ((major-mode . dired-mode)
     display-buffer-in-side-window
     (side . bottom) (slot . -1) (preserve-size . (nil . t)))
    ("\\`[ ]?\\*\\(compilation\\|[e]?shell\\|[v]?term\\|.*REPL\\)"
