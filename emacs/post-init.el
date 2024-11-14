@@ -4,6 +4,8 @@
 ;; - Make keybinds for the mouse back/forward buttons that call appropriate
 ;;   functions in the window under the mouse, based on the major mode of that
 ;;   window's buffer. pdf-history-backward, help-go-back, etc.
+;; - Try to figure out triggering sp-comment when the comment string is typed
+;;   for the current language's mode.
 
 
 ;;;; Theme and font
@@ -44,6 +46,9 @@
                         (awk-mode . "awk")
                         (other . "k&r")))
 (setq tab-width 8)
+(set-face-attribute 'window-divider-first-pixel nil :foreground "white")
+(set-face-attribute 'window-divider-last-pixel nil :foreground "white")
+(setopt window-divider-default-right-width 3)
 
 
 ;;;; Cursor customization
@@ -52,7 +57,10 @@
 (setq blink-cursor-blinks 0)
 (setq blink-cursor-delay 0.2)
 (setq blink-cursor-interval 0.1)
+(setq-default cursor-type 'box)
 (setq blink-cursor-alist '((box . box) (hollow . hollow) (bar . bar)
+                           (t . box) (nil . box)
+                           ((box . 1) . box)
                            ((hbar . 2) . (hbar . 2))
                            ((hbar . 4) . (hbar . 4))
                            ((hbar . 6) . (hbar . 6))
@@ -233,6 +241,7 @@
   (advice-add 'read-string :filter-args 'my/hide-prev-search)
   (defun my/auto-clear-anzu (&rest _) (anzu--reset-status))
   (advice-add 'evil-force-normal-state :after 'evil-ex-nohighlight)
+  (advice-add 'evil-force-normal-state :after 'deactivate-mark)
   (advice-add 'evil-next-line :after 'my/auto-clear-anzu)
   (advice-add 'evil-previous-line :after 'my/auto-clear-anzu)
   (advice-add 'evil-forward-char :after 'my/auto-clear-anzu)
@@ -240,24 +249,34 @@
   (advice-add 'windmove-do-window-select :after 'my/auto-clear-anzu)
   (advice-add 'switch-to-buffer :after 'my/auto-clear-anzu)
   (evil-mode t)
-  ;; Fix mouse clicks in Customize buffers
+  (defun my/set-hollow-cursor ()
+    (setq-local evil-motion-state-cursor 'hollow
+                evil-normal-state-cursor 'hollow
+                evil-insert-state-cursor 'hollow
+                evil-visual-state-cursor 'hollow
+                evil-emacs-state-cursor 'hollow))
+  ;; Fix mouse clicks in Customize buffers, also cursor apperance over icons
   (with-eval-after-load "custom"
-    (evil-make-overriding-map custom-mode-map))
+    (evil-make-overriding-map custom-mode-map)
+    (add-hook 'Custom-mode-hook 'my/set-hollow-cursor))
   (with-eval-after-load "yasnippet"
     (evil-make-overriding-map yas-minor-mode-map))
-  ;; Toggle comments, example from evil docs
   (evil-define-operator my/evil-comment-or-uncomment (beg end)
     "Toggle comment for the region between BEG and END."
     (interactive "<r>")
     (comment-or-uncomment-region beg end))
+  ;; Set C-S-w to evil-window-map everywhere, then swap it so that C-S-w
+  ;; is mapped to the default C-w, while C-w is now evil-window-map everywhere.
+  (general-def '(insert emacs) "C-S-w" 'evil-window-map)
+  (general-swap-key nil '(insert emacs) "C-S-w" "C-w")
   :general-config
-  ('normal 'global "gc" 'my/evil-comment-or-uncomment)
+  ('global 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
   ('evil-window-map "o" 'evil-window-mru)
   ('insert 'prog-mode-map "<tab>" 'indent-for-tab-command)
   ('visual "<tab>" 'evil-shift-right)
   ('visual "<backtab>" 'evil-shift-left)
   ('normal "<tab>" 'evil-shift-right-line)
-  ('normal "<backtab>" 'evil-shift-right-line))
+  ('normal "<backtab>" 'evil-shift-left-line))
 
 (use-package evil-collection :ensure t
   :after evil
@@ -302,7 +321,10 @@
 (use-package magit :ensure t :defer t
   :commands magit)
 
+;; NOTE: C-q will quote the next input, so you can send ESC with C-q ESC
 (use-package eat :ensure t
+  :commands eat
+  :custom (eat-kill-buffer-on-exit t)
   :hook ((eshell-load . eat-eshell-mode)
          (eshell-load . eat-eshell-visual-command-mode))
   :general-config
@@ -356,9 +378,9 @@
   :hook (after-init . marginalia-mode))
 
 (use-package embark :ensure t :defer t
-  :bind (("C-." . embark-act)
-         ("C-," . embark-dwim)
-         ("C-h B" . embark-bindings))
+  :general ("<f8>" 'embark-act
+            "S-<f8>" 'embark-dwim
+            "C-h B" 'embark-bindings)
   :init (setq prefix-help-command #'embark-prefix-help-command))
 
 (use-package embark-consult :ensure t
@@ -609,18 +631,44 @@
   :hook
   (prog-mode . smartparens-mode)
   (smartparens-mode . smartparens-strict-mode)
+  :custom-face
+  (sp-pair-overlay-face ((t (:background "#F0F0F0" :inherit unspecified))))
+  :custom (sp-delete-blank-sexps t)
   :config
   (require 'smartparens-config)
-  (set-face-attribute 'sp-pair-overlay-face nil
-                      :background "#F0F0F0"
-                      :inherit 'unspecified))
+  ;;(sp-with-modes '(css-base-mode js-base-mode)
+  ;;  (sp-local-pair "{" nil :post-handlers '(("||\n[i]" "RET"))))
+  :general-config
+  ('(normal insert)
+   "M-j" 'sp-join-sexp
+   "C-M-j" 'sp-split-sexp
+   "M-;" 'sp-comment)
+  )
 
 ;; TODO: Set up movement keybinds that don't conflict with Vim muscle memory
 (use-package evil-cleverparens :ensure t
   :custom
   (evil-cleverparens-use-additional-bindings nil)
   (evil-cleverparens-use-additional-movement-keys nil)
-  :hook (smartparens-mode . evil-cleverparens-mode))
+  (evil-cleverparens-use-regular-insert t)
+  :hook (smartparens-mode . evil-cleverparens-mode)
+  :general-config
+  ('normal
+   ;; Mnemonic: Holding Ctrl moves left paren, holding Alt moves the
+   ;; right paren (Ctrl is left of Alt when using right hand for <>).
+   "C->" 'sp-backward-barf-sexp
+   "C-<" 'sp-backward-slurp-sexp
+   "M->" 'sp-forward-slurp-sexp
+   "M-<" 'sp-forward-barf-sexp)
+  ('insert
+   "M-(" 'evil-cp-wrap-next-round
+   "M-)" 'evil-cp-wrap-previous-round
+   "M-{" 'evil-cp-wrap-next-curly
+   "M-}" 'evil-cp-wrap-previous-curly
+   "M-[" 'evil-cp-wrap-next-square
+   "M-]" 'evil-cp-wrap-previous-square
+   ))
+  
 
 (use-package aggressive-indent :ensure t
   :config
@@ -635,6 +683,8 @@
                          ;; Whitespace, followed by any amount of the comment
                          ;; starting character.
                          (string-match (concat "\\`[[:blank:]]*" c "*") line)))))
+  (defun my/indent-defun (&rest _) (aggressive-indent-indent-defun))
+  (advice-add 'insert-parentheses :after 'my/indent-defun)
   (global-aggressive-indent-mode))
 
 (use-package flycheck :ensure t :defer t
@@ -671,6 +721,8 @@
 
 (use-package eshell :ensure nil
   :custom (eshell-destroy-buffer-when-process-dies t)
+  :config (when (require 'eat nil :noerror)
+            (setq eshell-visual-commands '()))
   :general-config ('insert eshell-mode-map "<tab>" 'completion-at-point))
 
 (use-package winner-mode :ensure nil
@@ -913,8 +965,9 @@
              (call-interactively 'compile))
     (call-interactively 'recompile)))
 
-(keymap-global-set "<f5>" 'recompile-or-prompt)
-(keymap-global-set "<f6>" 'compile)
+(general-def
+  "<f5>" 'recompile-or-prompt
+  "<S-f5>" 'compile)
 
 (keymap-global-set "C-x C-m" 'pp-macroexpand-last-sexp)
 
@@ -922,8 +975,8 @@
 (keymap-global-unset "<f1> t")
 
 ;; I really want escape to do what it says
-(keymap-global-set "C-h ESC" 'keyboard-quit)
-(keymap-global-set "C-M-g" 'keyboard-quit)
+(keymap-global-set "C-h ESC" 'keyboard-escape-quit)
+(keymap-global-set "C-M-g" 'keyboard-escape-quit)
 (keymap-global-unset "M-ESC :") ; the only default keybind prefixed by M-ESC
 (keymap-set minibuffer-mode-map "<escape>" 'abort-minibuffers)
 
