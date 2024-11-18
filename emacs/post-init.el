@@ -8,6 +8,17 @@
 ;;   for the current language's mode.
 
 
+;;;; Utility macros
+;;;; ======================================================================
+
+(defmacro add-to-list* (ls &rest vals)
+  "Add multiple items to the same list. Expands to multiple add-to-list calls."
+  (let ((exps))
+    (dolist (v vals)
+      (push `(add-to-list ,ls ,v) exps))
+    (cons 'progn (nreverse exps))))
+
+
 ;;;; Theme and font
 ;;;; ======================================================================
 ;; (setq modus-themes-headings
@@ -125,8 +136,9 @@
 ;;;; ======================================================================
 
 (setq set-message-functions '(inhibit-message set-minibuffer-message))
-(add-to-list 'inhibit-message-regexps "Cleaning up the recentf")
-(add-to-list 'inhibit-message-regexps "Mark saved")
+(add-to-list* 'inhibit-message-regexps
+              "Cleaning up the recentf"
+              "Mark saved")
 
 
 ;;;; Initial built-in minor modes
@@ -137,7 +149,6 @@
 (add-hook 'after-init-hook #'savehist-mode)
 (add-hook 'after-init-hook #'save-place-mode)
 (add-hook 'after-init-hook #'minibuffer-depth-indicate-mode)
-(add-hook 'after-init-hook #'pixel-scroll-precision-mode)
 (global-prettify-symbols-mode t)
 (show-paren-mode -1)
 
@@ -145,13 +156,17 @@
 ;;;; File type associations
 ;;;; ======================================================================
 
-(add-to-list 'auto-mode-alist '("bashrc" . sh-mode))
+(add-to-list* 'auto-mode-alist
+              '("bashrc" . sh-mode) ; matches bashrc and bashrc_local (no dot)
+              '("profile\\'" . sh-mode) ; matches .profile and .bash_profile
+              )
 
 (when (treesit-available-p)
   (setq treesit-font-lock-level 4)
   (when (treesit-language-available-p 'cmake)
-    (add-to-list 'auto-mode-alist '("CMakeLists.txt" . cmake-ts-mode))
-    (add-to-list 'auto-mode-alist '("\\.cmake\\'" . cmake-ts-mode))))
+    (add-to-list* 'auto-mode-alist
+                  '("CMakeLists.txt" . cmake-ts-mode)
+                  '("\\.cmake\\'" . cmake-ts-mode))))
 
 
 ;;;; Customization functions that can be used with hooks or advice
@@ -190,16 +205,15 @@
   (setq-local truncate-lines nil)
   (word-wrap-whitespace-mode t))
 
+(defun my/smaller-fonts (&rest _)
+  "Add this as a hook to have smaller fonts in a buffer"
+  (face-remap-add-relative 'default '(:height 120))
+  (face-remap-add-relative 'variable-pitch '(:height 110))
+  (face-remap-add-relative 'fixed-pitch '(:height 120))
+  (face-remap-add-relative 'header-line '(:height 120)))
 
 ;;;; External Packages
 ;;;; ======================================================================
-
-;; This would be an external package, but the actual package is stale and
-;; hasn't merged any fixes in a while.
-(when (minimal-emacs-load-user-init "treesit-auto.el")
-  (setq treesit-auto-install 'prompt)
-  (treesit-auto-add-to-auto-mode-alist 'all)
-  (global-treesit-auto-mode))
 
 ;; Enable extra use-package keywords
 (use-package general :ensure t :demand t)
@@ -270,7 +284,7 @@
   (general-def '(insert emacs) "C-S-w" 'evil-window-map)
   (general-swap-key nil '(insert emacs) "C-S-w" "C-w")
   :general-config
-  ('global 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
+  ('(normal visual) 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
   ('evil-window-map "o" 'evil-window-mru)
   ('insert 'prog-mode-map "<tab>" 'indent-for-tab-command)
   ('visual "<tab>" 'evil-shift-right)
@@ -292,6 +306,9 @@
         (save-excursion (execute-kbd-macro (read-kbd-macro "vip=")))
       (funcall fn beg end)))
   (advice-add 'evil-indent :around 'my/indent-paragraph-or-evil-indent))
+
+(use-package evil-surround :ensure t
+  :config (global-evil-surround-mode))
 
 (use-package evil-anzu :ensure t
   :custom (anzu-cons-mode-line-p nil)
@@ -328,11 +345,16 @@
   :hook ((eshell-load . eat-eshell-mode)
          (eshell-load . eat-eshell-visual-command-mode))
   :general-config
-  ('(normal insert) eat-mode-map "C-c P" 'eat-send-password))
+  ('(normal insert) eat-mode-map C-c P 'eat-send-password))
 
 (use-package devdocs :ensure t
   :commands devdocs-lookup
-  :bind ("C-h D" . devdocs-lookup))
+  :bind ("C-h D" . devdocs-lookup)
+  :config
+  (general-add-hook 'devdocs-mode-hook (list 'my/smaller-fonts
+                                             'my/word-wrap
+                                             'my/no-mode-line
+                                             'my/no-fringes-redisplay)))
 
 (use-package vertico :ensure t :defer t
   :commands (vertico-mode vertico-reverse-mode vertico-mouse-mode)
@@ -450,8 +472,9 @@
   (setq xref-show-xrefs-function #'consult-xref
         xref-show-definitions-function #'consult-xref)
   :config
-  (add-to-list 'consult-buffer-filter "\\`\\*Compile-Log\\*\\'")
-  (add-to-list 'consult-buffer-filter "\\`\\*Async-native-compile-log\\*\\'")
+  (add-to-list* 'consult-buffer-filter
+                "\\`\\*Compile-Log\\*\\'"
+                "\\`\\*Async-native-compile-log\\*\\'")
   (defvar my/consult--source-buffer-no-star
     `(:name "Buffer"
       :narrow ?b
@@ -558,6 +581,9 @@
 
 (use-package yasnippet-snippets :ensure t)
 
+(use-package lua-mode :ensure t
+  :mode "\\.lua\\'")
+
 (use-package fennel-mode :ensure t
   :mode "\\.fnl\\'"
   :config
@@ -638,12 +664,32 @@
   (require 'smartparens-config)
   ;;(sp-with-modes '(css-base-mode js-base-mode)
   ;;  (sp-local-pair "{" nil :post-handlers '(("||\n[i]" "RET"))))
+  (require 'aggressive-indent)
+  (defun my/wrap-quotes ()
+    (interactive "*")
+    (sp-wrap-with-pair "\""))
+  (defun my/wrap-round-indent ()
+    (interactive "*")
+    (call-interactively #'sp-wrap-round)
+    (aggressive-indent-indent-defun))
+  (defun my/wrap-curly-indent ()
+    (interactive "*")
+    (call-interactively #'sp-wrap-curly)
+    (aggressive-indent-indent-defun))
+  (defun my/wrap-square-indent ()
+    (interactive "*")
+    (call-interactively #'sp-wrap-square)
+    (aggressive-indent-indent-defun))
   :general-config
   ('(normal insert)
    "M-j" 'sp-join-sexp
    "C-M-j" 'sp-split-sexp
-   "M-;" 'sp-comment)
-  )
+   "M-;" 'sp-comment
+   "M-\"" 'my/wrap-quotes)
+  ('visual
+   "M-(" 'my/wrap-round-indent
+   "M-{" 'my/wrap-curly-indent
+   "M-[" 'my/wrap-square-indent))
 
 ;; TODO: Set up movement keybinds that don't conflict with Vim muscle memory
 (use-package evil-cleverparens :ensure t
@@ -652,8 +698,12 @@
   (evil-cleverparens-use-additional-movement-keys nil)
   (evil-cleverparens-use-regular-insert t)
   :hook (smartparens-mode . evil-cleverparens-mode)
+  :config
+  (defun my/wrap-quotes-selected (beg end)
+    (interactive "r")
+    (evil-cp--wrap-region-with-pair "\"" beg end))
   :general-config
-  ('normal
+  ('(normal insert)
    ;; Mnemonic: Holding Ctrl moves left paren, holding Alt moves the
    ;; right paren (Ctrl is left of Alt when using right hand for <>).
    "C->" 'sp-backward-barf-sexp
@@ -666,8 +716,10 @@
    "M-{" 'evil-cp-wrap-next-curly
    "M-}" 'evil-cp-wrap-previous-curly
    "M-[" 'evil-cp-wrap-next-square
-   "M-]" 'evil-cp-wrap-previous-square
-   ))
+   "M-]" 'evil-cp-wrap-previous-square)
+  ('visual
+   "M-\"" 'my/wrap-quotes-selected))
+
   
 
 (use-package aggressive-indent :ensure t
@@ -714,6 +766,43 @@
   (general-add-hook (list 'markdown-mode-hook 'markdown-view-mode-hook
                           'gfm-mode-hook 'gfm-view-mode-hook)
                     (list 'my/word-wrap 'my/no-fringes 'my/margins 'variable-pitch-mode)))
+
+
+(use-package treesit-auto :ensure t
+  :custom (treesit-auto-install 'prompt)
+  :config
+  ;; The package author doesn't seem to update often. Patch or remove broken recipes.
+  (defconst broken-treesit-auto '(markdown latex c-sharp lua))
+  (setq treesit-auto-langs
+        (seq-difference (mapcar #'treesit-auto-recipe-lang treesit-auto-recipe-list)
+                        broken-treesit-auto))
+  (defun my/find-treesit-auto-recipe (lang)
+    (car (seq-filter (lambda (x) (eq (treesit-auto-recipe-lang x) lang))
+                                       treesit-auto-recipe-list)))
+  (defun my/symcat (a b) (intern (concat (symbol-name a) (symbol-name b))))
+  (defun my/patch-treesit-auto-recipe (lang field val)
+    (when-let ((recipe (my/find-treesit-auto-recipe lang)))
+      (let ((fn-sym (my/symcat 'treesit-auto-recipe- field)))
+        (eval `(setf (,fn-sym ,recipe) ,val)))))
+  ;; Janet has the wrong name
+  (my/patch-treesit-auto-recipe 'janet 'lang (quote 'janet-simple))
+  (message "janet: %s" (my/find-treesit-auto-recipe 'janet))
+  (message "janet-simple: %s" (my/find-treesit-auto-recipe 'janet-simple))
+
+  ;; (when-let ((janet (my/find-treesit-auto-recipe 'janet)))
+  ;;  (setf (treesit-auto-recipe-lang janet) 'janet-simple))
+
+  ;; C++ is broken unless we get this specific revision
+  (my/patch-treesit-auto-recipe 'cpp 'revision "v0.22.0")
+  (global-treesit-auto-mode))
+
+;; This would be an external package, but the actual package is stale and
+;; hasn't merged any fixes in a while.
+(when (minimal-emacs-load-user-init "treesit-auto.el")
+  (setq treesit-auto-install 'prompt)
+  (treesit-auto-add-to-auto-mode-alist 'all)
+  (global-treesit-auto-mode))
+
 
 
 ;;;; Internal Packages
@@ -770,7 +859,9 @@
          ("C-j" . cycbuf-switch-to-next-buffer)
          ("C-k" . cycbuf-switch-to-previous-buffer)
          ("<normal-state> C-j" . cycbuf-switch-to-next-buffer)
-         ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer)))
+         ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer))
+  :config
+  (add-hook 'compilation-mode-hook 'my/smaller-fonts))
 
 (use-package eglot :ensure nil
   :custom (eglot-ignored-server-capabilities '(:inlayHintProvider)))
@@ -796,6 +887,10 @@
   (unless (file-exists-p org-directory) (make-directory org-directory t))
   (setq org-default-notes-file
         (concat (file-name-as-directory org-directory) "notes")))
+
+(use-package comint :ensure nil
+  :config
+  (add-hook 'comint-mode-hook 'my/smaller-fonts))
 
 (use-package uniquify :ensure nil
   :custom
