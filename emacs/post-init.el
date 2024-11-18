@@ -8,7 +8,7 @@
 ;;   for the current language's mode.
 
 
-;;;; Utility macros
+;;;; Utility macros and functions
 ;;;; ======================================================================
 
 (defmacro add-to-list* (ls &rest vals)
@@ -18,17 +18,25 @@
       (push `(add-to-list ,ls ,v) exps))
     (cons 'progn (nreverse exps))))
 
+(defmacro remove-from-list (ls &rest vals)
+  "Remove multiple items from a list. Comparisons are made with eq. ls must be
+an unquoted variable name containing the list, as it will be evaluated
+multiple times."
+  (let ((val-sym (gensym)))
+    `(let ((,val-sym (list ,@vals)))
+       (setq ,ls (seq-remove (lambda (x) (memq x ,val-sym)) ,ls)))))
+
 
 ;;;; Theme and font
 ;;;; ======================================================================
-;; (setq modus-themes-headings
-;;       (quote ((t . (variable-pitch medium 1.1)))))
+
 (setq modus-themes-mixed-fonts t)
 (load-theme 'modus-operandi t)
 
 (set-face-attribute 'default nil :family "Iosevka" :height 140)
 (set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 130)
 (set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
+(set-face-attribute 'fringe nil :background "white")
 
 
 ;;;; General settings
@@ -36,6 +44,7 @@
 
 (setq truncate-lines nil)
 (setq fast-but-imprecise-scrolling nil)
+;; (setq scroll-conservatively 101)
 (setq idle-update-delay 0.1)
 (setq mouse-1-click-follows-link t)
 (setq mouse-wheel-progressive-speed nil)
@@ -97,9 +106,14 @@
     (overlay-put my/underline-ov 'face
                  `(:underline (:color ,(my/get-cursor-color) :position 0)))))
 
+(defun my/cursor-over-image? ()
+  (let ((prop (get-text-property (point) 'display)))
+    (eq 'image (car-safe prop))))
+
 (defun my/update-cursor-overlay (&rest _)
   (or (ignore-errors
-        (if (not (eq evil-state 'normal))
+        (if (or (not (eq evil-state 'normal))
+                (my/cursor-over-image?))
             (when (overlayp my/underline-ov) (delete-overlay my/underline-ov))
           (unless (overlayp my/underline-ov)
             (setq my/underline-ov (make-overlay (point) (point))))
@@ -118,15 +132,27 @@
 
 (defun my/cursor-color-reset (&rest _)
   (setq my/cursor-color-idx 0)
+  (setq blink-cursor-blinks 0)
   (set-face-attribute 'cursor nil :background (my/get-cursor-color))
   (my/update-underline-color))
+
+(defun my/cursor-start-blink (&rest _)
+  ;; The animation looks really weird when the cursor is on an image
+  (if (my/cursor-over-image?)
+       (progn (when (overlayp my/underline-ov)
+                (delete-overlay my/underline-ov))
+              (setq blink-cursor-blinks 1)
+              (when blink-cursor-timer (cancel-timer blink-cursor-timer))
+              (setq blink-cursor-timer nil)
+              (blink-cursor-end))
+     (my/cursor-color-reset)))
 
 (defun my/cursor-color-advance (&rest _)
-  (setq my/cursor-color-idx (% (+ 1 my/cursor-color-idx) 8))
-  (set-face-attribute 'cursor nil :background (my/get-cursor-color))
-  (my/update-underline-color))
+   (setq my/cursor-color-idx (% (+ 1 my/cursor-color-idx) 8))
+   (set-face-attribute 'cursor nil :background (my/get-cursor-color))
+   (my/update-underline-color))
 
-(advice-add 'blink-cursor-start :before 'my/cursor-color-reset)
+(advice-add 'blink-cursor-start :after 'my/cursor-start-blink)
 (advice-add 'blink-cursor-end :before 'my/cursor-color-reset)
 (advice-add 'blink-cursor-timer-function :before 'my/cursor-color-advance)
 (blink-cursor-mode t)
@@ -144,12 +170,12 @@
 ;;;; Initial built-in minor modes
 ;;;; ======================================================================
 
-(add-hook 'after-init-hook #'global-auto-revert-mode)
-(add-hook 'after-init-hook #'recentf-mode)
-(add-hook 'after-init-hook #'savehist-mode)
-(add-hook 'after-init-hook #'save-place-mode)
-(add-hook 'after-init-hook #'minibuffer-depth-indicate-mode)
-(global-prettify-symbols-mode t)
+(add-hook 'after-init-hook 'global-auto-revert-mode)
+(add-hook 'after-init-hook 'recentf-mode)
+(add-hook 'after-init-hook 'save-place-mode)
+(add-hook 'after-init-hook 'minibuffer-depth-indicate-mode)
+(add-hook 'after-init-hook 'pixel-scroll-precision-mode)
+(add-hook 'prog-mode-hook 'global-prettify-symbols-mode)
 (show-paren-mode -1)
 
 
@@ -235,6 +261,7 @@
   (evil-move-beyond-eol t)
   (evil-move-cursor-back nil)
   (evil-split-window-below t)
+  (evil-want-C-w-delete nil)
   :config
   (setq evil-lookup-func 'help-follow-symbol)
   (setq evil-default-cursor '((bar . 2)))
@@ -244,6 +271,12 @@
   (setq evil-motion-state-cursor '((hbar . 2)))
   (setq evil-visual-state-cursor 'box)
   (setq evil-operator-state-cursor 'hollow)
+  (add-to-list* 'evil-emacs-state-modes
+                'comint-mode 'eat-mode 'eshell-mode 'shell-mode 'term-mode
+                'inferior-python-mode)
+  (setq evil-insert-state-modes
+        (seq-remove (lambda (x) (memq x evil-emacs-state-modes))
+                    evil-insert-state-modes))
   (add-hook 'evil-normal-state-entry-hook 'my/cursor-color-reset)
   (evil-select-search-module 'evil-search-module 'evil-search)
   ;; Evil doesn't give an option to hide the previous search term.
@@ -269,10 +302,9 @@
                 evil-insert-state-cursor 'hollow
                 evil-visual-state-cursor 'hollow
                 evil-emacs-state-cursor 'hollow))
-  ;; Fix mouse clicks in Customize buffers, also cursor apperance over icons
+  ;; Fix mouse clicks in Customize buffers
   (with-eval-after-load "custom"
-    (evil-make-overriding-map custom-mode-map)
-    (add-hook 'Custom-mode-hook 'my/set-hollow-cursor))
+    (evil-make-overriding-map custom-mode-map))
   (with-eval-after-load "yasnippet"
     (evil-make-overriding-map yas-minor-mode-map))
   (evil-define-operator my/evil-comment-or-uncomment (beg end)
@@ -281,8 +313,8 @@
     (comment-or-uncomment-region beg end))
   ;; Set C-S-w to evil-window-map everywhere, then swap it so that C-S-w
   ;; is mapped to the default C-w, while C-w is now evil-window-map everywhere.
-  (general-def '(insert emacs) "C-S-w" 'evil-window-map)
-  (general-swap-key nil '(insert emacs) "C-S-w" "C-w")
+  (general-def '(insert emacs) "C-w" 'evil-window-map)
+  (general-def '(insert emacs) "C-S-w" 'evil-delete-backward-word)
   :general-config
   ('(normal visual) 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
   ('evil-window-map "o" 'evil-window-mru)
@@ -295,6 +327,8 @@
 (use-package evil-collection :ensure t
   :after evil
   :config
+  (remove-from-list evil-collection-mode-list
+                    'eat)
   (evil-collection-init)
   ;; Make insert mode act like Emacs
   (setopt evil-disable-insert-state-bindings t)
@@ -308,7 +342,7 @@
   (advice-add 'evil-indent :around 'my/indent-paragraph-or-evil-indent))
 
 (use-package evil-surround :ensure t
-  :config (global-evil-surround-mode))
+  :hook (evil-mode . global-evil-surround-mode))
 
 (use-package evil-anzu :ensure t
   :custom (anzu-cons-mode-line-p nil)
@@ -331,7 +365,6 @@
 (use-package goto-chg :ensure t)
 
 (use-package evil-visualstar :ensure t
-  :after evil
   :commands global-evil-visualstar-mode
   :hook (after-init . global-evil-visualstar-mode))
 
@@ -345,19 +378,25 @@
   :hook ((eshell-load . eat-eshell-mode)
          (eshell-load . eat-eshell-visual-command-mode))
   :general-config
-  ('(normal insert) eat-mode-map C-c P 'eat-send-password))
+  ('(normal insert emacs) eat-mode-map "C-c P" 'eat-send-password)
+  ('(normal insert emacs) eshell-mode-map "C-c P" 'eat-send-password))
 
 (use-package devdocs :ensure t
   :commands devdocs-lookup
-  :bind ("C-h D" . devdocs-lookup)
+  :bind (C-h D . devdocs-lookup)
   :config
   (general-add-hook 'devdocs-mode-hook (list 'my/smaller-fonts
                                              'my/word-wrap
                                              'my/no-mode-line
-                                             'my/no-fringes-redisplay)))
+                                             'my/no-fringes)))
 
 (use-package vertico :ensure t :defer t
   :commands (vertico-mode vertico-reverse-mode vertico-mouse-mode)
+  :hook
+  (after-init . vertico-mode)
+  (after-init . vertico-mouse-mode)
+  (server-after-make-frame . vertico-mode)
+  (server-after-make-frame . vertico-mouse-mode)
   :bind (:map minibuffer-mode-map
          ("<tab>" . completion-at-point)
          ("C-S-k" . kill-line)
@@ -368,9 +407,6 @@
   (vertico-cycle t)
   (vertico-scroll-margin 1)
   (vertico-resize t)
-  :hook
-  (after-init . vertico-mode)
-  (after-init . vertico-mouse-mode)
   :config
   (cl-defmethod vertico--display-candidates (lines)
     "Put the vertico prompt at the bottom without reversing the entire display"
@@ -397,7 +433,7 @@
 
 (use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
-  :hook (after-init . marginalia-mode))
+  :hook (vertico-mode . marginalia-mode))
 
 (use-package embark :ensure t :defer t
   :general ("<f8>" 'embark-act
@@ -513,11 +549,13 @@
 
 (use-package corfu :ensure t :defer t
   :commands (corfu-mode global-corfu-mode corfu-popupinfo-mode)
-  :hook ((after-init . global-corfu-mode)
-         (after-init . corfu-popupinfo-mode))
+  :hook
+  (after-init . global-corfu-mode)
+  (after-init . corfu-popupinfo-mode)
+  (server-after-make-frame . global-corfu-mode)
+  (server-after-make-frame . corfu-popupinfo-mode)
+
   :bind (("C-SPC" . completion-at-point) ; for when tab isn't usable
-         ;; :map evil-insert-state-map
-         ;; ("<tab>" . indent-for-tab-command)
          :map corfu-map
          ("<prior>" . corfu-scroll-down)
          ("<next>" . corfu-scroll-up)
@@ -540,24 +578,31 @@
   :commands (cape-dabbrev cape-file cape-elisp-block)
   :bind ("C-c p" . cape-prefix-map)
   :init
-  (add-hook 'completion-at-point-functions #'cape-dabbrev)
-  (add-hook 'completion-at-point-functions #'cape-file)
-  (add-hook 'completion-at-point-functions #'cape-elisp-block))
+  (add-hook 'completion-at-point-functions 'cape-file)
+  (defun my/add-dabbrev ()
+    (add-hook 'completion-at-point-functions 'cape-dabbrev 0 :local))
+  (add-hook 'prog-mode-hook 'my/add-dabbrev))
 
 (use-package form-feed-st :ensure t
-  :hook (after-init . global-form-feed-st-mode))
+  :hook
+  (after-init . global-form-feed-st-mode)
+  (server-after-make-frame-hook . global-form-feed-st-mode))
 
 (use-package highlight-parentheses :ensure t
-  :hook (minibuffer-setup . highlight-parentheses-minibuffer-setup)
+  :hook
+  (minibuffer-setup . highlight-parentheses-minibuffer-setup)
+  (after-init . global-highlight-parentheses-mode)
+  (server-after-make-frame . global-highlight-parentheses-mode)
   :custom
   (highlight-parentheses-colors
    '("#005500" "#0000AA" "#550099" "#550000" "#333300"))
   (highlight-parentheses-background-colors
-   '("#BBFFDD" "#BBDDFF" "#FFCCFF" "#FFDDDD" "#FFEECC"))
-  :config (global-highlight-parentheses-mode))
+   '("#BBFFDD" "#BBDDFF" "#FFCCFF" "#FFDDDD" "#FFEECC")))
 
 (use-package yasnippet :ensure t
-  :hook (after-init . yas-global-mode)
+  :hook
+  (after-init . yas-global-mode)
+  (server-after-make-frame . yas-global-mode)
   :custom (yas-alias-to-yas/prefix-p nil)
   :bind (:map yas-minor-mode-map
          ("C-i" . yas-expand)
@@ -590,12 +635,14 @@
   (put 'when-let 'fennel-indent-function 1))
 
 (use-package pdf-tools :ensure t :defer t
-  :hook
-  (after-init . pdf-loader-install)
-  (pdf-view-mode . my/no-blink-cursor))
+  :config
+  (pdf-loader-install)
+  (add-hook 'pdf-view-mode-hook 'my/no-blink-cursor))
 
 (use-package simple-modeline :ensure t :demand t
-  :hook (after-init . simple-modeline-mode)
+  :hook
+  (after-init . simple-modeline-mode)
+  (server-after-make-frame . simple-modeline-mode)
   :custom (simple-modeline-word-count-modes nil))
 
 (use-package org-superstar :ensure t
@@ -603,7 +650,7 @@
   :custom (org-superstar-special-todo-items t))
 
 (use-package org-variable-pitch :ensure t
-  :hook (after-init . org-variable-pitch-setup))
+  :hook (org-mode . org-variable-pitch-setup))
 
 (use-package cycbuf :ensure t
   :bind (:map evil-motion-state-map
@@ -700,8 +747,11 @@
   :hook (smartparens-mode . evil-cleverparens-mode)
   :config
   (defun my/wrap-quotes-selected (beg end)
+    "Adds one to the end to match Vim-style visual selection, except newlines"
     (interactive "r")
-    (evil-cp--wrap-region-with-pair "\"" beg end))
+    (if (eq (char-after (- end 1)) ?\n)
+        (evil-cp--wrap-region-with-pair "\"" beg end)
+      (evil-cp--wrap-region-with-pair "\"" beg (min (+ 1 end) (point-max)))))
   :general-config
   ('(normal insert)
    ;; Mnemonic: Holding Ctrl moves left paren, holding Alt moves the
@@ -717,6 +767,8 @@
    "M-}" 'evil-cp-wrap-previous-curly
    "M-[" 'evil-cp-wrap-next-square
    "M-]" 'evil-cp-wrap-previous-square)
+  ('(insert emacs)
+   "C-S-w" 'evil-cp-delete-backward-word)
   ('visual
    "M-\"" 'my/wrap-quotes-selected))
 
@@ -751,8 +803,10 @@
       (flycheck-previous-error))))
 
 (use-package minions :ensure t
-  :custom (minions-mode-line-delimiters '(" " . ""))
-  :hook (after-init . minions-mode))
+  :hook
+  (after-init . minions-mode)
+  (server-after-make-frame . minions-mode)
+  :custom (minions-mode-line-delimiters '(" " . "")))
 
 (use-package markdown-mode :ensure t
   :custom
@@ -769,6 +823,9 @@
 
 
 (use-package treesit-auto :ensure t
+  :hook
+  (after-init . global-treesit-auto-mode)
+  (server-after-make-frame . global-treesit-auto-mode)
   :custom (treesit-auto-install 'prompt)
   :config
   ;; The package author doesn't seem to update often. Patch or remove broken recipes.
@@ -778,7 +835,7 @@
                         broken-treesit-auto))
   (defun my/find-treesit-auto-recipe (lang)
     (car (seq-filter (lambda (x) (eq (treesit-auto-recipe-lang x) lang))
-                                       treesit-auto-recipe-list)))
+                     treesit-auto-recipe-list)))
   (defun my/symcat (a b) (intern (concat (symbol-name a) (symbol-name b))))
   (defun my/patch-treesit-auto-recipe (lang field val)
     (when-let ((recipe (my/find-treesit-auto-recipe lang)))
@@ -786,23 +843,11 @@
         (eval `(setf (,fn-sym ,recipe) ,val)))))
   ;; Janet has the wrong name
   (my/patch-treesit-auto-recipe 'janet 'lang (quote 'janet-simple))
-  (message "janet: %s" (my/find-treesit-auto-recipe 'janet))
-  (message "janet-simple: %s" (my/find-treesit-auto-recipe 'janet-simple))
-
-  ;; (when-let ((janet (my/find-treesit-auto-recipe 'janet)))
-  ;;  (setf (treesit-auto-recipe-lang janet) 'janet-simple))
-
   ;; C++ is broken unless we get this specific revision
   (my/patch-treesit-auto-recipe 'cpp 'revision "v0.22.0")
-  (global-treesit-auto-mode))
-
-;; This would be an external package, but the actual package is stale and
-;; hasn't merged any fixes in a while.
-(when (minimal-emacs-load-user-init "treesit-auto.el")
-  (setq treesit-auto-install 'prompt)
-  (treesit-auto-add-to-auto-mode-alist 'all)
-  (global-treesit-auto-mode))
-
+  ;; Update list of languages with patched changes
+  (setq treesit-auto-langs (seq-map #'treesit-auto-recipe-lang
+                                    treesit-auto-recipe-list)))
 
 
 ;;;; Internal Packages
@@ -812,15 +857,17 @@
   :custom (eshell-destroy-buffer-when-process-dies t)
   :config (when (require 'eat nil :noerror)
             (setq eshell-visual-commands '()))
-  :general-config ('insert eshell-mode-map "<tab>" 'completion-at-point))
+  :general-config ('(insert emacs) eshell-mode-map "<tab>" 'completion-at-point))
 
 (use-package winner-mode :ensure nil
+  :hook
+  (after-init . winner-mode)
+  (server-after-make-frame-hook . winner-mode)
   :general
-  (:keymaps 'evil-window-map ; C-w prefix
+  (:keymaps 'evil-window-map            ; C-w prefix
    "u" 'winner-undo
    "C-r" 'winner-redo)
-  :custom (winner-dont-bind-my-keys t)
-  :hook (after-init . winner-mode))
+  :custom (winner-dont-bind-my-keys t))
 
 (use-package flymake :ensure nil
   :config
@@ -838,6 +885,47 @@
   (isearch-lazy-count t)
   (lazy-count-prefix-format "[%s/%s] "))
 
+(defvar read-the-docs-history nil)
+(defvar wikipedia-history nil)
+
+(use-package savehist :ensure nil
+  :hook (after-init . savehist-mode)
+  :config
+  (add-to-list* 'savehist-additional-variables
+                'read-the-docs-history
+                'wikipedia-history))
+
+(use-package eww :ensure nil
+  :commands eww
+  :bind ("C-h W" . eww)
+  :custom (eww-readable-urls '(".*"))
+  :init
+  (defun my/prompt-for-url (prompt url-fmt history &optional replace-spaces)
+    (when-let ((str (read-string prompt nil history))
+               (str-replaced (if replace-spaces
+                                 (string-replace " " replace-spaces str)
+                               str))
+               (url (format url-fmt str-replaced)))
+      (eww url :newbuffer)))
+  (defun read-the-docs ()
+    (interactive)
+    (my/prompt-for-url "readthedocs.io subdomain: "
+                       "https://%s.readthedocs.io/en/latest/"
+                       'read-the-docs-history))
+  (defun wikipedia ()
+    (interactive)
+    (my/prompt-for-url "Wikipedia article: "
+                       "https://en.wikipedia.org/wiki/%s"
+                       'wikipedia-history
+                       "_"))
+  :config
+  (setq browse-url-browser-function 'eww-browse-url)
+  (general-add-hook 'eww-mode-hook (list 'my/smaller-fonts
+                                         'my/word-wrap
+                                         'my/no-mode-line
+                                         'my/no-fringes)))
+
+
 (use-package eldoc :ensure nil
   :init (defvar my/eldoc-help-message "")
   :config 
@@ -852,7 +940,9 @@
   (advice-add 'eldoc-minibuffer-message :around 'my/eldoc-minibuffer-message)
   (defun my/clear-eldoc-help-message ()
     (setq my/eldoc-help-message ""))
-  (add-hook 'minibuffer-exit-hook 'my/clear-eldoc-help-message))
+  (add-hook 'minibuffer-exit-hook 'my/clear-eldoc-help-message)
+  (general-add-hook 'evil-collection-eldoc-doc-buffer-mode-hook
+                    (list 'my/smaller-fonts 'my/no-mode-line)))
 
 (use-package compile :ensure nil
   :bind (:map compilation-mode-map
@@ -889,8 +979,16 @@
         (concat (file-name-as-directory org-directory) "notes")))
 
 (use-package comint :ensure nil
-  :config
-  (add-hook 'comint-mode-hook 'my/smaller-fonts))
+  :config (add-hook 'comint-mode-hook 'my/smaller-fonts))
+
+(use-package help-mode :ensure nil :defer t
+  :config (add-hook 'help-mode-hook 'my/smaller-fonts))
+
+(use-package info :ensure nil :defer t
+  :config (add-hook 'Info-mode-hook 'my/smaller-fonts))
+
+(use-package apropos :ensure nil :defer t
+  :config (add-hook 'apropos-mode-hook 'my/smaller-fonts))
 
 (use-package uniquify :ensure nil
   :custom
@@ -1041,7 +1139,15 @@
            my/modeline-vc
            my/modeline-modes
            my/modeline-position)))
-(set-face-attribute 'fringe nil :background "white")
+
+;; In daemon mode, the messages buffer is created too early to get the
+;; mode line changes.
+(add-hook 'messages-buffer-mode-hook 'my/smaller-fonts)
+(with-current-buffer (messages-buffer)
+  (setq-local mode-line-format
+              '(:eval simple-modeline--mode-line))
+  (my/smaller-fonts))
+
 
 ;;;; Other keybinds
 ;;;; ======================================================================
@@ -1104,16 +1210,17 @@
    ("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
     nil
     (window-parameters (mode-line-format . none)))
-   ("\\`[ ]?\\*\\(Help\\|Customize\\|info\\|eldoc\\|Occur\\|grep\\|devdocs\\|Pp\\)"
+   ("\\`[ ]?\\*\\(Help\\|Customize\\|info\\|eldoc\\|Occur\\|grep\\|devdocs\\|Pp\\|eww\\)"
     display-buffer-in-side-window
     (side . bottom) (slot . -1) (preserve-size . (nil . t)))
-   ((major-mode . dired-mode)
+   ((or (derived-mode . dired-mode)
+        (derived-mode . eww-mode))
     display-buffer-in-side-window
     (side . bottom) (slot . -1) (preserve-size . (nil . t)))
    ("\\`[ ]?\\*\\(compilation\\|[e]?shell\\|[v]?term\\|.*REPL\\)"
     display-buffer-in-side-window
     (side . bottom) (slot . 1) (preserve-size . (nil . t)))
-   ((mode comint-mode)
+   ((derived-mode . comint-mode)
     display-buffer-in-side-window
     (side . bottom) (slot . 1) (preserve-size . (nil . t)))
    (,(rx (seq bos (or "*" " *")))
