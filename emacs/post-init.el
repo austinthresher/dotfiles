@@ -30,12 +30,19 @@ multiple times."
 ;;;; Theme and font
 ;;;; ======================================================================
 
-(setq modus-themes-mixed-fonts t)
-(load-theme 'modus-operandi t)
+;;(setq modus-themes-mixed-fonts t)
+;;(load-theme 'modus-operandi t)
 
-(set-face-attribute 'default nil :family "Iosevka" :height 140)
-(set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 130)
-(set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
+(use-package doom-themes :ensure t :demand t
+  :config (load-theme 'doom-tomorrow-day t))
+
+(setq-default line-spacing nil)
+
+(set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'light
+                    :background "white")
+(set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 130 :weight 'normal)
+(set-face-attribute 'variable-pitch-text nil :height 'unspecified)
+(set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140 :weight 'light)
 (set-face-attribute 'fringe nil :background "white")
 
 
@@ -88,7 +95,7 @@ multiple times."
                            ((hbar . 16) . (hbar . 16))
                            ((bar . 1) . (bar . 1))
                            ((bar . 2) . (bar . 2))
-                           ((bar . 3) . (bar . 3))))
+                           ((bar . 4) . (bar . 4))))
 (setq cursor-in-non-selected-windows nil)
 
 (defvar my/cursor-color-idx 0)
@@ -176,6 +183,7 @@ multiple times."
 (add-hook 'after-init-hook 'save-place-mode)
 (add-hook 'after-init-hook 'minibuffer-depth-indicate-mode)
 (add-hook 'after-init-hook 'pixel-scroll-precision-mode)
+(add-hook 'after-init-hook 'delete-selection-mode)
 (add-hook 'prog-mode-hook 'global-prettify-symbols-mode)
 (show-paren-mode -1)
 
@@ -234,10 +242,16 @@ multiple times."
 
 (defun my/smaller-fonts (&rest _)
   "Add this as a hook to have smaller fonts in a buffer"
+  (setq-local line-spacing nil)
   (face-remap-add-relative 'default '(:height 120))
   (face-remap-add-relative 'variable-pitch '(:height 110))
   (face-remap-add-relative 'fixed-pitch '(:height 120))
   (face-remap-add-relative 'header-line '(:height 120)))
+
+(defun my/line-spacing (&rest _)
+  "Add this as a hook to buffers that should have extra line spacing"
+  (setq-local line-spacing 0.2))
+
 
 (defun my/lisp-word-syntax (&rest _)
   "Make - and _ behave as part of a word, not punctuation."
@@ -262,17 +276,30 @@ multiple times."
   (setq evil-want-keybinding nil)
   :custom
   (evil-shift-round nil)
-  (evil-want-empty-ex-last-command nil)
+  (evil-want-empty-ex-last-command t)
   (evil-echo-state nil)
   (evil-ex-search-persistent-highlight t)
   (evil-move-beyond-eol t)
   (evil-move-cursor-back nil)
   (evil-split-window-below t)
   (evil-want-C-w-delete nil)
+  (evil-cross-lines t)
+  (evil-want-abbrev-expand-on-insert-exit nil)
+  :custom-face
+  (evil-ex-substitute-matches ((t (:foreground "#888888"
+                                   :strike-through "red"
+                                   :background "#EE2222"
+                                   :box (:line-width (1 . -13) :color "white")
+                                   :inherit unspecified))))
+  (evil-ex-substitute-replacement ((t (:weight normal
+                                       :box (:line-width (1 . -1)
+                                             :color "light green")
+                                       :inherit unspecified))))
   :config
   (setq evil-lookup-func 'help-follow-symbol)
   (setq evil-default-cursor '((bar . 2)))
   (setq evil-emacs-state-cursor '((bar . 2)))
+  (setq evil-replace-state-cursor '((bar . 4)))
   (setq evil-insert-state-cursor '((bar . 1)))
   (setq evil-normal-state-cursor evil-default-cursor)
   (setq evil-motion-state-cursor '((hbar . 2)))
@@ -303,12 +330,6 @@ multiple times."
   (advice-add 'windmove-do-window-select :after 'my/auto-clear-anzu)
   (advice-add 'switch-to-buffer :after 'my/auto-clear-anzu)
   (evil-mode t)
-  (defun my/set-hollow-cursor ()
-    (setq-local evil-motion-state-cursor 'hollow
-                evil-normal-state-cursor 'hollow
-                evil-insert-state-cursor 'hollow
-                evil-visual-state-cursor 'hollow
-                evil-emacs-state-cursor 'hollow))
   ;; Fix mouse clicks in Customize buffers
   (with-eval-after-load "custom"
     (evil-make-overriding-map custom-mode-map))
@@ -580,7 +601,6 @@ multiple times."
   (after-init . corfu-popupinfo-mode)
   (server-after-make-frame . global-corfu-mode)
   (server-after-make-frame . corfu-popupinfo-mode)
-
   :bind (("C-SPC" . completion-at-point) ; for when tab isn't usable
          :map corfu-map
          ("<prior>" . corfu-scroll-down)
@@ -605,6 +625,10 @@ multiple times."
   :bind ("C-c p" . cape-prefix-map)
   :init
   (add-hook 'completion-at-point-functions 'cape-file)
+  (defun my/dabbrev-friend? (other-buffer)
+    "Search in any buffer that's visiting a file."
+    (buffer-file-name other-buffer))
+  (setq dabbrev-friend-buffer-function 'my/dabbrev-friend?)
   (defun my/add-dabbrev ()
     (add-hook 'completion-at-point-functions 'cape-dabbrev 0 :local))
   (add-hook 'prog-mode-hook 'my/add-dabbrev))
@@ -933,8 +957,8 @@ multiple times."
   :commands eww
   :bind ("C-h W" . eww)
   :custom
-  (eww-readable-urls '((".*github\\.com\/" . nil)
-                               ".*"))
+  (eww-header-line-format "%u")
+  (eww-readable-urls '((".*github\\.com\\/" . nil) ".*"))
   (shr-max-inline-image-size '(0.75 . 50.0))
   :init
   (defun my/prompt-for-url (prompt url-fmt history &optional replace-spaces)
@@ -1008,25 +1032,27 @@ multiple times."
 
 (use-package org :ensure nil
   :hook (org-mode . auto-fill-mode)
-  :bind (("C-c C-o c" . org-capture)
-         :map org-mode-map
-         ("<backtab>" . org-shifttab)
-         ("<normal-state> <backtab>" . org-shifttab)
-         ("C-j" . cycbuf-switch-to-next-buffer)
-         ("C-k" . cycbuf-switch-to-previous-buffer)
-         ("<normal-state> C-j" . cycbuf-switch-to-next-buffer)
-         ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer))
+  :commands org-capture
+  :bind (("C-c C-o c" . org-capture))
   :custom
   (org-pretty-entitites t)
   (org-hide-emphasis-markers t)
   (org-hide-leading-stars t)
   (org-adapt-indentation t)
+  (org-startup-with-inline-images t)
   (org-ellipsis " ⤵")
-  (org-cycle-separator-lines 1)
+  (org-cycle-separator-lines -1)
+  (org-blank-before-new-entry '((heading . t) (plain-list-item . nil)))
   :config
   (unless (file-exists-p org-directory) (make-directory org-directory t))
   (setq org-default-notes-file
-        (concat (file-name-as-directory org-directory) "notes")))
+        (concat (file-name-as-directory org-directory) "notes"))
+  :general-config
+  ('(normal insert) 'org-mode-map
+   "<backtab>" 'org-shifttab)
+  ('normal 'org-mode-map
+           "C-j" 'cycbuf-switch-to-next-buffer
+           "C-k" 'cycbuf-switch-to-previous-buffer))
 
 (use-package uniquify :ensure nil
   :custom
@@ -1057,6 +1083,10 @@ multiple times."
                         'fennel-mode-hook)
                   'my/lisp-word-syntax)
 
+(general-add-hook (list 'prog-mode-hook
+                        'text-mode-hook)
+                  'my/line-spacing)
+
 (general-add-hook (list 'eww-mode-hook)
                   'my/word-wrap)
 
@@ -1070,7 +1100,7 @@ multiple times."
 (general-add-hook (list 'help-mode-hook 'eww-mode-hook 'compilation-mode-hook
                         'comint-mode-hook 'apropos-mode-hook 'Info-mode-hook
                         'evil-collection-eldoc-doc-buffer-mode-hook
-                        'package-menu-mode-hook)
+                        'package-menu-mode-hook 'cycbuf-mode-hook)
                   'my/smaller-fonts)
 
 ;;;; Customized Mode Line
@@ -1259,7 +1289,7 @@ multiple times."
 (advice-add 'keyboard-escape-quit :around 'my/keyboard-escape-quit-advice)
 
 ;; Having the box cursor for the minibuffer is weird when it indicates
-;; normal mode everywhere else
+;; normal mode everywhere else.
 (defun my/local-bar-cursor () (setq-local cursor-type 'bar))
 (add-hook 'minibuffer-mode-hook 'my/local-bar-cursor)
 
