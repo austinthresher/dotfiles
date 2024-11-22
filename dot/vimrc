@@ -26,7 +26,8 @@ set sidescroll=1
 set sidescrolloff=1
 set ttyfast
 
-let &showbreak = '>>> '
+" This is overwritten with a trailing space after the +eval check below
+set showbreak=>>>
 
 nnoremap <tab> >>
 nnoremap <s-tab> <<
@@ -57,6 +58,14 @@ xnoremap <c-q> q
 " Change vim's working dir to the current file location
 command CD cd %:p:h
 
+" Everything below here requires the +eval feature, which is not present in
+" vim-tiny. See this url for an explanation of the trick used- everything
+" after this block is only executed when the version of vim supports +eval.
+" https://vi.stackexchange.com/questions/22448/detecting-whether-vim-supports-functions
+if 1 " BEGIN NO VIM-TINY
+
+let &showbreak = '>>> '
+
 " Netrw settings
 let g:netrw_sizestyle='H'
 let g:netrw_banner=0
@@ -76,3 +85,5 @@ augroup RunCustomizeNetrw
 augroup END
 
 color desert
+
+endif " END NO VIM-TINY

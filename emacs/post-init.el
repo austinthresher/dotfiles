@@ -44,6 +44,7 @@ multiple times."
 
 (setq truncate-lines nil)
 (setq fast-but-imprecise-scrolling nil)
+(setq disabled-command-function nil)
 ;; (setq scroll-conservatively 101)
 (setq idle-update-delay 0.1)
 (setq mouse-1-click-follows-link t)
@@ -238,6 +239,12 @@ multiple times."
   (face-remap-add-relative 'fixed-pitch '(:height 120))
   (face-remap-add-relative 'header-line '(:height 120)))
 
+(defun my/lisp-word-syntax (&rest _)
+  "Make - and _ behave as part of a word, not punctuation."
+  (modify-syntax-entry ?- "w")
+  (modify-syntax-entry ?_ "w"))
+
+
 ;;;; External Packages
 ;;;; ======================================================================
 
@@ -341,6 +348,9 @@ multiple times."
       (funcall fn beg end)))
   (advice-add 'evil-indent :around 'my/indent-paragraph-or-evil-indent))
 
+(use-package evil-matchit :ensure t
+  :hook (after-init . global-evil-matchit-mode))
+
 (use-package evil-surround :ensure t
   :hook (evil-mode . global-evil-surround-mode))
 
@@ -368,6 +378,21 @@ multiple times."
   :commands global-evil-visualstar-mode
   :hook (after-init . global-evil-visualstar-mode))
 
+;; Normal/visual gl and gL alignment operator. Pressing glip= would align all =
+;; in the paragraph. Pressing 1glip" would align the first quote on each line.
+;; L instead of l uses right alignment instead of left alignment.
+(use-package evil-lion :ensure t
+  :hook (after-init . evil-lion-mode))
+
+  ;; NOTE: Keybinds are in evil-cleverparens because, yet again, it overwrites
+  ;; a bunch of default evil keybinds without checking.
+(use-package evil-surround :ensure t
+  :hook (after-init . global-evil-surround-mode)
+  :config
+  (add-to-list* 'evil-surround-operator-alist
+                '(evil-cp-change . change)
+                '(evil-cp-delete . delete)))
+
 (use-package magit :ensure t :defer t
   :commands magit)
 
@@ -383,7 +408,7 @@ multiple times."
 
 (use-package devdocs :ensure t
   :commands devdocs-lookup
-  :bind (C-h D . devdocs-lookup)
+  :bind ("C-h D" . devdocs-lookup)
   :config
   (general-add-hook 'devdocs-mode-hook (list 'my/smaller-fonts
                                              'my/word-wrap
@@ -436,7 +461,8 @@ multiple times."
   :hook (vertico-mode . marginalia-mode))
 
 (use-package embark :ensure t :defer t
-  :general ("<f8>" 'embark-act
+  :general ("<f7>" 'embark-select
+            "<f8>" 'embark-act
             "S-<f8>" 'embark-dwim
             "C-h B" 'embark-bindings)
   :init (setq prefix-help-command #'embark-prefix-help-command))
@@ -615,6 +641,7 @@ multiple times."
          ("<tab>" . yas-next-field))
   :config
   (define-key yas-minor-mode-map (kbd "<tab>") nil)
+  (define-key yas-minor-mode-map (kbd "<backtab>") nil)
   (define-key yas-minor-mode-map (kbd "TAB") nil)
   (define-key yas-minor-mode-map (kbd "S-TAB") nil)
   (define-key yas-keymap (kbd "TAB") nil)
@@ -626,12 +653,19 @@ multiple times."
 
 (use-package yasnippet-snippets :ensure t)
 
-(use-package lua-mode :ensure t
-  :mode "\\.lua\\'")
+(use-package expand-region :ensure t
+  :custom (expand-region-contract-fast-key "V")
+  :general-config
+  ('visual "v" 'er/expand-region)
+  )
+
+(use-package lua-mode :ensure t :mode "\\.lua\\'")
+(use-package vimrc-mode :ensure t :mode "[._]?g?vim\\(rc\\)?")
 
 (use-package fennel-mode :ensure t
   :mode "\\.fnl\\'"
   :config
+  (add-hook 'fennel-mode-hook 'my/lisp-word-syntax)
   (put 'when-let 'fennel-indent-function 1))
 
 (use-package pdf-tools :ensure t :defer t
@@ -898,7 +932,10 @@ multiple times."
 (use-package eww :ensure nil
   :commands eww
   :bind ("C-h W" . eww)
-  :custom (eww-readable-urls '(".*"))
+  :custom
+  (eww-readable-urls '((".*github\\.com\/" . nil)
+                               ".*"))
+  (shr-max-inline-image-size '(0.75 . 50.0))
   :init
   (defun my/prompt-for-url (prompt url-fmt history &optional replace-spaces)
     (when-let ((str (read-string prompt nil history))
@@ -920,10 +957,27 @@ multiple times."
                        "_"))
   :config
   (setq browse-url-browser-function 'eww-browse-url)
-  (general-add-hook 'eww-mode-hook (list 'my/smaller-fonts
-                                         'my/word-wrap
-                                         'my/no-mode-line
-                                         'my/no-fringes)))
+
+  ;; TODO: Make this more generic with a url regex / function alist later
+  (defun my/clean-github (document &optional point buffer)
+    "Make Github repos slightly more readable in eww."
+    (let ((url (alist-get 'href (cadr document))))
+      (when (string-match "github" url)
+        (let ((nodes (dom-by-class document
+                                   (rx (and (= 0 "user-content-")
+                                            (or "pagehead-actions"
+                                                "HeaderMktg"
+                                                "UnderlineNav-"
+                                                "flash-warn"
+                                                "TextInput-"
+                                                "types__StyledButton"
+                                                "form-control"
+                                                "flash-full"
+                                                "search"
+                                                ))))))
+          (dolist (child nodes)
+            (dom-remove-node (dom-parent document child) child))))))
+  (advice-add 'eww-display-document :before 'my/clean-github))
 
 
 (use-package eldoc :ensure nil
@@ -940,18 +994,14 @@ multiple times."
   (advice-add 'eldoc-minibuffer-message :around 'my/eldoc-minibuffer-message)
   (defun my/clear-eldoc-help-message ()
     (setq my/eldoc-help-message ""))
-  (add-hook 'minibuffer-exit-hook 'my/clear-eldoc-help-message)
-  (general-add-hook 'evil-collection-eldoc-doc-buffer-mode-hook
-                    (list 'my/smaller-fonts 'my/no-mode-line)))
+  (add-hook 'minibuffer-exit-hook 'my/clear-eldoc-help-message))
 
 (use-package compile :ensure nil
   :bind (:map compilation-mode-map
          ("C-j" . cycbuf-switch-to-next-buffer)
          ("C-k" . cycbuf-switch-to-previous-buffer)
          ("<normal-state> C-j" . cycbuf-switch-to-next-buffer)
-         ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer))
-  :config
-  (add-hook 'compilation-mode-hook 'my/smaller-fonts))
+         ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer)))
 
 (use-package eglot :ensure nil
   :custom (eglot-ignored-server-capabilities '(:inlayHintProvider)))
@@ -978,18 +1028,6 @@ multiple times."
   (setq org-default-notes-file
         (concat (file-name-as-directory org-directory) "notes")))
 
-(use-package comint :ensure nil
-  :config (add-hook 'comint-mode-hook 'my/smaller-fonts))
-
-(use-package help-mode :ensure nil :defer t
-  :config (add-hook 'help-mode-hook 'my/smaller-fonts))
-
-(use-package info :ensure nil :defer t
-  :config (add-hook 'Info-mode-hook 'my/smaller-fonts))
-
-(use-package apropos :ensure nil :defer t
-  :config (add-hook 'apropos-mode-hook 'my/smaller-fonts))
-
 (use-package uniquify :ensure nil
   :custom
   (uniquify-buffer-name-style 'forward)
@@ -1011,9 +1049,29 @@ multiple times."
                            'find-alternate-file))
   (advice-add 'dired-mouse-find-file-other-window :override
               'my/dired-mouse-find-file-smart)
-  (add-hook 'dired-mode-hook 'dired-hide-details-mode)
-  (add-hook 'dired-mode-hook 'dired-omit-mode))
+  (general-add-hook 'dired-mode-hook (list 'dired-hide-details-mode
+                                           'dired-omit-mode)))
 
+(general-add-hook (list 'lisp-mode-hook
+                        'lisp-data-mode-hook
+                        'fennel-mode-hook)
+                  'my/lisp-word-syntax)
+
+(general-add-hook (list 'eww-mode-hook)
+                  'my/word-wrap)
+
+(general-add-hook (list 'eww-mode-hook)
+                  'my/no-fringes)
+
+(general-add-hook (list 'evil-collection-eldoc-doc-buffer-mode-hook
+                        'eww-mode-hook)
+                  'my/no-mode-line)
+
+(general-add-hook (list 'help-mode-hook 'eww-mode-hook 'compilation-mode-hook
+                        'comint-mode-hook 'apropos-mode-hook 'Info-mode-hook
+                        'evil-collection-eldoc-doc-buffer-mode-hook
+                        'package-menu-mode-hook)
+                  'my/smaller-fonts)
 
 ;;;; Customized Mode Line
 ;;;; ======================================================================
@@ -1154,9 +1212,22 @@ multiple times."
 
 ;; TODO: Use general.el
 
-(keymap-global-set "C-x k" 'kill-current-buffer)
-(keymap-global-set "<mode-line> <mouse-2>" 'mouse-delete-window)
-(keymap-global-set "<mode-line> <mouse-3>" 'mouse-buffer-menu)
+(general-define-key
+ "C-x k" 'kill-current-buffer
+ "<mode-line> <mouse-2>" 'mouse-delete-window
+ "<mode-line> <mouse-3>" 'mouse-buffer-menu)
+
+;; evil-cleverparens overwrites these at some point, try to ensure
+;; that doesn't happen
+(with-eval-after-load 'evil-cleverparens
+  (general-def '(normal visual)
+    ">" 'evil-shift-right
+    "<" 'evil-shift-left)
+  ;; More things evil-cp overwrites, plus my customization
+  (with-eval-after-load 'evil-surround
+    (general-def 'visual 'evil-surround-mode-map
+      "s" #'evil-surround-region
+      "S" #'evil-Surround-region)))
 
 (defun recompile-or-prompt ()
   (interactive)
@@ -1208,7 +1279,8 @@ multiple times."
  display-buffer-alist
  `(
    ("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
-    nil
+    display-buffer-in-direction
+    (direction . rightmost)
     (window-parameters (mode-line-format . none)))
    ("\\`[ ]?\\*\\(Help\\|Customize\\|info\\|eldoc\\|Occur\\|grep\\|devdocs\\|Pp\\|eww\\)"
     display-buffer-in-side-window

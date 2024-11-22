@@ -54,16 +54,32 @@ else
 fi
 
 alias tmux='tmux -u'
-alias ubuntu='lsb_release -d'
 alias usermount="udisksctl"
 
-if command -v nvim &> /dev/null; then
-    alias vim=nvim
-    alias view='nvim -R'
-    alias vimdiff='nvim -d -R'
-    export EDITOR=nvim
-    export VISUAL=nvim
+if command -v lsb_release &> /dev/null; then
+    alias ubuntu='lsb_release -d'
 fi
+
+# Use neovim for vim commands when vim isn't available.
+if command -v nvim &> /dev/null; then
+    if ! command -v vim &> /dev/null; then
+        alias vim=nvim
+        alias view='nvim -R'
+        alias vimdiff='nvim -d -R'
+    fi
+fi
+
+# Allow launching emacsclient directly without having to start a daemon first
+if command -v emacsclient &> /dev/null; then
+    alias emacsclient='emacsclient --alternate-editor=""'
+    alias emc='emacsclient'
+fi
+
+# These scripts are in my dotfiles.
+# They pick an appropriate editor based on what's installed.
+export EDITOR=edit-tty
+export VISUAL=edit
+
 
 # Use bat for man pages if it's installed
 if command -v bat &> /dev/null; then
