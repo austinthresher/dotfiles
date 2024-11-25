@@ -1,0 +1,32 @@
+[Desktop Action new-instance]
+Exec=emacs %F
+Name=New Instance
+
+[Desktop Action new-window]
+Exec=emacsclient-new-window %F
+Name=New Window
+
+[Desktop Entry]
+Actions=new-window;new-instance;
+Categories=Development;TextEditor;
+Comment[en_US]=Edit text
+Comment=Edit text
+# Modified to use find-file-other-tab
+Exec=emacsclient-wrapper %F
+# This was the default
+# Exec=sh -c 'if [ -n "\\$*" ]; then exec /home/athresher/.local/bin/emacsclient --alternate-editor= --reuse-frame "\\$@"; else exec emacsclient --alternate-editor= --create-frame; fi' sh %F
+GenericName[en_US]=Text Editor
+GenericName=Text Editor
+Icon=emacs
+Keywords=emacsclient;
+MimeType=text/x-tex;text/x-pascal;text/x-moc;text/x-makefile;text/x-java;text/x-csrc;text/x-csrc;text/x-chdr;text/x-c++src;text/x-c++hdr;text/tcl;text/plain;application/x-shellscript;
+Name[en_US]=Emacs
+Name=Emacs
+Path=
+StartupNotify=true
+StartupWMClass=Emacs
+Terminal=false
+TerminalOptions=
+Type=Application
+X-KDE-SubstituteUID=false
+X-KDE-Username=
