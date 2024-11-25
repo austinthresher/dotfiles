@@ -26,6 +26,19 @@ multiple times."
     `(let ((,val-sym (list ,@vals)))
        (setq ,ls (seq-remove (lambda (x) (memq x ,val-sym)) ,ls)))))
 
+(defun my/close-other-tabs ()
+  (remove-hook 'server-after-make-frame-hook 'my/close-other-tabs)
+  (tab-bar-close-other-tabs))
+
+(defun find-file-new-tab (filename &optional wildcards)
+  "Like find-file-other-tab, but behaves when no frame yet exists."
+  (let* ((buffer-names (mapcar 'buffer-name (buffer-list)))
+         (is-initial-frame? (member " *server-dummy*" buffer-names)))
+    (if is-initial-frame?
+        (find-file filename wildcards)
+      (find-file-other-tab filename wildcards))))
+
+
 
 ;;;; Theme and font
 ;;;; ======================================================================
@@ -38,12 +51,15 @@ multiple times."
 
 (setq-default line-spacing nil)
 
+;; Note- using color names like "white" will not give correct results for
+;; terminal sessions
 (set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'light
-                    :background "white")
-(set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 130 :weight 'normal)
+                    :background "#FFFFFF")
+(set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 140 :weight 'normal)
 (set-face-attribute 'variable-pitch-text nil :height 'unspecified)
 (set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140 :weight 'light)
-(set-face-attribute 'fringe nil :background "white")
+(set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140 :weight 'light)
+(set-face-attribute 'fringe nil :background "#FFFFFF")
 
 
 ;;;; General settings
@@ -74,8 +90,8 @@ multiple times."
                         (awk-mode . "awk")
                         (other . "k&r")))
 (setq tab-width 8)
-(set-face-attribute 'window-divider-first-pixel nil :foreground "white")
-(set-face-attribute 'window-divider-last-pixel nil :foreground "white")
+(set-face-attribute 'window-divider-first-pixel nil :foreground "#FFFFFF")
+(set-face-attribute 'window-divider-last-pixel nil :foreground "#FFFFFF")
 (setopt window-divider-default-right-width 3)
 
 
@@ -184,6 +200,10 @@ multiple times."
 (add-hook 'after-init-hook 'minibuffer-depth-indicate-mode)
 (add-hook 'after-init-hook 'pixel-scroll-precision-mode)
 (add-hook 'after-init-hook 'delete-selection-mode)
+(add-hook 'after-init-hook 'tab-bar-mode)
+;; Adding this even though minimal-emacs.d adds it because (display-graphic-p)
+;; will return false for the daemon, preventing it from being loaded.
+(add-hook 'after-init-hook 'context-menu-mode)
 (add-hook 'prog-mode-hook 'global-prettify-symbols-mode)
 (show-paren-mode -1)
 
@@ -287,13 +307,13 @@ multiple times."
   (evil-want-abbrev-expand-on-insert-exit nil)
   :custom-face
   (evil-ex-substitute-matches ((t (:foreground "#888888"
-                                   :strike-through "red"
+                                   :strike-through "#FF0000"
                                    :background "#EE2222"
-                                   :box (:line-width (1 . -13) :color "white")
+                                   :box (:line-width (1 . -13) :color "#FFFFFF")
                                    :inherit unspecified))))
   (evil-ex-substitute-replacement ((t (:weight normal
                                        :box (:line-width (1 . -1)
-                                             :color "light green")
+                                             :color "#90EE90")
                                        :inherit unspecified))))
   :config
   (setq evil-lookup-func 'help-follow-symbol)
@@ -475,7 +495,9 @@ multiple times."
   :custom
   (completion-styles '(orderless basic))
   (completion-category-defaults nil)
-  (completion-category-overrides '((file (styles partial-completion)))))
+  (completion-category-overrides '((file (styles partial-completion))
+                                   (eglot (styles orderless))
+                                   (eglot-capf (styles orderless)))))
 
 (use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
@@ -601,12 +623,14 @@ multiple times."
   (after-init . corfu-popupinfo-mode)
   (server-after-make-frame . global-corfu-mode)
   (server-after-make-frame . corfu-popupinfo-mode)
-  :bind (("C-SPC" . completion-at-point) ; for when tab isn't usable
-         :map corfu-map
-         ("<prior>" . corfu-scroll-down)
-         ("<next>" . corfu-scroll-up)
-         ("<tab>" . corfu-expand)
-         ("<return>" . corfu-send))
+  :general
+  ('insert
+   "C-SPC" 'completion-at-point)  ; for when tab isn't usable
+  ('corfu-map
+   "<prior>" 'corfu-scroll-down
+   "<next>" 'corfu-scroll-up
+   "<tab>" 'corfu-expand
+   "<return>" 'corfu-send)
   :custom
   (corfu-cycle t)
   (corfu-preselect 'valid)
@@ -624,14 +648,13 @@ multiple times."
   :commands (cape-dabbrev cape-file cape-elisp-block)
   :bind ("C-c p" . cape-prefix-map)
   :init
-  (add-hook 'completion-at-point-functions 'cape-file)
-  (defun my/dabbrev-friend? (other-buffer)
-    "Search in any buffer that's visiting a file."
-    (buffer-file-name other-buffer))
-  (setq dabbrev-friend-buffer-function 'my/dabbrev-friend?)
-  (defun my/add-dabbrev ()
-    (add-hook 'completion-at-point-functions 'cape-dabbrev 0 :local))
-  (add-hook 'prog-mode-hook 'my/add-dabbrev))
+  (general-add-hook 'completion-at-point-functions
+                    (list 'cape-dabbrev 'cape-file))
+  :config
+  ;; TODO: Look at corfu wiki for example merging elisp cap with dabbrev
+
+  ;; Fix the issue where completion doesn't show all of the candidates
+  (advice-add 'eglot-completion-at-point :around 'cape-wrap-buster))
 
 (use-package form-feed-st :ensure t
   :hook
@@ -874,6 +897,10 @@ multiple times."
   (markdown-hide-markup t)
   (markdown-enable-wiki-links t)
   (markdown-list-item-bullets '("•" "‣" "‧" "╴"))
+  :custom-face
+  (markdown-code-face ((t (:background unspecified
+                           :weight normal
+                           :inherit fixed-pitch))))
   :config
   (general-add-hook (list 'markdown-mode-hook 'markdown-view-mode-hook
                           'gfm-mode-hook 'gfm-view-mode-hook)
@@ -1060,6 +1087,17 @@ multiple times."
   (uniquify-after-kill-buffer-p t)
   (uniquify-ignore-buffers-re "^\\*"))
 
+(use-package tab-bar :ensure nil
+  :custom
+  (tab-bar-close-button-show nil)
+  (tab-bar-select-restore-windows nil)
+  (tab-bar-show 1))
+
+(use-package dabbrev :ensure nil
+  :config (add-to-list* 'dabbrev-ignored-buffer-modes
+                        'doc-view-mode 'pdf-view-mode
+                        'tags-table-mode))
+
 (use-package dired :ensure nil
   :custom
   (dired-free-space nil)
@@ -1103,6 +1141,7 @@ multiple times."
                         'package-menu-mode-hook 'cycbuf-mode-hook)
                   'my/smaller-fonts)
 
+
 ;;;; Customized Mode Line
 ;;;; ======================================================================
 
@@ -1124,7 +1163,7 @@ multiple times."
 (defun my/vim-state ()
   (if (mode-line-window-selected-p)
       (let ((mode-text (concat " " (upcase (symbol-name evil-state)) "▕")))
-        (my/colorize mode-text "black" (my/vim-color)))
+        (my/colorize mode-text "#000000" (my/vim-color)))
     ""))
 
 (defun my/make-check-text (status errors warnings info map)
@@ -1214,7 +1253,7 @@ multiple times."
       '(vc-mode ("" vc-mode " ▕ "))
     ""))
 (defun my/modeline-extend (result)
-  (concat result (my/colorize " " "black" (my/vim-color))))
+  (concat result (my/colorize " " "#000000" (my/vim-color))))
 (advice-add 'simple-modeline--format :filter-return 'my/modeline-extend)
 (setopt simple-modeline-segments
         '((my/evil-state
@@ -1328,5 +1367,3 @@ multiple times."
    (,(rx (seq bos (or "*" " *")))
     (display-buffer-in-side-window display-buffer-no-window)
     (side . bottom))))
-
-   
