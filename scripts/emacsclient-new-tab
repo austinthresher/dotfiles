@@ -1,12 +1,9 @@
 #!/bin/bash
 
-# TODO: Make sure the first file is opened, then open the rest using -n to
-# not wait on emacs, ensuring they all end up in the same instance.
-
 # Handle multiple arguments. Assume all of them are file names, since this
 # will usually be called by the desktop environment.
 for fname in "$@"
 do
     # Note that find-file-new-tab is a custom function in post-init.el
-    emacsclient --alternate-editor="" --reuse-frame --eval "(find-file-new-tab \"$fname\")"
+    emacsclient --no-wait --alternate-editor="" --reuse-frame --eval "(find-file-new-tab \"$fname\")"
 done

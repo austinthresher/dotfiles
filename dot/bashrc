@@ -41,6 +41,9 @@ alias more='less'
 alias gdb='gdb -q'
 alias preview='feh --scale -d . &'
 
+# Pipe into this to prevent really long lines from taking over shell output.
+alias trunc="cut -b 1-120"
+
 # I never remember xxd
 alias hex='xxd -g 1'
 
@@ -71,8 +74,8 @@ fi
 
 # Allow launching emacsclient directly without having to start a daemon first
 if command -v emacsclient &> /dev/null; then
-    alias emacsclient='emacsclient --alternate-editor=""'
-    alias emc='emacsclient'
+    alias emc='emacsclient-wrapper'
+    alias em='emacsclient --alternate-editor="" --tty'
 fi
 
 # These scripts are in my dotfiles.
@@ -97,11 +100,4 @@ if command -v glow &> /dev/null; then
     alias mdv='glow -p'
 fi
 
-
-source venv
 source promptcolor
-
-if [ -f ".activate" ]; then
-    activate &> /dev/null
-fi
-

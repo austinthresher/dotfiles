@@ -36,7 +36,8 @@ multiple times."
          (is-initial-frame? (member " *server-dummy*" buffer-names)))
     (if is-initial-frame?
         (find-file filename wildcards)
-      (find-file-other-tab filename wildcards))))
+      (find-file-other-tab filename wildcards)))
+  (raise-frame))
 
 
 
@@ -353,8 +354,13 @@ multiple times."
   ;; Fix mouse clicks in Customize buffers
   (with-eval-after-load "custom"
     (evil-make-overriding-map custom-mode-map))
-  (with-eval-after-load "yasnippet"
-    (evil-make-overriding-map yas-minor-mode-map))
+
+  ;; I don't remember what this was fixing but it's breaking TAB,
+  ;; commenting out for now. Using general.el would probably solve the
+  ;; original issue, whatever it was.
+  ;; (with-eval-after-load "yasnippet"
+  ;;   (evil-make-overriding-map yas-minor-mode-map))
+
   (evil-define-operator my/evil-comment-or-uncomment (beg end)
     "Toggle comment for the region between BEG and END."
     (interactive "<r>")
@@ -445,7 +451,8 @@ multiple times."
          (eshell-load . eat-eshell-visual-command-mode))
   :general-config
   ('(normal insert emacs) eat-mode-map "C-c P" 'eat-send-password)
-  ('(normal insert emacs) eshell-mode-map "C-c P" 'eat-send-password))
+  ('(normal insert emacs) eshell-mode-map "C-c P" 'eat-send-password)
+  )
 
 (use-package devdocs :ensure t
   :commands devdocs-lookup
@@ -463,12 +470,6 @@ multiple times."
   (after-init . vertico-mouse-mode)
   (server-after-make-frame . vertico-mode)
   (server-after-make-frame . vertico-mouse-mode)
-  :bind (:map minibuffer-mode-map
-         ("<tab>" . completion-at-point)
-         ("C-S-k" . kill-line)
-         :map vertico-map
-         ("<next>" . vertico-scroll-up)
-         ("<prior>" . vertico-scroll-down))
   :custom
   (vertico-cycle t)
   (vertico-scroll-margin 1)
@@ -489,7 +490,23 @@ multiple times."
                    crm-separator)
                   (car args))
           (cdr args)))
-  (advice-add 'completing-read-multiple :filter-args 'my/crm-indicator))
+  (advice-add 'completing-read-multiple :filter-args 'my/crm-indicator)
+  :general-config
+  ('minibuffer-mode-map
+   "<tab>" 'completion-at-point
+   "TAB" 'completion-at-point)
+  ('vertico-map
+   "<next>" 'vertico-scroll-up
+   "<prior>" 'vertico-scroll-down
+   ;; Complete up to prefix
+   "<tab>" 'minibuffer-complete
+   "TAB" 'minibuffer-complete
+   "C-SPC" 'vertico-insert
+   ;; Send typed input even if it doesn't match any candidates
+   "C-<return>" 'vertico-exit-input
+   "C-RET" 'vertico-exit-input
+   ;; This one works in the terminal
+   "C-c RET" 'vertico-exit-input))
 
 (use-package orderless :ensure t
   :custom
@@ -630,6 +647,7 @@ multiple times."
    "<prior>" 'corfu-scroll-down
    "<next>" 'corfu-scroll-up
    "<tab>" 'corfu-expand
+   "TAB" 'corfu-expand
    "<return>" 'corfu-send)
   :custom
   (corfu-cycle t)
@@ -643,6 +661,9 @@ multiple times."
   (read-extended-command-predicate #'command-completion-default-include-p)
   (text-mode-ispell-word-completion nil)
   (tab-always-indent 'complete))
+
+(use-package corfu-terminal :ensure t
+  :config (corfu-terminal-mode))
 
 (use-package cape :ensure t :defer t
   :commands (cape-dabbrev cape-file cape-elisp-block)
@@ -673,9 +694,6 @@ multiple times."
    '("#BBFFDD" "#BBDDFF" "#FFCCFF" "#FFDDDD" "#FFEECC")))
 
 (use-package yasnippet :ensure t
-  :hook
-  (after-init . yas-global-mode)
-  (server-after-make-frame . yas-global-mode)
   :custom (yas-alias-to-yas/prefix-p nil)
   :bind (:map yas-minor-mode-map
          ("C-i" . yas-expand)
@@ -687,10 +705,9 @@ multiple times."
          ("<return>" . yas-next-field)
          ("<tab>" . yas-next-field))
   :config
-  (define-key yas-minor-mode-map (kbd "<tab>") nil)
-  (define-key yas-minor-mode-map (kbd "<backtab>") nil)
-  (define-key yas-minor-mode-map (kbd "TAB") nil)
-  (define-key yas-minor-mode-map (kbd "S-TAB") nil)
+  (yas-global-mode)
+  (general-unbind 'insert '(yas-minor-mode-map yas-keymap)
+    "<tab>" "<backtab>" "TAB" "S-TAB")
   (define-key yas-keymap (kbd "TAB") nil)
   (defun my/ensure-insert ()
     (unless (eq evil-state 'insert)
