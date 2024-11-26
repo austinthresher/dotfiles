@@ -202,6 +202,7 @@ multiple times."
 (add-hook 'after-init-hook 'pixel-scroll-precision-mode)
 (add-hook 'after-init-hook 'delete-selection-mode)
 (add-hook 'after-init-hook 'tab-bar-mode)
+(add-hook 'after-init-hook 'undelete-frame-mode)
 ;; Adding this even though minimal-emacs.d adds it because (display-graphic-p)
 ;; will return false for the daemon, preventing it from being loaded.
 (add-hook 'after-init-hook 'context-menu-mode)
@@ -662,6 +663,7 @@ multiple times."
   (text-mode-ispell-word-completion nil)
   (tab-always-indent 'complete))
 
+;; Note: this _might_ be conflicting with popupinfo in the GUI, needs testing
 (use-package corfu-terminal :ensure t
   :config (corfu-terminal-mode))
 
@@ -675,7 +677,8 @@ multiple times."
   ;; TODO: Look at corfu wiki for example merging elisp cap with dabbrev
 
   ;; Fix the issue where completion doesn't show all of the candidates
-  (advice-add 'eglot-completion-at-point :around 'cape-wrap-buster))
+  (advice-add 'eglot-completion-at-point :around 'cape-wrap-buster)
+  )
 
 (use-package form-feed-st :ensure t
   :hook
@@ -1185,9 +1188,9 @@ multiple times."
 
 (defun my/make-check-text (status errors warnings info map)
   (if (or (null status) (string= status ""))
-      (let* ((e (format "%s " errors))
-             (w (format "%s " warnings))
-             (i (format "%s" info)))
+      (let* ((e (format "%s " (or errors 0)))
+             (w (format "%s " (or warnings 0)))
+             (i (format "%s" (or info 0))))
         `((:propertize ,e mouse-face mode-line-highlight keymap ,map face error)
           (:propertize ,w mouse-face mode-line-highlight keymap ,map face warning)
           (:propertize ,i mouse-face mode-line-highlight keymap ,map face success)))
