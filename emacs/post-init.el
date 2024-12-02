@@ -206,7 +206,8 @@ multiple times."
 ;; Adding this even though minimal-emacs.d adds it because (display-graphic-p)
 ;; will return false for the daemon, preventing it from being loaded.
 (add-hook 'after-init-hook 'context-menu-mode)
-(add-hook 'prog-mode-hook 'global-prettify-symbols-mode)
+;; TODO: remove some of these, like "or"
+;; (add-hook 'prog-mode-hook 'global-prettify-symbols-mode)
 (show-paren-mode -1)
 
 
@@ -274,11 +275,13 @@ multiple times."
   "Add this as a hook to buffers that should have extra line spacing"
   (setq-local line-spacing 0.2))
 
+(defun my/prog-word-syntax (&rest _)
+  "Make _ behave as part of a word, not punctuation."
+  (modify-syntax-entry ?_ "w"))
 
 (defun my/lisp-word-syntax (&rest _)
-  "Make - and _ behave as part of a word, not punctuation."
-  (modify-syntax-entry ?- "w")
-  (modify-syntax-entry ?_ "w"))
+  "Make - behave as part of a word, not punctuation."
+  (modify-syntax-entry ?- "w"))
 
 
 ;;;; External Packages
@@ -1135,6 +1138,8 @@ multiple times."
               'my/dired-mouse-find-file-smart)
   (general-add-hook 'dired-mode-hook (list 'dired-hide-details-mode
                                            'dired-omit-mode)))
+
+(general-add-hook 'prog-mode-hook 'my/prog-word-syntax)
 
 (general-add-hook (list 'lisp-mode-hook
                         'lisp-data-mode-hook
