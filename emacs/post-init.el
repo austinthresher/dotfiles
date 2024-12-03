@@ -61,19 +61,25 @@ multiple times."
 (set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140 :weight 'light)
 (set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140 :weight 'light)
 (set-face-attribute 'fringe nil :background "#FFFFFF")
+(set-face-attribute 'mode-line nil :family "Roboto" :height 140 :weight 'light)
+(set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light)
+(set-face-attribute 'header-line nil :weight 'normal)
 
 
 ;;;; General settings
 ;;;; ======================================================================
 
-(setq truncate-lines nil)
+(setq-default truncate-lines nil)
+(setq large-file-warning-threshold nil)
 (setq fast-but-imprecise-scrolling nil)
 (setq disabled-command-function nil)
 ;; (setq scroll-conservatively 101)
 (setq idle-update-delay 0.1)
 (setq mouse-1-click-follows-link t)
+(setq mouse-wheel-tilt-scroll t)
 (setq mouse-wheel-progressive-speed nil)
-(setq mouse-wheel-scroll-amount '(0.2
+(setq pixel-scroll-precision-interpolation-factor 1.0)
+(setq mouse-wheel-scroll-amount '(0.1
                                   ((shift) . 0.9)
                                   ((control meta) . global-text-scale)
                                   ((control) . text-scale)
@@ -91,9 +97,11 @@ multiple times."
                         (awk-mode . "awk")
                         (other . "k&r")))
 (setq tab-width 8)
-(set-face-attribute 'window-divider-first-pixel nil :foreground "#FFFFFF")
-(set-face-attribute 'window-divider-last-pixel nil :foreground "#FFFFFF")
-(setopt window-divider-default-right-width 3)
+
+(window-divider-mode -1)
+;; (set-face-attribute 'window-divider-first-pixel nil :foreground "#FFFFFF")
+;; (set-face-attribute 'window-divider-last-pixel nil :foreground "#FFFFFF")
+;; (setopt window-divider-default-right-width 3)
 
 
 ;;;; Cursor customization
@@ -135,10 +143,19 @@ multiple times."
   (let ((prop (get-text-property (point) 'display)))
     (eq 'image (car-safe prop))))
 
+(defun my/cursor-should-underline? ()
+  (and (not (my/cursor-over-image?))
+       blink-cursor-mode))
+
 (defun my/update-cursor-overlay (&rest _)
+  ;; Diminished cursor, usually reading a document or something
+  (unless blink-cursor-mode
+    (set-face-attribute 'cursor nil :background
+                        (if (and (boundp 'evil-state) (eq evil-state 'emacs))
+                            "#FFBBFF" "#BBBBBB")))
   (or (ignore-errors
         (if (or (not (eq evil-state 'normal))
-                (my/cursor-over-image?))
+                (not (my/cursor-should-underline?)))
             (when (overlayp my/underline-ov) (delete-overlay my/underline-ov))
           (unless (overlayp my/underline-ov)
             (setq my/underline-ov (make-overlay (point) (point))))
@@ -199,7 +216,8 @@ multiple times."
 (add-hook 'after-init-hook 'recentf-mode)
 (add-hook 'after-init-hook 'save-place-mode)
 (add-hook 'after-init-hook 'minibuffer-depth-indicate-mode)
-(add-hook 'after-init-hook 'pixel-scroll-precision-mode)
+;; This is causing more problems than it's worth
+;; (add-hook 'after-init-hook 'pixel-scroll-precision-mode)
 (add-hook 'after-init-hook 'delete-selection-mode)
 (add-hook 'after-init-hook 'tab-bar-mode)
 (add-hook 'after-init-hook 'undelete-frame-mode)
@@ -269,7 +287,13 @@ multiple times."
   (face-remap-add-relative 'default '(:height 120))
   (face-remap-add-relative 'variable-pitch '(:height 110))
   (face-remap-add-relative 'fixed-pitch '(:height 120))
+  (face-remap-add-relative 'fixed-pitch-serif '(:height 120))
   (face-remap-add-relative 'header-line '(:height 120)))
+
+(defun my/font-weight (&rest _)
+  "Add this as a hook to buffers that should have slightly heavier default
+font weight"
+  (face-remap-add-relative 'default '(:weight normal)))
 
 (defun my/line-spacing (&rest _)
   "Add this as a hook to buffers that should have extra line spacing"
@@ -300,6 +324,8 @@ multiple times."
   (setq evil-want-integration t)
   (setq evil-want-keybinding nil)
   :custom
+  ;; Make insert mode act like Emacs
+  (evil-disable-insert-state-bindings t)
   (evil-shift-round nil)
   (evil-want-empty-ex-last-command t)
   (evil-echo-state nil)
@@ -384,12 +410,11 @@ multiple times."
 
 (use-package evil-collection :ensure t
   :after evil
+  :custom (evil-collection-key-blacklist '("C-j" "C-k"))
   :config
   (remove-from-list evil-collection-mode-list
                     'eat)
   (evil-collection-init)
-  ;; Make insert mode act like Emacs
-  (setopt evil-disable-insert-state-bindings t)
   ;; Make '==' execute 'vip='. I couldn't figure this out as a keybind.
   (defun my/indent-paragraph-or-evil-indent (fn beg end)
     ;; Condition from original evil-indent
@@ -510,7 +535,10 @@ multiple times."
    "C-<return>" 'vertico-exit-input
    "C-RET" 'vertico-exit-input
    ;; This one works in the terminal
-   "C-c RET" 'vertico-exit-input))
+   "C-c RET" 'vertico-exit-input)
+  :custom-face
+  (vertico-current ((t (:background "#D0F0FF"
+                      :box (:line-width (1 . -1) :color "#DDD"))))))
 
 (use-package orderless :ensure t
   :custom
@@ -518,7 +546,12 @@ multiple times."
   (completion-category-defaults nil)
   (completion-category-overrides '((file (styles partial-completion))
                                    (eglot (styles orderless))
-                                   (eglot-capf (styles orderless)))))
+                                   (eglot-capf (styles orderless))))
+  :custom-face
+  (orderless-match-face-0 ((t (:background unspecified :underline t))))
+  (orderless-match-face-1 ((t (:background unspecified :underline t))))
+  (orderless-match-face-2 ((t (:background unspecified :underline t))))
+  (orderless-match-face-3 ((t (:background unspecified :underline t)))))
 
 (use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
@@ -646,7 +679,7 @@ multiple times."
   (server-after-make-frame . corfu-popupinfo-mode)
   :general
   ('insert
-   "C-SPC" 'completion-at-point)  ; for when tab isn't usable
+   "C-SPC" 'completion-at-point)        ; for when tab isn't usable
   ('corfu-map
    "<prior>" 'corfu-scroll-down
    "<next>" 'corfu-scroll-up
@@ -661,10 +694,17 @@ multiple times."
   (corfu-popupinfo-delay 0.1)
   (corfu-popupinfo-hide nil)
   (corfu-quit-no-match 'separator)
+  (corfu-left-margin-width 0.0)
+  (corfu-right-margin-width 0.2)
   ;; Hide commands in M-x which do not apply to the current mode.
   (read-extended-command-predicate #'command-completion-default-include-p)
   (text-mode-ispell-word-completion nil)
-  (tab-always-indent 'complete))
+  (tab-always-indent 'complete)
+  :custom-face
+  (corfu-default ((t (:background "#FFF"))))
+  (corfu-current ((t (:background "#D0F0FF"
+                      :box (:line-width (1 . -1) :color "#DDD")))))
+  (corfu-popupinfo ((t (:background "#F8F8FD")))))
 
 ;; Note: this _might_ be conflicting with popupinfo in the GUI, needs testing
 (use-package corfu-terminal :ensure t
@@ -691,8 +731,7 @@ multiple times."
 (use-package highlight-parentheses :ensure t
   :hook
   (minibuffer-setup . highlight-parentheses-minibuffer-setup)
-  (after-init . global-highlight-parentheses-mode)
-  (server-after-make-frame . global-highlight-parentheses-mode)
+  (prog-mode . highlight-parentheses-mode)
   :custom
   (highlight-parentheses-colors
    '("#005500" "#0000AA" "#550099" "#550000" "#333300"))
@@ -726,8 +765,7 @@ multiple times."
 (use-package expand-region :ensure t
   :custom (expand-region-contract-fast-key "V")
   :general-config
-  ('visual "v" 'er/expand-region)
-  )
+  ('visual "v" 'er/expand-region))
 
 (use-package lua-mode :ensure t :mode "\\.lua\\'")
 (use-package vimrc-mode :ensure t :mode "[._]?g?vim\\(rc\\)?")
@@ -739,15 +777,12 @@ multiple times."
   (put 'when-let 'fennel-indent-function 1))
 
 (use-package pdf-tools :ensure t :defer t
+  :commands pdf-view-mode
+  :mode ("\\.[pP][dD][fF]\\'" . pdf-view-mode)
   :config
   (pdf-loader-install)
-  (add-hook 'pdf-view-mode-hook 'my/no-blink-cursor))
-
-(use-package simple-modeline :ensure t :demand t
-  :hook
-  (after-init . simple-modeline-mode)
-  (server-after-make-frame . simple-modeline-mode)
-  :custom (simple-modeline-word-count-modes nil))
+  (general-add-hook 'pdf-view-mode-hook (list 'my/no-blink-cursor
+                                              'my/no-fringes)))
 
 (use-package org-superstar :ensure t
   :hook (org-mode . org-superstar-mode)
@@ -808,9 +843,9 @@ multiple times."
   :hook
   (prog-mode . smartparens-mode)
   (smartparens-mode . smartparens-strict-mode)
-  :custom-face
-  (sp-pair-overlay-face ((t (:background "#F0F0F0" :inherit unspecified))))
-  :custom (sp-delete-blank-sexps t)
+  :custom
+  (sp-highlight-pair-overlay nil)
+  (sp-delete-blank-sexps t)
   :config
   (require 'smartparens-config)
   ;;(sp-with-modes '(css-base-mode js-base-mode)
@@ -876,8 +911,6 @@ multiple times."
   ('visual
    "M-\"" 'my/wrap-quotes-selected))
 
-  
-
 (use-package aggressive-indent :ensure t
   :config
   ;; Aggressive indent doesn't respond well to the way elisp indents ; and ;;
@@ -910,7 +943,17 @@ multiple times."
   :hook
   (after-init . minions-mode)
   (server-after-make-frame . minions-mode)
-  :custom (minions-mode-line-delimiters '(" " . "")))
+  :custom
+  (minions-mode-line-face 'fixed-pitch)
+  (minions-mode-line-lighter " ≡")
+  (minions-mode-line-delimiters '(" " . "")))
+
+(use-package list-unicode-display :ensure t)
+
+(use-package nov :ensure t
+  :mode ("\\.epub\\'" . nov-mode)
+  :config
+  (general-add-hook 'nov-mode-hook (list 'my/no-blink-cursor)))
 
 (use-package markdown-mode :ensure t
   :custom
@@ -987,6 +1030,17 @@ multiple times."
     (interactive "e")
     (with-selected-window (posn-window (event-start event))
       (flymake-goto-prev-error))))
+
+(use-package doc-view :ensure nil :defer t
+  :custom
+  (doc-view-continuous t)
+  :config
+  (general-add-hook 'doc-view-mode-hook (list 'my/no-blink-cursor
+                                              'my/no-fringes))
+  :general
+  ('normal 'doc-view-mode-map
+           "C-j" 'cycbuf-switch-to-next-buffer
+           "C-k" 'cycbuf-switch-to-previous-buffer))
 
 (use-package isearch :ensure nil
   :custom
@@ -1104,6 +1158,25 @@ multiple times."
            "C-j" 'cycbuf-switch-to-next-buffer
            "C-k" 'cycbuf-switch-to-previous-buffer))
 
+(use-package shr :ensure nil :defer t
+  :custom-face
+  (shr-code ((t (:family "Iosevka Slab" :inherit unspecified :weight medium))))
+  (shr-text ((t (:family "Noto Sans" :inherit unspecified))))
+  (shr-h1 ((t (:height 1.50 :slant unspecified :weight bold :underline t))))
+  (shr-h2 ((t (:height 1.45 :slant unspecified :weight bold))))
+  (shr-h3 ((t (:height 1.30 :slant unspecified :weight bold))))
+  (shr-h4 ((t (:height 1.20 :slant unspecified :weight medium))))
+  (shr-h5 ((t (:height 1.15 :slant unspecified :weight normal))))
+  (shr-h6 ((t (:height 1.10 :slant oblique :weight normal))))
+  )
+
+(use-package proced :ensure nil
+  :custom
+  (proced-auto-update-flag 'visible)
+  (proced-auto-update-interval 1)
+  (proced-tree-flag t)
+  (proced-enable-color-flag t))
+
 (use-package uniquify :ensure nil
   :custom
   (uniquify-buffer-name-style 'forward)
@@ -1163,15 +1236,13 @@ multiple times."
 (general-add-hook (list 'help-mode-hook 'eww-mode-hook 'compilation-mode-hook
                         'comint-mode-hook 'apropos-mode-hook 'Info-mode-hook
                         'evil-collection-eldoc-doc-buffer-mode-hook
-                        'package-menu-mode-hook 'cycbuf-mode-hook)
+                        'package-menu-mode-hook 'cycbuf-mode-hook
+                        'eat-mode-hook 'proced-mode-hook)
                   'my/smaller-fonts)
 
 
 ;;;; Customized Mode Line
 ;;;; ======================================================================
-
-(defun my/colorize (text fg bg)
-  (propertize text 'face `(:foreground ,fg :background ,bg)))
 
 (defun my/vim-color ()
   (if (mode-line-window-selected-p)
@@ -1185,11 +1256,19 @@ multiple times."
         (_ 'unspecified))
     'unspecified))
 
+(defun my/inactive-left ()
+  (if (mode-line-window-selected-p)
+      ""
+    '(:propertize "▌" face ((:height 150 :weight bold :foreground "#DDD") fixed-pitch))))
+
 (defun my/vim-state ()
   (if (mode-line-window-selected-p)
-      (let ((mode-text (concat " " (upcase (symbol-name evil-state)) "▕")))
-        (my/colorize mode-text "#000000" (my/vim-color)))
-    ""))
+      (let ((mode-text (concat " " (upcase (symbol-name evil-state)) " ")))
+        (concat (propertize mode-text 'face
+                            `(:foreground "#000000"
+                              :background ,(my/vim-color)
+                              :family "Iosevka"))
+                (propertize "▏" 'face `((:height 150) fixed-pitch))))))
 
 (defun my/make-check-text (status errors warnings info map)
   (if (or (null status) (string= status ""))
@@ -1232,24 +1311,51 @@ multiple times."
     ""))
 
 (defun my/evil-state () '(:eval (my/vim-state)))
+
 (defun my/modeline-modes ()
   (if (mode-line-window-selected-p) 
       minions-mode-line-modes
     (format-mode-line mode-name)))
+
+(defun my/modeline-buffer-name ()
+  `(:propertize " %b" face
+    ,(if (mode-line-window-selected-p)
+         '((:weight normal)
+           mode-line-buffer-id)
+       '((:weight light)))))
+
 (defun my/modeline-position-default ()
-  `(:propertize ("▏ %3l : %2C ") face (:background ,(my/vim-color))))
+  `(;; Uncomment this to include the %
+    ;;(-3 "%3o%")
+    (:propertize "▕" face ((:height 150 :weight bold) fixed-pitch))
+    (:propertize ( " %3l : %2C  ") face (:background ,(my/vim-color)
+                                         :family "Iosevka"))))
+
 (defun my/modeline-position-pdf ()
   (require 'pdf-view)
   (require 'pdf-info)
-  (let ((str (format "▏ Page %d/%d "
+  (let ((str (format " Page %d/%d  "
                      (pdf-view-current-page)
                      (pdf-info-number-of-pages))))
-    `(:propertize ,str face (:background ,(my/vim-color)))))
+    `((:propertize "▕" face ((:height 150) fixed-pitch))
+      (:propertize ,str face (:background ,(my/vim-color)
+                              :family "Iosevka")))))
+
+(defun my/modeline-position-doc-view ()
+  (let ((str (format " Page %d/%d  "
+                     (doc-view-current-page)
+                     (doc-view-last-page-number))))
+    `((:propertize "▕" face ((:height 150) fixed-pitch))
+      (:propertize ,str face (:background ,(my/vim-color)
+                              :family "Iosevka")))))
+
 (defun my/modeline-position ()
   (if (mode-line-window-selected-p)
       (cond ((eq major-mode 'pdf-view-mode) (my/modeline-position-pdf))
+            ((eq major-mode 'doc-view-mode) (my/modeline-position-doc-view))
             (t (my/modeline-position-default)))
     ""))
+
 (defun my/modeline-search ()
   (if (mode-line-window-selected-p)
       (let ((search-info (anzu--update-mode-line)))
@@ -1257,6 +1363,7 @@ multiple times."
             ""
           (concat "  ▏" search-info)))
     ""))
+
 (defun my/modeline-eldoc ()
   (or 
    (unless (string= "" my/eldoc-help-message)
@@ -1267,39 +1374,55 @@ multiple times."
          (when (eq (selected-window) bot-win)
            (concat " ▏" my/eldoc-help-message " ")))))
    ""))
+
 (defun my/modeline-fly ()
   (if (mode-line-window-selected-p)
       (cond ((bound-and-true-p flymake-mode) '("" (:eval (my/flymake-status)) "▕ "))
             ((bound-and-true-p flycheck-mode) '("" (:eval (my/flycheck-status)) "▕ "))
             (t ""))
     ""))
-(defun my/modeline-vc ()
-  (if (mode-line-window-selected-p)
-      '(vc-mode ("" vc-mode " ▕ "))
-    ""))
-(defun my/modeline-extend (result)
-  (concat result (my/colorize " " "#000000" (my/vim-color))))
-(advice-add 'simple-modeline--format :filter-return 'my/modeline-extend)
-(setopt simple-modeline-segments
-        '((my/evil-state
-           simple-modeline-segment-modified
-           simple-modeline-segment-buffer-name
-           my/modeline-search
-           my/modeline-eldoc)
-          (simple-modeline-segment-misc-info
-           my/modeline-fly
-           my/modeline-vc
-           my/modeline-modes
-           my/modeline-position)))
+
+;; Not actually sure I want this, disabling for now
+;; (defun my/modeline-vc ()
+;;   (if (mode-line-window-selected-p)
+;;       '(vc-mode ("" vc-mode " ▕ "))
+;;     ""))
+
+(defun my/modeline-modified ()
+  "Based on simple-modeline. Show a modified indicator for non-special
+buffers."
+  (unless (string-match-p "\\`[ ]?\\*" (buffer-name))
+    (let ((read-only (and buffer-read-only (buffer-file-name)))
+          (modified (buffer-modified-p)))
+      (propertize
+       (if read-only "" (if modified  "●" "○"))
+       'face `(:inherit
+               ,(if modified 'error
+                  (if read-only 'bold
+                    'shadow)))))))
+
+(setopt mode-line-right-align-edge 'window)
+(setq-default mode-line-format
+              '((:eval (my/inactive-left))
+                (:eval (my/evil-state))
+                (:eval (my/modeline-modified))
+                (:eval (my/modeline-buffer-name))
+                (:eval (my/modeline-search))
+                (:eval (my/modeline-eldoc))
+                mode-line-misc-info
+                mode-line-format-right-align
+                (:eval (my/modeline-fly))
+                (:eval (my/modeline-modes))
+                (:eval (my/modeline-position))
+                (:eval (if (mode-line-window-selected-p) "" "   "))))
 
 ;; In daemon mode, the messages buffer is created too early to get the
 ;; mode line changes.
 (add-hook 'messages-buffer-mode-hook 'my/smaller-fonts)
 (with-current-buffer (messages-buffer)
-  (setq-local mode-line-format
-              '(:eval simple-modeline--mode-line))
+  (setq-local mode-line-format nil)
   (my/smaller-fonts))
-
+    
 
 ;;;; Other keybinds
 ;;;; ======================================================================
