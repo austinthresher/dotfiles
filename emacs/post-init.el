@@ -26,10 +26,6 @@ multiple times."
     `(let ((,val-sym (list ,@vals)))
        (setq ,ls (seq-remove (lambda (x) (memq x ,val-sym)) ,ls)))))
 
-(defun my/close-other-tabs ()
-  (remove-hook 'server-after-make-frame-hook 'my/close-other-tabs)
-  (tab-bar-close-other-tabs))
-
 (defun find-file-new-tab (filename &optional wildcards)
   "Like find-file-other-tab, but behaves when no frame yet exists."
   (let* ((buffer-names (mapcar 'buffer-name (buffer-list)))
@@ -64,6 +60,7 @@ multiple times."
 (set-face-attribute 'mode-line nil :family "Roboto" :height 140 :weight 'light)
 (set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light)
 (set-face-attribute 'header-line nil :weight 'normal)
+(set-face-attribute 'vertical-border nil :foreground "#DDD" :background "#DDD")
 
 
 ;;;; General settings
@@ -219,7 +216,6 @@ multiple times."
 ;; This is causing more problems than it's worth
 ;; (add-hook 'after-init-hook 'pixel-scroll-precision-mode)
 (add-hook 'after-init-hook 'delete-selection-mode)
-(add-hook 'after-init-hook 'tab-bar-mode)
 (add-hook 'after-init-hook 'undelete-frame-mode)
 ;; Adding this even though minimal-emacs.d adds it because (display-graphic-p)
 ;; will return false for the daemon, preventing it from being loaded.
@@ -432,6 +428,9 @@ font weight"
 
 (use-package evil-anzu :ensure t
   :custom (anzu-cons-mode-line-p nil)
+  :custom-face
+  (anzu-mode-line ((t (:foreground "#000" :weight normal))))
+  (anzu-mode-line-no-match ((t (:foreground "#D33"))))
   :config
   (require 'evil-anzu) ; Somehow this is necessary
   (global-anzu-mode))
@@ -761,6 +760,10 @@ font weight"
   (add-hook 'yas-before-expand-snippet-hook 'my/ensure-insert))
 
 (use-package yasnippet-snippets :ensure t)
+
+(use-package adaptive-wrap :ensure t
+  :hook (prog-mode . adaptive-wrap-prefix-mode)
+  :custom (adaptive-wrap-extra-indent 1))
 
 (use-package expand-region :ensure t
   :custom (expand-region-contract-fast-key "V")
@@ -1183,11 +1186,44 @@ font weight"
   (uniquify-after-kill-buffer-p t)
   (uniquify-ignore-buffers-re "^\\*"))
 
-(use-package tab-bar :ensure nil
+(use-package tab-bar :ensure nil :demand t
   :custom
+  (tab-bar-format '(tab-bar-format-tabs
+                    tab-bar-separator
+                    tab-bar-format-add-tab
+                    tab-bar-format-align-right
+                    tab-bar-format-global))
   (tab-bar-close-button-show nil)
   (tab-bar-select-restore-windows nil)
-  (tab-bar-show 1))
+  (tab-bar-show 1)
+  :custom-face
+  (tab-bar ((t (:foreground "#DDD"
+                :background "#DDD"
+                :height 120
+                :underline (:color "#AAA" :position 0 :extend t)))))
+  (tab-bar-tab ((t (:inherit variable-pitch :weight medium
+                    :box (:line-width (-1 . -1) :color "#CCC")
+                    ;; Change this underline to #EEE to match window dividers
+                    :underline (:color "#FFF" :position 0)
+                    :height 130
+                    ))))
+  (tab-bar-tab-inactive ((t (:inherit variable-pitch :weight light
+                             :height 130
+                             ;;:box (:line-width (-1 . -1) :color "#AAA")
+                             ))))
+  :config
+  ;; This doesn't work for format-spaces because the text properties are overwritten
+  (defun my/make-pixel-spacer (px &rest props)
+    (apply #'propertize " " 'display `(space :width (,px)) props))
+  ;; TODO: Add modified indicator to buffer names
+  (defun my/tab-bar-tab-name-format-spaces (name tab number)
+    (concat "   " name "   "))
+  (setopt tab-bar-tab-name-format-functions '(tab-bar-tab-name-format-hints
+                                              tab-bar-tab-name-format-close-button
+                                              my/tab-bar-tab-name-format-spaces
+                                              tab-bar-tab-name-format-face))
+  (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:background "#CCC")))
+  (tab-bar-mode t))
 
 (use-package dabbrev :ensure nil
   :config (add-to-list* 'dabbrev-ignored-buffer-modes
@@ -1237,7 +1273,7 @@ font weight"
                         'comint-mode-hook 'apropos-mode-hook 'Info-mode-hook
                         'evil-collection-eldoc-doc-buffer-mode-hook
                         'package-menu-mode-hook 'cycbuf-mode-hook
-                        'eat-mode-hook 'proced-mode-hook)
+                        'eat-mode-hook 'proced-mode-hook 'shortdoc-mode-hook)
                   'my/smaller-fonts)
 
 
