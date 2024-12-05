@@ -61,7 +61,11 @@ multiple times."
 (set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light)
 (set-face-attribute 'header-line nil :weight 'normal)
 (set-face-attribute 'vertical-border nil :foreground "#DDD" :background "#DDD")
-
+;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
+;; relatively unobtrusive.
+(set-face-attribute 'trailing-whitespace nil
+                    :background 'unspecified :foreground "#FDD"
+                    :stipple '(8 2 "\xAA\x55"))
 
 ;;;; General settings
 ;;;; ======================================================================
@@ -95,7 +99,7 @@ multiple times."
                         (other . "k&r")))
 (setq tab-width 8)
 
-(window-divider-mode -1)
+(remove-hook 'after-init-hook 'window-divider-mode)
 ;; (set-face-attribute 'window-divider-first-pixel nil :foreground "#FFFFFF")
 ;; (set-face-attribute 'window-divider-last-pixel nil :foreground "#FFFFFF")
 ;; (setopt window-divider-default-right-width 3)
@@ -245,13 +249,26 @@ multiple times."
 ;;;; ======================================================================
 
 (defun my/no-mode-line (&rest _)
-  "Add this as a hook to modes that should not have a modeline"
-  (setq-local mode-line-format nil))
+  "Add this as a hook to modes that should not have a modeline. Leaves a tiny
+line so that it still acts as a grabbable window divider."
+  (let ((shared '(:height 10 :inherit nil :box nil)))
+    (apply #'face-remap-add-relative 'mode-line-active
+           :foreground "#AAA" shared)
+    (apply #'face-remap-add-relative 'mode-line-inactive
+           :foreground "#DDD" shared))
+  (setq-local mode-line-format
+              (propertize " "
+                          'face '(:underline (:position 0))
+                          'display '(space :width 4096))))
 
 (defun my/no-fringes (&rest _)
   "Add this as a hook to buffers that should not show fringes"
   (setq-local left-fringe-width 1
               right-fringe-width 1))
+
+(defun my/show-trailing-whitespace (&rest _)
+  "Add this as a hook to show trailing whitespace in a buffer"
+  (setq-local show-trailing-whitespace t))
 
 (defun my/no-fringes-redisplay (&rest _)
   "Performs the redisplay that is necessary for the fringes change to appear."
@@ -1113,6 +1130,9 @@ font weight"
 
 (use-package eldoc :ensure nil
   :init (defvar my/eldoc-help-message "")
+  :custom
+  (eldoc-echo-area-display-truncation-message nil)
+  (eldoc-echo-area-use-multiline-p 0.15)
   :config 
   (defun my/eldoc-minibuffer-message (fn fmt-str &rest args)
     (if (or (bound-and-true-p edebug-mode) (minibufferp))
@@ -1248,7 +1268,8 @@ font weight"
   (general-add-hook 'dired-mode-hook (list 'dired-hide-details-mode
                                            'dired-omit-mode)))
 
-(general-add-hook 'prog-mode-hook 'my/prog-word-syntax)
+(general-add-hook 'prog-mode-hook (list 'my/prog-word-syntax
+                                        'my/show-trailing-whitespace))
 
 (general-add-hook (list 'lisp-mode-hook
                         'lisp-data-mode-hook
