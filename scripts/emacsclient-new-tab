@@ -5,5 +5,15 @@
 for fname in "$@"
 do
     # Note that find-file-new-tab is a custom function in post-init.el
-    emacsclient --no-wait --alternate-editor="" --reuse-frame --eval "(find-file-new-tab \"$fname\")"
+    emacsclient --no-wait --alternate-editor="" --reuse-frame \
+        --eval "(find-file-new-tab \"$fname\")"
 done
+
+# raise-frame doesn't activate the window on Wayland.
+# This is called from within Emacs because unescaping the name was a pain
+if command -v kdotool &> /dev/null; then
+    LISPCMD='call-process "kdotool" nil nil nil "search" "--name" '
+    LISPCMD+="(frame-parameter nil 'name) "
+    LISPCMD+='"windowactivate"'
+    emacsclient --no-wait --eval -q -u "($LISPCMD)"
+fi

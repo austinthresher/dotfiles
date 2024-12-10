@@ -36,7 +36,6 @@ multiple times."
   (raise-frame))
 
 
-
 ;;;; Theme and font
 ;;;; ======================================================================
 
@@ -694,9 +693,11 @@ font weight"
   (server-after-make-frame . global-corfu-mode)
   (server-after-make-frame . corfu-popupinfo-mode)
   :general
-  ('insert
+  ('emacs
+   "C-S-SPC" 'set-mark-command)
+  ('(insert emacs)
    "C-SPC" 'completion-at-point)        ; for when tab isn't usable
-  ('corfu-map
+  ('(emacs insert) 'corfu-map
    "<prior>" 'corfu-scroll-down
    "<next>" 'corfu-scroll-up
    "<tab>" 'corfu-expand
@@ -1028,7 +1029,7 @@ font weight"
   :custom (eshell-destroy-buffer-when-process-dies t)
   :config (when (require 'eat nil :noerror)
             (setq eshell-visual-commands '()))
-  :general-config ('(insert emacs) eshell-mode-map "<tab>" 'completion-at-point))
+  :general-config ('(insert emacs) 'eshell-mode-map "<tab>" 'completion-at-point))
 
 (use-package winner-mode :ensure nil
   :hook
