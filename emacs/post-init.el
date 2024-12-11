@@ -49,12 +49,13 @@ multiple times."
 
 ;; Note- using color names like "white" will not give correct results for
 ;; terminal sessions
-(set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'light
-                    :background "#FFFFFF")
+(set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'normal
+                    :foreground "#333"
+                    :background "#FFF")
 (set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 140 :weight 'normal)
 (set-face-attribute 'variable-pitch-text nil :height 'unspecified)
-(set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140 :weight 'light)
-(set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140 :weight 'light)
+(set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
+(set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140)
 (set-face-attribute 'fringe nil :background "#FFFFFF")
 (set-face-attribute 'mode-line nil :family "Roboto" :height 140 :weight 'light)
 (set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light)
@@ -65,6 +66,52 @@ multiple times."
 (set-face-attribute 'trailing-whitespace nil
                     :background 'unspecified :foreground "#FDD"
                     :stipple '(8 2 "\xAA\x55"))
+(set-face-attribute 'match nil
+                    :foreground "dark cyan"
+                    :background 'unspecified
+                    :underline t)
+(set-face-attribute 'elisp-shorthand-font-lock-face nil
+                    :weight 'normal
+                    :slant 'italic
+                    :foreground 'unspecified)
+(set-face-attribute 'font-lock-string-face nil :foreground "#070" :weight 'normal)
+(set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab" :weight 'normal)
+(set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab" :weight 'normal)
+(set-face-attribute 'font-lock-type-face nil
+                    :foreground "DarkOrange3")
+(set-face-attribute 'font-lock-comment-face nil
+                    :foreground "#777"
+                    :weight 'light
+                    :slant 'unspecified)
+(set-face-attribute 'font-lock-doc-face nil
+                    :foreground "#777"
+                    :weight 'light
+                    :slant 'unspecified)
+;; Help differentiate the escapes from the grouped characters.
+(set-face-attribute 'font-lock-regexp-grouping-backslash nil
+                    :foreground "#BBB"
+                    :weight 'semibold)
+(set-face-attribute 'font-lock-regexp-grouping-construct nil
+                    :foreground "#22F"
+                    :weight 'bold)
+(set-face-attribute 'font-lock-punctuation-face nil :foreground "#000" :weight 'light)
+(set-face-attribute 'font-lock-variable-name-face nil :foreground "#333" :weight 'normal)
+(set-face-attribute 'font-lock-variable-use-face nil :foreground "#333" :weight 'normal)
+(set-face-attribute 'font-lock-function-name-face nil :weight 'normal)
+(set-face-attribute 'font-lock-constant-face nil
+                    :foreground "IndianRed4"
+                    :family "Iosevka Slab")
+(set-face-attribute 'font-lock-escape-face nil
+                    :foreground 'unspecified
+                    :inherit '(font-lock-constant-face))
+(set-face-attribute 'font-lock-number-face nil
+                    :foreground 'unspecified
+                    :inherit '(font-lock-constant-face))
+(set-face-attribute 'font-lock-preprocessor-face nil
+                    :foreground "dark cyan"
+                    :weight 'normal)
+(set-face-attribute 'font-lock-warning-face nil
+                    :foreground "DarkOrange2")
 
 ;;;; General settings
 ;;;; ======================================================================
@@ -85,6 +132,9 @@ multiple times."
                                   ((control) . text-scale)
                                   ((meta) . hscroll)))
 (setq next-screen-context-lines 1)
+(setq open-paren-in-column-0-is-defun-start nil)
+(setq jit-lock-chunk-size 4096)
+(setq jit-lock-antiblink-grace 1)
 (setq shell-kill-buffer-on-exit t)
 (setq eshell-kill-on-exit t)
 (setq eshell-scroll-to-bottom-on-input 'this)
@@ -225,7 +275,7 @@ multiple times."
 (add-hook 'after-init-hook 'context-menu-mode)
 ;; TODO: remove some of these, like "or"
 ;; (add-hook 'prog-mode-hook 'global-prettify-symbols-mode)
-(show-paren-mode -1)
+;; (show-paren-mode -1)
 
 
 ;;;; File type associations
@@ -262,6 +312,7 @@ line so that it still acts as a grabbable window divider."
 
 (defun my/no-fringes (&rest _)
   "Add this as a hook to buffers that should not show fringes"
+  ;; comment
   (setq-local left-fringe-width 1
               right-fringe-width 1))
 
@@ -296,7 +347,7 @@ line so that it still acts as a grabbable window divider."
 (defun my/smaller-fonts (&rest _)
   "Add this as a hook to have smaller fonts in a buffer"
   (setq-local line-spacing nil)
-  (face-remap-add-relative 'default '(:height 120))
+  (face-remap-add-relative 'default '(:height 120 :weight normal))
   (face-remap-add-relative 'variable-pitch '(:height 110))
   (face-remap-add-relative 'fixed-pitch '(:height 120))
   (face-remap-add-relative 'fixed-pitch-serif '(:height 120))
@@ -409,16 +460,17 @@ font weight"
     (comment-or-uncomment-region beg end))
   ;; Set C-S-w to evil-window-map everywhere, then swap it so that C-S-w
   ;; is mapped to the default C-w, while C-w is now evil-window-map everywhere.
-  (general-def '(insert emacs) "C-w" 'evil-window-map)
-  (general-def '(insert emacs) "C-S-w" 'evil-delete-backward-word)
   :general-config
+  ('(insert emacs)
+   "C-w" 'evil-window-map
+   "C-S-w" 'evil-delete-backward-word)
   ('(normal visual) 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
   ('evil-window-map "o" 'evil-window-mru)
   ('insert 'prog-mode-map "<tab>" 'indent-for-tab-command)
-  ('visual "<tab>" 'evil-shift-right)
-  ('visual "<backtab>" 'evil-shift-left)
-  ('normal "<tab>" 'evil-shift-right-line)
-  ('normal "<backtab>" 'evil-shift-left-line))
+  ('visual "<tab>" 'evil-shift-right
+           "<backtab>" 'evil-shift-left)
+  ('normal "<tab>" 'evil-shift-right-line
+           "<backtab>" 'evil-shift-left-line))
 
 (use-package evil-collection :ensure t
   :after evil
@@ -563,10 +615,14 @@ font weight"
                                    (eglot (styles orderless))
                                    (eglot-capf (styles orderless))))
   :custom-face
-  (orderless-match-face-0 ((t (:background unspecified :underline t))))
-  (orderless-match-face-1 ((t (:background unspecified :underline t))))
-  (orderless-match-face-2 ((t (:background unspecified :underline t))))
-  (orderless-match-face-3 ((t (:background unspecified :underline t)))))
+  (orderless-match-face-0 ((t (:background unspecified :underline t
+                               :foreground "royal blue"))))
+  (orderless-match-face-1 ((t (:background unspecified :underline t
+                               :foreground "magenta3"))))
+  (orderless-match-face-2 ((t (:background unspecified :underline t
+                               :foreground "SpringGreen4"))))
+  (orderless-match-face-3 ((t (:background unspecified :underline t
+                               :foreground "DarkGoldenrod3")))))
 
 (use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
@@ -672,7 +728,7 @@ font weight"
           (consult-buffer '(consult--source-buffer)))
       (message "no prefix")
       (consult-buffer '(my/consult--source-buffer-no-star))))
-      
+
   (keymap-global-set "C-x B" 'consult-buffer-only)
 
   (consult-customize
@@ -745,15 +801,37 @@ font weight"
   (after-init . global-form-feed-st-mode)
   (server-after-make-frame-hook . global-form-feed-st-mode))
 
+
 (use-package highlight-parentheses :ensure t
   :hook
   (minibuffer-setup . highlight-parentheses-minibuffer-setup)
-  (prog-mode . highlight-parentheses-mode)
+  (emacs-lisp-mode . highlight-parentheses-mode)
+  (lisp-mode . highlight-parentheses-mode)
+  (fennel-mode . highlight-parentheses-mode)
   :custom
-  (highlight-parentheses-colors
-   '("#005500" "#0000AA" "#550099" "#550000" "#333300"))
-  (highlight-parentheses-background-colors
-   '("#BBFFDD" "#BBDDFF" "#FFCCFF" "#FFDDDD" "#FFEECC")))
+  (highlight-parentheses-delay 0.05)
+  (highlight-parentheses-colors '("#333" "#333" "#333" "#333"))
+  (highlight-parentheses-background-colors '("#FFF" "#FFF" "#FFF" "#FFF"))
+  (highlight-parentheses-attributes '((:weight black)
+                                      (:weight black)
+                                      (:weight black)
+                                      (:weight black))))
+
+;; Configured to emphasize the outermost matched pair and alternating pairs
+(use-package rainbow-delimiters :ensure t
+  :hook (prog-mode . rainbow-delimiters-mode)
+  :custom
+  (show-paren-delay 0.05)
+  (rainbow-delimiters-max-face-count 3)
+  (rainbow-delimiters-outermost-only-face-count 1)
+  :custom-face
+  (show-paren-match ((t (:weight black
+                         :foreground "orange red"
+                         :background unspecified)
+                        )))
+  (rainbow-delimiters-depth-1-face ((t (:weight medium :foreground "#000"))))
+  (rainbow-delimiters-depth-2-face ((t (:weight light :foreground "#000"))))
+  (rainbow-delimiters-depth-3-face ((t (:weight extralight :foreground "#000")))))
 
 (use-package yasnippet :ensure t
   :custom (yas-alias-to-yas/prefix-p nil)
@@ -1029,7 +1107,11 @@ font weight"
   :custom (eshell-destroy-buffer-when-process-dies t)
   :config (when (require 'eat nil :noerror)
             (setq eshell-visual-commands '()))
-  :general-config ('(insert emacs) 'eshell-mode-map "<tab>" 'completion-at-point))
+  :general-config
+  ('(insert emacs) 'eshell-mode-map
+   "<tab>" 'completion-at-point
+   "C-p" 'eshell-previous-matching-input-from-input
+   "C-n" 'eshell-next-matching-input-from-input))
 
 (use-package winner-mode :ensure nil
   :hook
@@ -1134,7 +1216,7 @@ font weight"
   :custom
   (eldoc-echo-area-display-truncation-message nil)
   (eldoc-echo-area-use-multiline-p 0.15)
-  :config 
+  :config
   (defun my/eldoc-minibuffer-message (fn fmt-str &rest args)
     (if (or (bound-and-true-p edebug-mode) (minibufferp))
         (progn
@@ -1191,8 +1273,7 @@ font weight"
   (shr-h3 ((t (:height 1.30 :slant unspecified :weight bold))))
   (shr-h4 ((t (:height 1.20 :slant unspecified :weight medium))))
   (shr-h5 ((t (:height 1.15 :slant unspecified :weight normal))))
-  (shr-h6 ((t (:height 1.10 :slant oblique :weight normal))))
-  )
+  (shr-h6 ((t (:height 1.10 :slant oblique :weight normal)))))
 
 (use-package proced :ensure nil
   :custom
@@ -1217,6 +1298,7 @@ font weight"
   (tab-bar-close-button-show nil)
   (tab-bar-select-restore-windows nil)
   (tab-bar-show 1)
+  (tab-bar-auto-width nil)
   :custom-face
   (tab-bar ((t (:foreground "#DDD"
                 :background "#DDD"
@@ -1325,6 +1407,7 @@ font weight"
         (concat (propertize mode-text 'face
                             `(:foreground "#000000"
                               :background ,(my/vim-color)
+                              :weight normal
                               :family "Iosevka"))
                 (propertize "▏" 'face `((:height 150) fixed-pitch))))))
 
@@ -1387,7 +1470,7 @@ font weight"
     ;;(-3 "%3o%")
     (:propertize "▕" face ((:height 150 :weight bold) fixed-pitch))
     (:propertize ( " %3l : %2C  ") face (:background ,(my/vim-color)
-                                         :family "Iosevka"))))
+                                         :family "Iosevka" :weight normal))))
 
 (defun my/modeline-position-pdf ()
   (require 'pdf-view)
@@ -1397,7 +1480,7 @@ font weight"
                      (pdf-info-number-of-pages))))
     `((:propertize "▕" face ((:height 150) fixed-pitch))
       (:propertize ,str face (:background ,(my/vim-color)
-                              :family "Iosevka")))))
+                              :family "Iosevka" :weight normal)))))
 
 (defun my/modeline-position-doc-view ()
   (let ((str (format " Page %d/%d  "
@@ -1405,7 +1488,7 @@ font weight"
                      (doc-view-last-page-number))))
     `((:propertize "▕" face ((:height 150) fixed-pitch))
       (:propertize ,str face (:background ,(my/vim-color)
-                              :family "Iosevka")))))
+                              :family "Iosevka" :weight normal)))))
 
 (defun my/modeline-position ()
   (if (mode-line-window-selected-p)
@@ -1423,7 +1506,7 @@ font weight"
     ""))
 
 (defun my/modeline-eldoc ()
-  (or 
+  (or
    (unless (string= "" my/eldoc-help-message)
      (when (active-minibuffer-window)
        (let ((bot-win (or (window-in-direction 'above (minibuffer-window))
@@ -1478,9 +1561,9 @@ buffers."
 ;; mode line changes.
 (add-hook 'messages-buffer-mode-hook 'my/smaller-fonts)
 (with-current-buffer (messages-buffer)
-  (setq-local mode-line-format nil)
+  (my/no-mode-line)
   (my/smaller-fonts))
-    
+
 
 ;;;; Other keybinds
 ;;;; ======================================================================
@@ -1552,8 +1635,7 @@ buffers."
 (setq fit-window-to-buffer-horizontally t)
 (setq
  display-buffer-alist
- `(
-   ("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+ `(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
     display-buffer-in-direction
     (direction . rightmost)
     (window-parameters (mode-line-format . none)))
