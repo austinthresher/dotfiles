@@ -74,7 +74,9 @@ multiple times."
                     :weight 'normal
                     :slant 'italic
                     :foreground 'unspecified)
-(set-face-attribute 'font-lock-string-face nil :foreground "#070" :weight 'normal)
+(set-face-attribute 'font-lock-string-face nil
+                    :foreground "#070"
+                    :weight 'normal)
 (set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab" :weight 'normal)
 (set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab" :weight 'normal)
 (set-face-attribute 'font-lock-type-face nil
@@ -146,7 +148,7 @@ multiple times."
                         (java-mode . "java")
                         (awk-mode . "awk")
                         (other . "k&r")))
-(setq tab-width 8)
+(setq-default tab-width 8)
 
 (remove-hook 'after-init-hook 'window-divider-mode)
 ;; (set-face-attribute 'window-divider-first-pixel nil :foreground "#FFFFFF")
@@ -351,7 +353,9 @@ line so that it still acts as a grabbable window divider."
   (face-remap-add-relative 'variable-pitch '(:height 110))
   (face-remap-add-relative 'fixed-pitch '(:height 120))
   (face-remap-add-relative 'fixed-pitch-serif '(:height 120))
-  (face-remap-add-relative 'header-line '(:height 120)))
+  (face-remap-add-relative 'header-line '(:height 120))
+  (face-remap-add-relative 'form-feed-st-line
+                           '(:underline (:color "#CDE" :position 18))))
 
 (defun my/font-weight (&rest _)
   "Add this as a hook to buffers that should have slightly heavier default
@@ -370,6 +374,23 @@ font weight"
   "Make - behave as part of a word, not punctuation."
   (modify-syntax-entry ?- "w"))
 
+;; This helps with cases like (list "*" " " " *")
+(defun my/string-underline (&rest _)
+  "Add a faint underline to string literals to make it easier to tell them
+apart in languages that only use whitespace to separate list elements."
+  (face-remap-add-relative 'font-lock-string-face
+                           '(:underline (:color "#E0EFE0" :position 6))))
+
+
+;; These are intended to be redefined to whatever actual buffer switching
+;; functions I decide to use.
+(defun my/switch-to-next-buffer ()
+  (interactive)
+  (switch-to-next-buffer))
+
+(defun my/switch-to-prev-buffer ()
+  (interactive)
+  (switch-to-prev-buffer))
 
 ;;;; External Packages
 ;;;; ======================================================================
@@ -421,7 +442,7 @@ font weight"
   (setq evil-operator-state-cursor 'hollow)
   (add-to-list* 'evil-emacs-state-modes
                 'comint-mode 'eat-mode 'eshell-mode 'shell-mode 'term-mode
-                'inferior-python-mode)
+                'inferior-python-mode 'vterm-mode)
   (setq evil-insert-state-modes
         (seq-remove (lambda (x) (memq x evil-emacs-state-modes))
                     evil-insert-state-modes))
@@ -458,8 +479,6 @@ font weight"
     "Toggle comment for the region between BEG and END."
     (interactive "<r>")
     (comment-or-uncomment-region beg end))
-  ;; Set C-S-w to evil-window-map everywhere, then swap it so that C-S-w
-  ;; is mapped to the default C-w, while C-w is now evil-window-map everywhere.
   :general-config
   ('(insert emacs)
    "C-w" 'evil-window-map
@@ -578,7 +597,10 @@ font weight"
       (add-face-text-property 0 (length string) 'default 'append string)
       (overlay-put vertico--candidates-ov 'before-string string)
       (overlay-put vertico--candidates-ov 'after-string nil))
-    (vertico--resize-window (length lines)))
+    ;; vertico--resize-window changed names recently. This can be removed
+    ;; once I don't need compatibility with the old version.
+    (when (fboundp 'vertico--resize-window) (vertico--resize-window (length lines)))
+    (when (fboundp 'vertico--resize) (vertico--resize)))
   (defun my/crm-indicator (args)
     (cons (format "[CRM%s] %s"
                   (replace-regexp-in-string
@@ -799,14 +821,19 @@ font weight"
 (use-package form-feed-st :ensure t
   :hook
   (after-init . global-form-feed-st-mode)
-  (server-after-make-frame-hook . global-form-feed-st-mode))
+  (server-after-make-frame-hook . global-form-feed-st-mode)
+  :custom-face
+  ;; strike-through was giving a weird artifact, but this works pretty well
+  (form-feed-st-line ((t (:strike-through unspecified
+                          :overline "#ABD"
+                          :underline (:color "#CDE" :position 27))))))
 
 
 (use-package highlight-parentheses :ensure t
   :hook
   (minibuffer-setup . highlight-parentheses-minibuffer-setup)
-  (emacs-lisp-mode . highlight-parentheses-mode)
   (lisp-mode . highlight-parentheses-mode)
+  (lisp-data-mode . highlight-parentheses-mode)
   (fennel-mode . highlight-parentheses-mode)
   :custom
   (highlight-parentheses-delay 0.05)
@@ -875,6 +902,9 @@ font weight"
   (add-hook 'fennel-mode-hook 'my/lisp-word-syntax)
   (put 'when-let 'fennel-indent-function 1))
 
+(use-package slime :ensure t
+  :config (setq inferior-lisp-program "sbcl"))
+
 (use-package pdf-tools :ensure t :defer t
   :commands pdf-view-mode
   :mode ("\\.[pP][dD][fF]\\'" . pdf-view-mode)
@@ -889,53 +919,6 @@ font weight"
 
 (use-package org-variable-pitch :ensure t
   :hook (org-mode . org-variable-pitch-setup))
-
-(use-package cycbuf :ensure t
-  :bind (:map evil-motion-state-map
-         ("C-j" . cycbuf-switch-to-next-buffer)
-         ("C-k" . cycbuf-switch-to-previous-buffer)
-         :map evil-normal-state-map
-         ("C-j" . cycbuf-switch-to-next-buffer)
-         ("C-k" . cycbuf-switch-to-previous-buffer))
-  :config
-  (add-to-list 'cycbuf-dont-show-regexp "\\`\\*")
-  (setq cycbuf-max-window-height 5)
-  (setq cycbuf-file-name-replacements '(("/home/athr[^/]*/" "~/")))
-  (defconst cycbuf-header-lines-length 0)
-  (advice-add 'cycbuf-show-header :override #'ignore)
-  (defun my/cycbuf-set-window-height ()
-    (unless (one-window-p t)
-      (shrink-window (- (window-height)
-                        (+ (min (length cycbuf-current-list)
-                                cycbuf-max-window-height))))))
-  (defun my/goto-line (line)
-    (goto-char (point-min))
-    (forward-line (1- line)))
-  (defun my/cycbuf-layout-status-line (fn win buf)
-    ;; Prevent the original recentering logic.
-    ;; Also replace uses of goto-line because it sets the mark.
-    (cl-letf (((symbol-function #'recenter) #'ignore)
-              ((symbol-function #'goto-line) #'my/goto-line))
-      (funcall fn win buf))
-    (with-selected-window win
-      (let* ((max-scroll (- (length cycbuf-buffer-list) (window-height)))
-             (cur-line (line-number-at-pos))
-             (ideal-target (- cur-line (/ (+ 1 (window-height)) 2)))
-             (actual-target (max 0 (min max-scroll ideal-target))))
-        (set-window-vscroll nil actual-target))))
-  (advice-add 'cycbuf-set-window-height :override 'my/cycbuf-set-window-height)
-  (advice-add 'cycbuf-layout-status-line :around 'my/cycbuf-layout-status-line)
-  (add-hook 'cycbuf-mode-hook 'my/no-mode-line)
-  (add-hook 'cycbuf-mode-hook 'my/no-fringes-redisplay)
-  (setq cycbuf-attributes-list
-        '(("Buffer"     cycbuf-get-name-length left  cycbuf-get-name)
-          (""           2                      left  "  ")
-          ("M"          1                      left  cycbuf-get-modified-string)
-          ("R"          2                      left  cycbuf-get-readonly-string)
-          (""           1                      left  " ")
-          ("Mode"      12                      left  cycbuf-get-mode-name)
-          (""           2                      left  "  ")
-          ("Directory"  cycbuf-get-file-length left cycbuf-get-file-name))))
 
 ;; NOTE: Remember you can "fix" pairs with replace without toggling strict mode
 (use-package smartparens :ensure t
@@ -1142,8 +1125,8 @@ font weight"
                                               'my/no-fringes))
   :general
   ('normal 'doc-view-mode-map
-           "C-j" 'cycbuf-switch-to-next-buffer
-           "C-k" 'cycbuf-switch-to-previous-buffer))
+           "C-j" 'my/switch-to-next-buffer
+           "C-k" 'my/switch-to-prev-buffer))
 
 (use-package isearch :ensure nil
   :custom
@@ -1232,10 +1215,10 @@ font weight"
 
 (use-package compile :ensure nil
   :bind (:map compilation-mode-map
-         ("C-j" . cycbuf-switch-to-next-buffer)
-         ("C-k" . cycbuf-switch-to-previous-buffer)
-         ("<normal-state> C-j" . cycbuf-switch-to-next-buffer)
-         ("<normal-state> C-k" . cycbuf-switch-to-previous-buffer)))
+         ("C-j" . my/switch-to-next-buffer)
+         ("C-k" . my/switch-to-prev-buffer)
+         ("<normal-state> C-j" . my/switch-to-next-buffer)
+         ("<normal-state> C-k" . my/switch-to-prev-buffer)))
 
 (use-package eglot :ensure nil
   :custom (eglot-ignored-server-capabilities '(:inlayHintProvider)))
@@ -1261,8 +1244,8 @@ font weight"
   ('(normal insert) 'org-mode-map
    "<backtab>" 'org-shifttab)
   ('normal 'org-mode-map
-           "C-j" 'cycbuf-switch-to-next-buffer
-           "C-k" 'cycbuf-switch-to-previous-buffer))
+           "C-j" 'my/switch-to-next-buffer
+           "C-k" 'my/switch-to-prev-buffer))
 
 (use-package shr :ensure nil :defer t
   :custom-face
@@ -1311,9 +1294,7 @@ font weight"
                     :height 130
                     ))))
   (tab-bar-tab-inactive ((t (:inherit variable-pitch :weight light
-                             :height 130
-                             ;;:box (:line-width (-1 . -1) :color "#AAA")
-                             ))))
+                             :height 130))))
   :config
   ;; This doesn't work for format-spaces because the text properties are overwritten
   (defun my/make-pixel-spacer (px &rest props)
@@ -1328,6 +1309,27 @@ font weight"
   (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:background "#CCC")))
   (tab-bar-mode t))
 
+(use-package tab-line :ensure nil
+  :init
+  (defun my/tab-line-tab-name (buf &optional _)
+    (my/tab-bar-tab-name-format-spaces (buffer-name buf) nil nil))
+  :custom
+  (tab-line-close-button-show nil)
+  (tab-line-new-button-show nil)
+  (tab-line-tab-face-functions nil)
+  (tab-line-tab-name-function 'my/tab-line-tab-name)
+  :custom-face
+  (tab-line ((t (:inherit tab-bar :height 100
+                 :background "#DDD"
+                 :overline "#AAA"))))
+  (tab-line-tab ((t (:inherit tab-bar-tab :height 100))))
+  (tab-line-tab-current ((t (:inherit tab-line-tab))))
+  (tab-line-tab-inactive ((t (:inherit tab-bar-tab-inactive :height 100))))
+  (tab-line-highlight ((t (:box (:line-width (-1 . -1) :color "#000" :style released-button)
+                           :overline nil :inherit unspecified))))
+  :config
+  (setq tab-line-separator (my/make-pixel-spacer 1 'face '(:background "#AAA"))))
+
 (use-package dabbrev :ensure nil
   :config (add-to-list* 'dabbrev-ignored-buffer-modes
                         'doc-view-mode 'pdf-view-mode
@@ -1341,6 +1343,7 @@ font weight"
   (require 'dired-x)
   (setopt dired-omit-files "\\`\\.")
   ;; Always open directories in the same window, files in another window
+  ;; TODO: Make - in dired mode reuse the same buffer
   (defun my/dired-mouse-find-file-smart (event)
     (interactive "e" dired-mode)
     (dired-mouse-find-file event
@@ -1357,7 +1360,8 @@ font weight"
 (general-add-hook (list 'lisp-mode-hook
                         'lisp-data-mode-hook
                         'fennel-mode-hook)
-                  'my/lisp-word-syntax)
+                  'my/lisp-word-syntax
+                  'my/string-underline)
 
 (general-add-hook (list 'prog-mode-hook
                         'text-mode-hook)
@@ -1370,14 +1374,14 @@ font weight"
                   'my/no-fringes)
 
 (general-add-hook (list 'evil-collection-eldoc-doc-buffer-mode-hook
-                        'eww-mode-hook)
+                        'eww-mode-hook 'help-mode-hook 'Custom-mode-hook)
                   'my/no-mode-line)
 
 (general-add-hook (list 'help-mode-hook 'eww-mode-hook 'compilation-mode-hook
                         'comint-mode-hook 'apropos-mode-hook 'Info-mode-hook
                         'evil-collection-eldoc-doc-buffer-mode-hook
-                        'package-menu-mode-hook 'cycbuf-mode-hook
-                        'eat-mode-hook 'proced-mode-hook 'shortdoc-mode-hook)
+                        'package-menu-mode-hook 'eat-mode-hook 'proced-mode-hook
+                        'shortdoc-mode-hook 'vterm-mode-hook 'Custom-mode-hook)
                   'my/smaller-fonts)
 
 
@@ -1459,7 +1463,7 @@ font weight"
     (format-mode-line mode-name)))
 
 (defun my/modeline-buffer-name ()
-  `(:propertize " %b" face
+  `(:propertize "%b" face
     ,(if (mode-line-window-selected-p)
          '((:weight normal)
            mode-line-buffer-id)
@@ -1532,14 +1536,15 @@ font weight"
 (defun my/modeline-modified ()
   "Based on simple-modeline. Show a modified indicator for non-special
 buffers."
-  (unless (string-match-p "\\`[ ]?\\*" (buffer-name))
+  (if (string-match-p "\\`[ ]?\\*" (buffer-name))
+      (propertize "⚪" 'face '(:foreground "#F7F7F7"))
     (let ((read-only (and buffer-read-only (buffer-file-name)))
           (modified (buffer-modified-p)))
       (propertize
-       (if read-only "" (if modified  "●" "○"))
+       (if read-only "🔒 " (if modified  "⚫ "  "⚪️️ "))
        'face `(:inherit
                ,(if modified 'error
-                  (if read-only 'bold
+                  (if read-only 'black
                     'shadow)))))))
 
 (setopt mode-line-right-align-edge 'window)
@@ -1574,6 +1579,15 @@ buffers."
  "C-x k" 'kill-current-buffer
  "<mode-line> <mouse-2>" 'mouse-delete-window
  "<mode-line> <mouse-3>" 'mouse-buffer-menu)
+
+(general-def '(normal motion)
+  "C-j" 'my/switch-to-next-buffer
+  "C-k" 'my/switch-to-prev-buffer)
+
+;; Allows switching buffers in modes that otherwise use C-j or C-k, like shells
+(general-def 'evil-window-map
+  "C-j" 'my/switch-to-next-buffer
+  "C-k" 'my/switch-to-prev-buffer)
 
 ;; evil-cleverparens overwrites these at some point, try to ensure
 ;; that doesn't happen
@@ -1630,28 +1644,82 @@ buffers."
 ;;;; ======================================================================
 
 (setq switch-to-buffer-obey-display-actions nil)
-(setq switch-to-prev-buffer-skip-regexp (rx (seq bos (or "*" " "))))
 (setq window-sides-slots '(1 0 0 2))
 (setq fit-window-to-buffer-horizontally t)
-(setq
- display-buffer-alist
- `(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
-    display-buffer-in-direction
-    (direction . rightmost)
-    (window-parameters (mode-line-format . none)))
-   ("\\`[ ]?\\*\\(Help\\|Customize\\|info\\|eldoc\\|Occur\\|grep\\|devdocs\\|Pp\\|eww\\)"
-    display-buffer-in-side-window
-    (side . bottom) (slot . -1) (preserve-size . (nil . t)))
-   ((or (derived-mode . dired-mode)
-        (derived-mode . eww-mode))
-    display-buffer-in-side-window
-    (side . bottom) (slot . -1) (preserve-size . (nil . t)))
-   ("\\`[ ]?\\*\\(compilation\\|[e]?shell\\|[v]?term\\|.*REPL\\)"
-    display-buffer-in-side-window
-    (side . bottom) (slot . 1) (preserve-size . (nil . t)))
-   ((derived-mode . comint-mode)
-    display-buffer-in-side-window
-    (side . bottom) (slot . 1) (preserve-size . (nil . t)))
-   (,(rx (seq bos (or "*" " *")))
-    (display-buffer-in-side-window display-buffer-no-window)
-    (side . bottom))))
+
+;; It's hard to exclude matches with a regexp, so these include an explicit
+;; check for *scratch* so that we treat it like a non-special buffer. Otherwise
+;; switch-to-prev-buffer-skip-regexp could have done the job.
+(defun my/match-special-buffers (buf &rest _)
+  (let ((buf-name (buffer-name (get-buffer buf))))
+    (and (string-prefix-p "*" buf-name)
+         (not (string= "*scratch*" buf-name)))))
+
+(defun my/match-non-special-buffers (buf &rest _)
+  (let ((buf-name (buffer-name (get-buffer buf))))
+    (or (string-match-p "\\`[^* ]" buf-name)
+        (string= "*scratch*" buf-name))))
+
+(defun my/switch-to-prev-buffer-skip (win target-buf bury-or-kill)
+  (let ((side? (window-parameter win 'window-side)))
+    (if side?
+        (my/match-non-special-buffers target-buf)
+      (my/match-special-buffers target-buf))))
+
+(setq switch-to-prev-buffer-skip #'my/switch-to-prev-buffer-skip)
+
+(defun my/one-time-hook (hook fn)
+  (letrec ((one-shot (lambda () (remove-hook hook one-shot) (funcall fn))))
+    (add-hook hook one-shot)))
+
+(defun my/side-window-body-fn (win)
+  ;; Some modes clear all local variables after body-function runs.
+  ;; Deferring the customization until the end of the current command
+  ;; ensures that all modes get the tab line.
+  (my/one-time-hook 'post-command-hook
+                    (lambda () (with-selected-window win
+                                 (tab-line-mode t)))))
+
+(defun my/main-window-body-fn (win)
+  ;; Leaving this in just in case it turns out I need to run something here
+  t)
+
+
+(setq display-buffer-alist
+      (let* ((bot-common '(display-buffer-in-side-window
+                           (side . bottom) (preserve-size . (nil . t))
+                           (body-function . my/side-window-body-fn)))
+             (bot-left-window `(,@bot-common (slot . -1)))
+             (bot-right-window `(,@bot-common (slot . 1)))
+             (bot-left-rx (rx bos
+                              (| " " "*" " *")
+                              (| "Help" "Customize" "info" "eldoc" "Occur"
+                                 "grep" "devdocs" "Pp" "eww")))
+             (bot-right-rx (rx bos
+                               (| " " "*" " *")
+                               (| (regex "[e]?shell") (regex "[v]?term")
+                                  (regex ".*[Rr][Ee][Pp][Ll].*")
+                                  "compilation" "lua" "Python" "inferior")))
+             (bot-left-modes '(dired-mode eww-mode))
+             (bot-right-modes '(comint-mode))
+             (derived-rule (lambda (x) (cons 'derived-mode x)))
+             )
+        `(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+          display-buffer-in-direction
+          (direction . rightmost)
+          (window-parameters (mode-line-format . none)))
+         ((or ,bot-left-rx
+              ,@(mapcar derived-rule bot-left-modes))
+          ,@bot-left-window)
+         ((or ,bot-right-rx
+              ,@(mapcar derived-rule bot-right-modes))
+          ,@bot-right-window)
+         ;; Catch anything that fell through
+         (my/match-non-special-buffers
+          nil
+          (body-function . my/main-window-body-fn))
+         (my/match-special-buffers
+          (display-buffer-in-side-window display-buffer-no-window)
+          (body-function . my/side-window-body-fn)
+          (side . bottom))
+         )))

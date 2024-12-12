@@ -100,4 +100,9 @@ if command -v glow &> /dev/null; then
     alias mdv='glow -p'
 fi
 
+if command -v rlwrap &> /dev/null; then
+    if command -v sbcl &> /dev/null; then
+        alias sbcl='rlwrap sbcl'
+    fi
+fi
 source promptcolor
