@@ -1,5 +1,7 @@
 ;;; -*- no-byte-compile: t; lexical-binding: t; -*-
 
+;; TODO: Pick a single key binding for buffer swapping, probably a function key
+
 ;; TODOs that probably require writing elisp:
 ;; - Make keybinds for the mouse back/forward buttons that call appropriate
 ;;   functions in the window under the mouse, based on the major mode of that
@@ -763,13 +765,10 @@ apart in languages that only use whitespace to separate list elements."
    :preview-key '(:debounce 0.4 any))
   (setq consult-narrow-key "<"))
 
-(use-package corfu :ensure t :defer t
-  :commands (corfu-mode global-corfu-mode corfu-popupinfo-mode)
-  :hook
-  (after-init . global-corfu-mode)
-  (after-init . corfu-popupinfo-mode)
-  (server-after-make-frame . global-corfu-mode)
-  (server-after-make-frame . corfu-popupinfo-mode)
+(use-package corfu :ensure t
+  :config
+  (global-corfu-mode)
+  (corfu-popupinfo-mode)
   :general
   ('emacs
    "C-S-SPC" 'set-mark-command)
@@ -799,7 +798,9 @@ apart in languages that only use whitespace to separate list elements."
   (corfu-default ((t (:background "#FFF"))))
   (corfu-current ((t (:background "#D0F0FF"
                       :box (:line-width (1 . -1) :color "#DDD")))))
-  (corfu-popupinfo ((t (:background "#F8F8FD")))))
+  (corfu-popupinfo ((t (:background "#F8F8FD"))))
+  :config
+  )
 
 ;; Note: this _might_ be conflicting with popupinfo in the GUI, needs testing
 (use-package corfu-terminal :ensure t
@@ -1082,6 +1083,27 @@ apart in languages that only use whitespace to separate list elements."
   (setq treesit-auto-langs (seq-map #'treesit-auto-recipe-lang
                                     treesit-auto-recipe-list)))
 
+(use-package projectile :ensure t :demand t
+  :config (projectile-mode)
+  :general
+  ('projectile-mode-map "C-c p" 'projectile-command-map))
+
+(unless (version< emacs-version "30")
+  (use-package which-key-posframe :ensure t
+    :commands which-key-posframe-mode
+    :custom-face
+    (which-key-posframe-border ((t (:background "#EEE"))))
+    :custom
+    (which-key-posframe-font "Iosevka Term Slab 12")
+    (which-key-posframe-border-width 2)
+    (which-key-posframe-parameters '((left-fringe . 4)
+                                     (right-fringe . 16)))
+    (which-key-posframe-poshandler
+     'posframe-poshandler-point-bottom-left-corner)))
+
+;; (use-package bufler
+;;   :vc (:url "https://github.com/alphapapa/bufler.el")
+;;   :custom (bufler-columns '("Name" "Path")))
 
 ;;;; Internal Packages
 ;;;; ======================================================================
@@ -1105,6 +1127,28 @@ apart in languages that only use whitespace to separate list elements."
    "u" 'winner-undo
    "C-r" 'winner-redo)
   :custom (winner-dont-bind-my-keys t))
+
+;; TODO: Set up which-key-replacement-alist and which-key-special-keys
+(unless (version< emacs-version "30")
+  (use-package which-key :ensure nil
+    :custom
+    (which-key-dont-use-unicode nil)
+    (which-key-idle-secondary-delay 0.1)
+    (which-key-paging-key "<f1>")
+    (which-key-show-operator-state-maps t)
+    (which-key-min-column-description-width 8)
+    (which-key-max-description-length 48)
+    (which-key-add-column-padding 1)
+    (which-key-max-display-columns 4)
+    (which-key-echo-keystrikes 0.1)
+    :config
+    (setq which-key-idle-delay 0.5)
+    (which-key-mode)
+    (which-key-posframe-mode)
+    ;; The default doesn't take font size into account, scale appropriately
+    (defun which-key-posframe--max-dimensions (_)
+      (cons (- (truncate (frame-pixel-height) 12) 2)
+            (truncate (frame-pixel-width) 9)))))
 
 (use-package flymake :ensure nil
   :config
@@ -1381,7 +1425,8 @@ apart in languages that only use whitespace to separate list elements."
                         'comint-mode-hook 'apropos-mode-hook 'Info-mode-hook
                         'evil-collection-eldoc-doc-buffer-mode-hook
                         'package-menu-mode-hook 'eat-mode-hook 'proced-mode-hook
-                        'shortdoc-mode-hook 'vterm-mode-hook 'Custom-mode-hook)
+                        'shortdoc-mode-hook 'vterm-mode-hook 'Custom-mode-hook
+                        'bufler-list-mode-hook)
                   'my/smaller-fonts)
 
 
@@ -1615,19 +1660,38 @@ buffers."
 
 (keymap-global-set "C-x C-m" 'pp-macroexpand-last-sexp)
 
-(keymap-global-unset "C-h t")
-(keymap-global-unset "<f1> t")
+;; I don't want the tutorial, license, hello, or any of the other junk that can
+;; accidentally be fatfingered when using the otherwise useful C-h commands.
+(general-unbind
+  "<f1> t" "C-h C-\\" "C-h C-a" "C-h C-c" "C-h C-d" "C-h C-e" "C-h C-n"
+  "C-h C-o" "C-h C-p" "C-h C-q" "C-h C-t" "C-h C-w" "C-h RET" "C-h g"
+  "C-h h" "C-h n" "C-h t")
 
 ;; I really want escape to do what it says
-(keymap-global-set "C-h ESC" 'keyboard-escape-quit)
-(keymap-global-set "C-M-g" 'keyboard-escape-quit)
-(keymap-global-unset "M-ESC :") ; the only default keybind prefixed by M-ESC
-(keymap-set minibuffer-mode-map "<escape>" 'abort-minibuffers)
+;; Unbind anything that waits for a key after Escape
+;; NOTE: I probably don't need to unbind anything as long as <escape> bindings
+;; shadow anything that would otherwise wait for a key after ESC. That way all
+;; of the default bindings still work in the terminal.
+;;(general-unbind "M-ESC :") ; the only default keybind prefixed by M-ESC
+(general-def '(minibuffer-local-map minibuffer-local-ns-map
+               minibuffer-local-completion-map minibuffer-local-must-match-map
+               minibuffer-local-isearch-map)
+  "<escape>" 'keyboard-escape-quit)
 
-;; Prevents ESC from messing with splits
+;; I want to be able to quit any prefix sequence with escape
+(dolist (keys (list "<escape>" "C-M-g" "C-h <escape>" "C-c <escape>"
+                    "C-x <escape>" "C-c p <escape>" "C-x p <escape>"
+                    "M-s <escape>" "M-g <escape>"))
+  (general-def keys 'keyboard-escape-quit))
+
 (defun my/keyboard-escape-quit-advice (fn)
-  (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
-    (funcall fn)))
+  "Prevents Escape from messing with splits, and also exits emacs-state when
+pressed twice in a row."
+  (if (and (eq last-command 'keyboard-escape-quit)
+           (evil-emacs-state-p))
+      (evil-normal-state nil)
+    (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
+      (funcall fn))))
 (advice-add 'keyboard-escape-quit :around 'my/keyboard-escape-quit-advice)
 
 ;; Having the box cursor for the minibuffer is weird when it indicates
@@ -1723,3 +1787,5 @@ buffers."
           (body-function . my/side-window-body-fn)
           (side . bottom))
          )))
+
+(load custom-file t)
