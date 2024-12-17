@@ -43,10 +43,106 @@ multiple times."
 ;;;; Theme and font
 ;;;; ======================================================================
 
+(defun my/expand-fg-bg (plist)
+  "Replace :bg and :fg shorthand keys in a property list."
+  (mapcar (lambda (x)
+            (pcase x (:bg :background) (:fg :foreground) (_ x)))
+          plist))
+
+(require 'cl-lib)
+(cl-defun my/face-spec (&key light dark (default nil))
+  "Make it easier to define faces without having to remember the exact number
+of required nestings. This will also replace :fg and :bg properties with
+:foreground and :background to make face specs slightly more concise. If
+default is the only value given, it applies to t instead of default."
+  `(,@(when default `((default ,@(my/expand-fg-bg default))))
+    ( ((background light)) ,@(my/expand-fg-bg light))
+    ( ((background dark)) ,@(my/expand-fg-bg dark))
+    ,@(when (and (null light) (null dark))
+        `((t ,@(my/expand-fg-bg default))))))
+
+(defun my/face (name &rest args)
+  "Wrap my/face-spec to act as a more concise defface replacement. If args
+doesn't start with a recognized keyword it's used as :default. In this case,
+the property list can optionally be given directly in the arguments instead of as a list."
+  (declare (indent 1))
+  (when (facep name) (face-spec-reset-face name))
+  (cond ((memq (car args) (list :light :dark :default))
+         (face-spec-set name (apply #'my/face-spec args)))
+        ((keywordp (car args))
+         (face-spec-set name (funcall #'my/face-spec :default args)))
+        (t (face-spec-set name (apply #'my/face-spec :default args)))))
+
+;; NOTE: Because Emacs never merges :inherit attribtues, the only way to
+;; mix and match background/foreground colors is to have them on separate
+;; faces and then inherit from each. Inheriting from a face that tries to
+;; use 'reset or 'unspecified as a mask does not work.
+
+;; These make it slightly easier to change themes. Still need to be updated
+;; manually when changing.
+(defvar dark-fg "#ECEFF4")
+(defvar dark-bg "#2E3440")
+(defvar light-fg "#333")
+(defvar light-bg "#FFF")
+
+(defun my/face-calculated-impl (name fn)
+  "Accepts a function that takes a foreground and background color and returns
+a face spec, automatically applying that to light and dark colors."
+  (declare (indent 1))
+  (my/face name
+    :light (funcall fn light-fg light-bg)
+    :dark (funcall fn dark-fg dark-bg)))
+
+(defmacro my/face* (name &rest spec)
+  "Anaphoric macro, where `bg' and `fg' are bound to the foreground and
+background colors of the current theme. `spec' should be a face spec and will
+be evaluated twice, once for light and once for dark."
+  (declare (indent 1))
+  `(my/face-calculated-impl ,name (lambda (fg bg) (list ,@spec))))
+
+(defun my/face-alias (dst src)
+  "Make the face named `dst' an alias for the face named `src'."
+  (put dst 'face-alias src))
+
+(require 'color)
+
+(my/face* 'default-bg :bg bg)
+(my/face* 'default-fg :fg fg)
+(my/face 'popup-border
+  :light `(:fg ,(color-darken-name light-bg 20)
+           :bg ,(color-darken-name light-bg 20))
+  :dark `(:fg ,(color-lighten-name dark-bg 60)
+          :bg ,(color-lighten-name dark-bg 60)))
+(my/face 'popup-bg
+  :light `(:bg ,(color-darken-name light-bg 3))
+  :dark `(:bg ,(color-lighten-name dark-bg 20)))
+(my/face* 'dimmed-background :bg (color-darken-name bg 15))
+(my/face* 'thick-strike-through
+  :strike-through "#F00" :bg "#A22" :fg 'unspecified
+  :underline '(:color "#F44" :position 15) :weight 'unspecified
+  :box `(:line-width (-1 . -12) :color ,bg))
+(my/face-alias 'evil-ex-substitute-matches 'thick-strike-through)
+(my/face* 'replacement-box
+  :box `(:line-width (1 . -1) :color "#A3BE8C")
+  :fg 'unspecified :weight 'unspecified :bg bg)
+(my/face-alias 'evil-ex-substitute-replacement 'replacement-box)
+(my/face 'medium-weight :weight 'medium)
+(my/face-alias 'anzu-mode-line 'medium-weight)
+(my/face 'selected-item
+  :light '(:bg "#D0F0FF" :box (:line-width (1 . -1) :color "#DDD"))
+  :dark `(:bg "#434C5E" :box (:line-width (1 . -1)
+                              :color ,(color-lighten-name dark-bg 60))))
+(my/face-alias 'vertico-current 'selected-item)
+(my/face-alias 'corfu-current 'selected-item)
+(my/face-alias 'corfu-border 'popup-border)
+(my/face-alias 'corfu-popupinfo 'popup-bg)
+(my/face-alias 'corfu-default 'default-bg)
+
+
+
+
 ;;(setq modus-themes-mixed-fonts t)
 ;;(load-theme 'modus-operandi t)
-
-(setq-default line-spacing nil)
 
 (use-package doom-themes :ensure t :demand t)
 
@@ -205,6 +301,7 @@ multiple times."
 ;;;; General settings
 ;;;; ======================================================================
 
+(setq-default line-spacing nil)
 (setq-default truncate-lines nil)
 (setq large-file-warning-threshold nil)
 (setq fast-but-imprecise-scrolling nil)
@@ -451,7 +548,7 @@ font weight"
 
 (defun my/line-spacing (&rest _)
   "Add this as a hook to buffers that should have extra line spacing"
-  (setq-local line-spacing 0.2))
+  (setq-local line-spacing 2))
 
 (defun my/prog-word-syntax (&rest _)
   "Make _ behave as part of a word, not punctuation."
@@ -502,21 +599,12 @@ apart in languages that only use whitespace to separate list elements."
   (evil-echo-state nil)
   (evil-ex-search-persistent-highlight t)
   (evil-move-beyond-eol t)
+  (evil-respect-visual-line-mode t)
   (evil-move-cursor-back nil)
   (evil-split-window-below t)
   (evil-want-C-w-delete nil)
   (evil-cross-lines t)
   (evil-want-abbrev-expand-on-insert-exit nil)
-  :custom-face
-  (evil-ex-substitute-matches ((t (:foreground "#888888"
-                                   :strike-through "#FF0000"
-                                   :background "#EE2222"
-                                   :box (:line-width (1 . -13) :color "#FFFFFF")
-                                   :inherit unspecified))))
-  (evil-ex-substitute-replacement ((t (:weight normal
-                                       :box (:line-width (1 . -1)
-                                             :color "#90EE90")
-                                       :inherit unspecified))))
   :config
   (setq evil-lookup-func 'help-follow-symbol)
   (setq evil-default-cursor '((bar . 2)))
@@ -602,9 +690,6 @@ apart in languages that only use whitespace to separate list elements."
 
 (use-package evil-anzu :ensure t
   :custom (anzu-cons-mode-line-p nil)
-  :custom-face
-  (anzu-mode-line ((t (:foreground "#000" :weight normal))))
-  (anzu-mode-line-no-match ((t (:foreground "#D33"))))
   :config
   (require 'evil-anzu) ; Somehow this is necessary
   (global-anzu-mode))
@@ -711,12 +796,7 @@ apart in languages that only use whitespace to separate list elements."
    "C-<return>" 'vertico-exit-input
    "C-RET" 'vertico-exit-input
    ;; This one works in the terminal
-   "C-c RET" 'vertico-exit-input)
-  :custom-face
-  (vertico-current ((((background light)) :background "#D0F0FF"
-                     :box (:line-width (1 . -1) :color "#DDD"))
-                    (((background dark)) :background "#434C5E"
-                     :box (:line-width (1 . -1) :color "#777")))))
+   "C-c RET" 'vertico-exit-input))
 
 (use-package orderless :ensure t
   :custom
@@ -726,14 +806,22 @@ apart in languages that only use whitespace to separate list elements."
                                    (eglot (styles orderless))
                                    (eglot-capf (styles orderless))))
   :custom-face
-  (orderless-match-face-0 ((((background light)) :background unspecified :underline t :foreground "royal blue")
-                           (((background dark)) :background unspecified :underline t :foreground "#81A1C1")))
-  (orderless-match-face-1 ((((background light)) :background unspecified :underline t :foreground "magenta3")
-                           (((background dark)) :background unspecified :underline t :foreground "#B48EAD")))
-  (orderless-match-face-2 ((((background light)) :background unspecified :underline t :foreground "SpringGreen4")
-                           (((background dark)) :background unspecified :underline t :foreground "#A3BE8C")))
-  (orderless-match-face-3 ((((background light)) :background unspecified :underline t :foreground "DarkGoldenrod3")
-                           (((background dark)) :background unspecified :underline t :foreground "#EBCB8B"))))
+  (orderless-match-face-0 ((((background light)) :underline t
+                            :background unspecified :foreground "royal blue")
+                           (((background dark))  :underline t
+                            :background unspecified :foreground "#81A1C1")))
+  (orderless-match-face-1 ((((background light)) :underline t
+                            :background unspecified :foreground "magenta3")
+                           (((background dark))  :underline t
+                            :background unspecified :foreground "#B48EAD")))
+  (orderless-match-face-2 ((((background light)) :underline t
+                            :background unspecified :foreground "SpringGreen4")
+                           (((background dark))  :underline t
+                            :background unspecified :foreground "#A3BE8C")))
+  (orderless-match-face-3 ((((background light)) :underline t
+                            :background unspecified :foreground "DarkGoldenrod3")
+                           (((background dark))  :underline t
+                            :background unspecified :foreground "#EBCB8B"))))
 
 (use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
@@ -883,20 +971,7 @@ apart in languages that only use whitespace to separate list elements."
   ;; Hide commands in M-x which do not apply to the current mode.
   (read-extended-command-predicate #'command-completion-default-include-p)
   (text-mode-ispell-word-completion nil)
-  (tab-always-indent 'complete)
-  :custom-face
-  (corfu-default ((((background light)) :background "#FFF")
-                  (((background dark)) :background "#2E3440")))
-  (corfu-border ((((background light)) :background "#DDD")
-                  (((background dark)) :background "#4C566A")))
-  (corfu-current ((((background light))
-                    :background "#D0F0FF"
-                    :box (:line-width (1 . -1) :color "#DDD"))
-                   (((background dark))
-                    :background "#434C5E"
-                    :box (:line-width (1 . -1) :color "#777"))))
-  (corfu-popupinfo ((((background light)) :background "#F8F8FD")
-                    (((background dark)) :background "#4C566A"))))
+  (tab-always-indent 'complete))
 
 ;; Note: this _might_ be conflicting with popupinfo in the GUI, needs testing
 (use-package corfu-terminal :ensure t
@@ -1385,7 +1460,10 @@ apart in languages that only use whitespace to separate list elements."
   (org-startup-with-inline-images t)
   (org-ellipsis " ⤵")
   (org-cycle-separator-lines -1)
-  (org-blank-before-new-entry '((heading . t) (plain-list-item . nil)))
+  (org-blank-before-new-entry '((heading . auto) (plain-list-item . nil)))
+  :custom-face
+  (org-block-begin-line ((((background light)) :background "#F5F5F5")
+                         (((background dark)) :background "#363E4C")))
   :config
   (unless (file-exists-p org-directory) (make-directory org-directory t))
   (setq org-default-notes-file
@@ -1458,7 +1536,7 @@ apart in languages that only use whitespace to separate list elements."
                                               tab-bar-tab-name-format-close-button
                                               my/tab-bar-tab-name-format-spaces
                                               tab-bar-tab-name-format-face))
-  (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:inherit dired-ignored)))
+  (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:inherit ansi-color-bright-black)))
   (tab-bar-mode t))
 
 (use-package tab-line :ensure nil
@@ -1480,7 +1558,7 @@ apart in languages that only use whitespace to separate list elements."
                            :overline nil :inherit unspecified))))
   :config
   (setq tab-line-separator (my/make-pixel-spacer 2 'face
-                                                 '(:inherit ((:height 100) dired-ignored)))))
+                                                 '(:inherit ((:height 100) ansi-color-bright-black)))))
 
 (use-package dabbrev :ensure nil
   :config (add-to-list* 'dabbrev-ignored-buffer-modes
@@ -1879,8 +1957,11 @@ pressed twice in a row."
 (setq switch-to-prev-buffer-skip #'my/switch-to-prev-buffer-skip)
 
 (defun my/one-time-hook (hook fn)
-  (letrec ((one-shot (lambda () (remove-hook hook one-shot) (funcall fn))))
-    (add-hook hook one-shot)))
+  (letrec ((one-shot (lambda ()
+                       (ignore-errors
+                         (remove-hook hook one-shot t)
+                         (funcall fn)))))
+    (ignore-errors (add-hook hook one-shot t))))
 
 (defun my/side-window-body-fn (win)
   ;; Some modes clear all local variables after body-function runs.
