@@ -2,6 +2,8 @@
 
 ;; TODO: Pick a single key binding for buffer swapping, probably a function key
 
+;; TODO: Map custom faces to defface so I can swap them for light / dark themes
+
 ;; TODOs that probably require writing elisp:
 ;; - Make keybinds for the mouse back/forward buttons that call appropriate
 ;;   functions in the window under the mouse, based on the major mode of that
@@ -44,78 +46,161 @@ multiple times."
 ;;(setq modus-themes-mixed-fonts t)
 ;;(load-theme 'modus-operandi t)
 
-(use-package doom-themes :ensure t :demand t
-  :config (load-theme 'doom-tomorrow-day t))
-
 (setq-default line-spacing nil)
 
-;; Note- using color names like "white" will not give correct results for
-;; terminal sessions
-(set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'normal
-                    :foreground "#333"
-                    :background "#FFF")
-(set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 140 :weight 'normal)
-(set-face-attribute 'variable-pitch-text nil :height 'unspecified)
-(set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
-(set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140)
-(set-face-attribute 'fringe nil :background "#FFFFFF")
-(set-face-attribute 'mode-line nil :family "Roboto" :height 140 :weight 'light)
-(set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light)
-(set-face-attribute 'header-line nil :weight 'normal)
-(set-face-attribute 'vertical-border nil :foreground "#DDD" :background "#DDD")
-;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
-;; relatively unobtrusive.
-(set-face-attribute 'trailing-whitespace nil
-                    :background 'unspecified :foreground "#FDD"
-                    :stipple '(8 2 "\xAA\x55"))
-(set-face-attribute 'match nil
-                    :foreground "dark cyan"
-                    :background 'unspecified
-                    :underline t)
-(set-face-attribute 'elisp-shorthand-font-lock-face nil
-                    :weight 'normal
-                    :slant 'italic
-                    :foreground 'unspecified)
-(set-face-attribute 'font-lock-string-face nil
-                    :foreground "#070"
-                    :weight 'normal)
-(set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab" :weight 'normal)
-(set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab" :weight 'normal)
-(set-face-attribute 'font-lock-type-face nil
-                    :foreground "DarkOrange3")
-(set-face-attribute 'font-lock-comment-face nil
-                    :foreground "#777"
-                    :weight 'light
-                    :slant 'unspecified)
-(set-face-attribute 'font-lock-doc-face nil
-                    :foreground "#777"
-                    :weight 'light
-                    :slant 'unspecified)
-;; Help differentiate the escapes from the grouped characters.
-(set-face-attribute 'font-lock-regexp-grouping-backslash nil
-                    :foreground "#BBB"
-                    :weight 'semibold)
-(set-face-attribute 'font-lock-regexp-grouping-construct nil
-                    :foreground "#22F"
-                    :weight 'bold)
-(set-face-attribute 'font-lock-punctuation-face nil :foreground "#000" :weight 'light)
-(set-face-attribute 'font-lock-variable-name-face nil :foreground "#333" :weight 'normal)
-(set-face-attribute 'font-lock-variable-use-face nil :foreground "#333" :weight 'normal)
-(set-face-attribute 'font-lock-function-name-face nil :weight 'normal)
-(set-face-attribute 'font-lock-constant-face nil
-                    :foreground "IndianRed4"
-                    :family "Iosevka Slab")
-(set-face-attribute 'font-lock-escape-face nil
-                    :foreground 'unspecified
-                    :inherit '(font-lock-constant-face))
-(set-face-attribute 'font-lock-number-face nil
-                    :foreground 'unspecified
-                    :inherit '(font-lock-constant-face))
-(set-face-attribute 'font-lock-preprocessor-face nil
-                    :foreground "dark cyan"
-                    :weight 'normal)
-(set-face-attribute 'font-lock-warning-face nil
-                    :foreground "DarkOrange2")
+(use-package doom-themes :ensure t :demand t)
+
+(defun light-theme ()
+  (interactive)
+  (load-theme 'doom-tomorrow-day t)
+  (setq frame-background-mode 'light)
+  (mapc 'frame-set-background-mode (frame-list))
+  ;; Note- using color names like "white" will not give correct results for
+  ;; terminal sessions
+  (set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'normal
+                      :foreground "#333"
+                      :background "#FFF")
+  (set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 140 :weight 'normal)
+  (set-face-attribute 'variable-pitch-text nil :height 'unspecified)
+  (set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
+  (set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140)
+  (set-face-attribute 'fringe nil :background "#FFFFFF")
+  (set-face-attribute 'mode-line nil :family "Roboto" :height 140 :weight 'light
+                      :box '(:line-width (-1 . -1) :color "#222"))
+  (set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light)
+  (set-face-attribute 'header-line nil :weight 'normal)
+  (set-face-attribute 'vertical-border nil :foreground "#DDD" :background "#DDD")
+  ;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
+  ;; relatively unobtrusive.
+  (set-face-attribute 'trailing-whitespace nil
+                      :background 'unspecified :foreground "#FDD"
+                      :stipple '(8 2 "\xAA\x55"))
+  (set-face-attribute 'match nil
+                      :foreground "dark cyan"
+                      :background 'unspecified
+                      :underline t)
+  (set-face-attribute 'elisp-shorthand-font-lock-face nil
+                      :weight 'normal
+                      :slant 'italic
+                      :foreground 'unspecified)
+  (set-face-attribute 'font-lock-string-face nil
+                      :foreground "#070"
+                      :weight 'normal)
+  (set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab" :weight 'normal)
+  (set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab" :weight 'normal)
+  (set-face-attribute 'font-lock-type-face nil
+                      :foreground "DarkOrange3")
+  (set-face-attribute 'font-lock-comment-face nil
+                      :foreground "#777"
+                      :weight 'light
+                      :slant 'unspecified)
+  (set-face-attribute 'font-lock-doc-face nil
+                      :foreground "#777"
+                      :weight 'light
+                      :slant 'unspecified)
+  ;; Help differentiate the escapes from the grouped characters.
+  (set-face-attribute 'font-lock-regexp-grouping-backslash nil
+                      :foreground "#BBB"
+                      :weight 'semibold)
+  (set-face-attribute 'font-lock-regexp-grouping-construct nil
+                      :foreground "#22F"
+                      :weight 'bold)
+  (set-face-attribute 'font-lock-punctuation-face nil :foreground "#000" :weight 'light)
+  (set-face-attribute 'font-lock-variable-name-face nil :foreground "#333" :weight 'normal)
+  (set-face-attribute 'font-lock-variable-use-face nil :foreground "#333" :weight 'normal)
+  (set-face-attribute 'font-lock-function-name-face nil :weight 'normal)
+  (set-face-attribute 'font-lock-constant-face nil
+                      :foreground "IndianRed4"
+                      :family "Iosevka Slab")
+  (set-face-attribute 'font-lock-escape-face nil
+                      :foreground 'unspecified
+                      :inherit '(font-lock-constant-face))
+  (set-face-attribute 'font-lock-number-face nil
+                      :foreground 'unspecified
+                      :inherit '(font-lock-constant-face))
+  (set-face-attribute 'font-lock-preprocessor-face nil
+                      :foreground "dark cyan"
+                      :weight 'normal)
+  (set-face-attribute 'font-lock-warning-face nil :foreground "DarkOrange2"))
+
+(defun dark-theme ()
+  (interactive)
+  (load-theme 'doom-nord t)
+  (setq frame-background-mode 'dark)
+  (mapc 'frame-set-background-mode (frame-list))
+  ;; Note- using color names like "white" will not give correct results for
+  ;; terminal sessions
+  (set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'normal)
+  (set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 140 :weight 'normal)
+  (set-face-attribute 'variable-pitch-text nil :height 'unspecified)
+  (set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
+  (set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140)
+  ;;(set-face-attribute 'fringe nil :background "#FFFFFF")
+  (set-face-attribute 'mode-line nil :family "Roboto" :height 140 :weight 'light
+                      :box '(:line-width (-1 . -1) :color "#222")
+                      )
+  (set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light
+                      :background "#3B4252"
+                      )
+  (set-face-attribute 'header-line nil :weight 'normal)
+  (set-face-attribute 'vertical-border nil :foreground "#444" :background "#444")
+  ;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
+  ;; relatively unobtrusive.
+  (set-face-attribute 'trailing-whitespace nil
+                      :background 'unspecified :foreground "#844"
+                      :stipple '(8 2 "\xAA\x55"))
+  (set-face-attribute 'match nil
+                      :foreground "dark cyan"
+                      :background 'unspecified
+                      :underline t)
+  (set-face-attribute 'elisp-shorthand-font-lock-face nil
+                      :weight 'normal
+                      :slant 'italic
+                      :foreground 'unspecified)
+  (set-face-attribute 'font-lock-string-face nil
+                      ;;:foreground "#070"
+                      :weight 'normal)
+  (set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab" :weight 'normal)
+  (set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab" :weight 'normal)
+  ;;(set-face-attribute 'font-lock-type-face nil :foreground "DarkOrange3")
+  (set-face-attribute 'font-lock-comment-face nil
+                      ;;:foreground "#777"
+                      :weight 'light
+                      :slant 'unspecified)
+  (set-face-attribute 'font-lock-doc-face nil
+                      ;;:foreground "#777"
+                      :weight 'light
+                      :slant 'unspecified)
+  ;; Help differentiate the escapes from the grouped characters.
+  (set-face-attribute 'font-lock-regexp-grouping-backslash nil
+                      ;;:foreground "#BBB"
+                      :weight 'semibold)
+  (set-face-attribute 'font-lock-regexp-grouping-construct nil
+                      ;;:foreground "#22F"
+                      :weight 'bold)
+  (set-face-attribute 'font-lock-punctuation-face nil :foreground "#FFF"
+                      :weight 'light)
+  (set-face-attribute 'font-lock-variable-name-face nil ;;:foreground "#333"
+                      :weight 'normal)
+  (set-face-attribute 'font-lock-variable-use-face nil ;;:foreground "#333"
+                      :weight 'normal)
+  (set-face-attribute 'font-lock-function-name-face nil :weight 'normal)
+  (set-face-attribute 'font-lock-constant-face nil
+                      ;;:foreground "IndianRed4"
+                      :family "Iosevka Slab")
+  (set-face-attribute 'font-lock-escape-face nil
+                      :foreground 'unspecified
+                      :inherit '(font-lock-constant-face))
+  (set-face-attribute 'font-lock-number-face nil
+                      :foreground 'unspecified
+                      :inherit '(font-lock-constant-face))
+  (set-face-attribute 'font-lock-preprocessor-face nil
+                      ;;:foreground "dark cyan"
+                      :weight 'normal)
+  ;;(set-face-attribute 'font-lock-warning-face nil :foreground "DarkOrange2")
+  )
+
+(light-theme)
 
 ;;;; General settings
 ;;;; ======================================================================
@@ -628,8 +713,10 @@ apart in languages that only use whitespace to separate list elements."
    ;; This one works in the terminal
    "C-c RET" 'vertico-exit-input)
   :custom-face
-  (vertico-current ((t (:background "#D0F0FF"
-                      :box (:line-width (1 . -1) :color "#DDD"))))))
+  (vertico-current ((((background light)) :background "#D0F0FF"
+                     :box (:line-width (1 . -1) :color "#DDD"))
+                    (((background dark)) :background "#434C5E"
+                     :box (:line-width (1 . -1) :color "#777")))))
 
 (use-package orderless :ensure t
   :custom
@@ -639,14 +726,14 @@ apart in languages that only use whitespace to separate list elements."
                                    (eglot (styles orderless))
                                    (eglot-capf (styles orderless))))
   :custom-face
-  (orderless-match-face-0 ((t (:background unspecified :underline t
-                               :foreground "royal blue"))))
-  (orderless-match-face-1 ((t (:background unspecified :underline t
-                               :foreground "magenta3"))))
-  (orderless-match-face-2 ((t (:background unspecified :underline t
-                               :foreground "SpringGreen4"))))
-  (orderless-match-face-3 ((t (:background unspecified :underline t
-                               :foreground "DarkGoldenrod3")))))
+  (orderless-match-face-0 ((((background light)) :background unspecified :underline t :foreground "royal blue")
+                           (((background dark)) :background unspecified :underline t :foreground "#81A1C1")))
+  (orderless-match-face-1 ((((background light)) :background unspecified :underline t :foreground "magenta3")
+                           (((background dark)) :background unspecified :underline t :foreground "#B48EAD")))
+  (orderless-match-face-2 ((((background light)) :background unspecified :underline t :foreground "SpringGreen4")
+                           (((background dark)) :background unspecified :underline t :foreground "#A3BE8C")))
+  (orderless-match-face-3 ((((background light)) :background unspecified :underline t :foreground "DarkGoldenrod3")
+                           (((background dark)) :background unspecified :underline t :foreground "#EBCB8B"))))
 
 (use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
@@ -798,12 +885,18 @@ apart in languages that only use whitespace to separate list elements."
   (text-mode-ispell-word-completion nil)
   (tab-always-indent 'complete)
   :custom-face
-  (corfu-default ((t (:background "#FFF"))))
-  (corfu-current ((t (:background "#D0F0FF"
-                      :box (:line-width (1 . -1) :color "#DDD")))))
-  (corfu-popupinfo ((t (:background "#F8F8FD"))))
-  :config
-  )
+  (corfu-default ((((background light)) :background "#FFF")
+                  (((background dark)) :background "#2E3440")))
+  (corfu-border ((((background light)) :background "#DDD")
+                  (((background dark)) :background "#4C566A")))
+  (corfu-current ((((background light))
+                    :background "#D0F0FF"
+                    :box (:line-width (1 . -1) :color "#DDD"))
+                   (((background dark))
+                    :background "#434C5E"
+                    :box (:line-width (1 . -1) :color "#777"))))
+  (corfu-popupinfo ((((background light)) :background "#F8F8FD")
+                    (((background dark)) :background "#4C566A"))))
 
 ;; Note: this _might_ be conflicting with popupinfo in the GUI, needs testing
 (use-package corfu-terminal :ensure t
@@ -841,12 +934,12 @@ apart in languages that only use whitespace to separate list elements."
   (fennel-mode . highlight-parentheses-mode)
   :custom
   (highlight-parentheses-delay 0.05)
-  (highlight-parentheses-colors '("#333" "#333" "#333" "#333"))
-  (highlight-parentheses-background-colors '("#FFF" "#FFF" "#FFF" "#FFF"))
-  (highlight-parentheses-attributes '((:weight black)
-                                      (:weight black)
-                                      (:weight black)
-                                      (:weight black))))
+  (highlight-parentheses-colors '(unspecified unspecified unspecified unspecified))
+  (highlight-parentheses-background-colors '(unspecified unspecified unspecified unspecified))
+  (highlight-parentheses-attributes '((:inherit ((:weight black) font-lock-punctuation-face))
+                                      (:inherit ((:weight black) font-lock-punctuation-face))
+                                      (:inherit ((:weight black) font-lock-punctuation-face))
+                                      (:inherit ((:weight black) font-lock-punctuation-face)))))
 
 ;; Configured to emphasize the outermost matched pair and alternating pairs
 (use-package rainbow-delimiters :ensure t
@@ -860,9 +953,12 @@ apart in languages that only use whitespace to separate list elements."
                          :foreground "orange red"
                          :background unspecified)
                         )))
-  (rainbow-delimiters-depth-1-face ((t (:weight medium :foreground "#000"))))
-  (rainbow-delimiters-depth-2-face ((t (:weight light :foreground "#000"))))
-  (rainbow-delimiters-depth-3-face ((t (:weight extralight :foreground "#000")))))
+  (rainbow-delimiters-depth-1-face ((((background light)) :weight medium :foreground "#000")
+                                    (((background dark)) :weight medium :foreground "#DDD")))
+  (rainbow-delimiters-depth-2-face ((((background light)) :weight light :foreground "#000")
+                                    (((background dark)) :weight light :foreground "#DDD")))
+  (rainbow-delimiters-depth-3-face ((((background light)) :weight extralight :foreground "#000")
+                                    (((background dark)) :weight extralight :foreground "#DDD"))))
 
 (use-package yasnippet :ensure t
   :custom (yas-alias-to-yas/prefix-p nil)
@@ -1101,12 +1197,13 @@ apart in languages that only use whitespace to separate list elements."
   (use-package which-key-posframe :ensure t
     :commands which-key-posframe-mode
     :custom-face
-    (which-key-posframe-border ((t (:background "#EEE"))))
+    (which-key-posframe-border ((((background light)) :background "#EEE")
+                                (((background dark)) :background "#777")))
     :custom
     (which-key-posframe-font "Iosevka Term Slab 12")
-    (which-key-posframe-border-width 2)
-    (which-key-posframe-parameters '((left-fringe . 4)
-                                     (right-fringe . 16)))
+    (which-key-posframe-border-width 1)
+    (which-key-posframe-parameters '((left-fringe . 0)
+                                     (right-fringe . 0)))
     (which-key-posframe-poshandler
      'posframe-poshandler-point-bottom-left-corner)))
 
@@ -1145,9 +1242,9 @@ apart in languages that only use whitespace to separate list elements."
     (which-key-idle-secondary-delay 0.1)
     (which-key-paging-key "<f1>")
     (which-key-show-operator-state-maps t)
-    (which-key-min-column-description-width 8)
+    (which-key-min-column-description-width 32)
     (which-key-max-description-length 48)
-    (which-key-add-column-padding 1)
+    ;; (which-key-add-column-padding 1)
     (which-key-max-display-columns 4)
     (which-key-echo-keystrikes 0.1)
     :config
@@ -1336,18 +1433,20 @@ apart in languages that only use whitespace to separate list elements."
   (tab-bar-show 1)
   (tab-bar-auto-width nil)
   :custom-face
-  (tab-bar ((t (:foreground "#444"
-                :background "#DDD"
-                :height 120
-                :underline (:color "#AAA" :position 0 :extend t)))))
-  (tab-bar-tab ((t (:inherit variable-pitch :weight medium
-                    :box (:line-width (-1 . -1) :color "#CCC")
-                    ;; Change this underline to #EEE to match window dividers
-                    :underline (:color "#FFF" :position 0)
-                    :height 130
-                    ))))
-  (tab-bar-tab-inactive ((t (:inherit variable-pitch :weight light
-                             :height 130))))
+  (tab-bar ((((background light))
+             :foreground "#444" :background "#DDD"
+             :height 120 :underline (:color "#AAA" :position 0 :extend t))
+            (((background dark))
+             :foreground "#888" :background "#303038"
+             :height 120 :underline (:color "#444" :position 0 :extend t))
+            ))
+  (tab-bar-tab ((((background light)) :inherit variable-pitch :weight medium
+                 :box (:line-width (-1 . -1) :color "#CCC")
+                 :underline (:color "#FFF" :position 0) :height 130)
+                (((background dark)) :inherit variable-pitch :weight medium
+                 :box (:line-width (-1 . -1) :color "#333")
+                 :underline (:color "#2E3440" :position 0) :height 130)))
+  (tab-bar-tab-inactive ((t (:inherit variable-pitch :weight light :height 130))))
   :config
   ;; This doesn't work for format-spaces because the text properties are overwritten
   (defun my/make-pixel-spacer (px &rest props)
@@ -1359,7 +1458,7 @@ apart in languages that only use whitespace to separate list elements."
                                               tab-bar-tab-name-format-close-button
                                               my/tab-bar-tab-name-format-spaces
                                               tab-bar-tab-name-format-face))
-  (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:background "#CCC")))
+  (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:inherit dired-ignored)))
   (tab-bar-mode t))
 
 (use-package tab-line :ensure nil
@@ -1372,16 +1471,16 @@ apart in languages that only use whitespace to separate list elements."
   (tab-line-tab-face-functions nil)
   (tab-line-tab-name-function 'my/tab-line-tab-name)
   :custom-face
-  (tab-line ((t (:inherit tab-bar :height 100
-                 :background "#DDD"
-                 :overline "#AAA"))))
+  (tab-line ((((background light)) :inherit tab-bar :height 100 :overline "#DDD")
+             (((background dark)) :inherit tab-bar :height 100 :overline "#444")))
   (tab-line-tab ((t (:inherit tab-bar-tab :height 100))))
   (tab-line-tab-current ((t (:inherit tab-line-tab))))
   (tab-line-tab-inactive ((t (:inherit tab-bar-tab-inactive :height 100))))
   (tab-line-highlight ((t (:box (:line-width (-1 . -1) :color "#000" :style released-button)
                            :overline nil :inherit unspecified))))
   :config
-  (setq tab-line-separator (my/make-pixel-spacer 1 'face '(:background "#AAA"))))
+  (setq tab-line-separator (my/make-pixel-spacer 2 'face
+                                                 '(:inherit ((:height 100) dired-ignored)))))
 
 (use-package dabbrev :ensure nil
   :config (add-to-list* 'dabbrev-ignored-buffer-modes
@@ -1463,11 +1562,12 @@ apart in languages that only use whitespace to separate list elements."
   (if (mode-line-window-selected-p)
       (let ((mode-text (concat " " (upcase (symbol-name evil-state)) " ")))
         (concat (propertize mode-text 'face
-                            `(:foreground "#000000"
+                            `(:foreground "#000"
                               :background ,(my/vim-color)
                               :weight normal
-                              :family "Iosevka"))
-                (propertize "▏" 'face `((:height 150) fixed-pitch))))))
+                              :family "Iosevka"
+                              :box '(:line-width (-1 . -1) :color "#222")))
+                (propertize "▏" 'face `((:foreground "#000" :height 150) fixed-pitch))))))
 
 (defun my/make-check-text (status errors warnings info map)
   (if (or (null status) (string= status ""))
@@ -1538,9 +1638,11 @@ apart in languages that only use whitespace to separate list elements."
 (defun my/modeline-position-default ()
   `(;; Uncomment this to include the %
     ;;(-3 "%3o%")
-    (:propertize "▕" face ((:height 150 :weight bold) fixed-pitch))
-    (:propertize ( " %3l : %2C  ") face (:background ,(my/vim-color)
-                                         :family "Iosevka" :weight normal))))
+    (:propertize "▕" face ((:foreground "#000" :height 150 :weight bold) fixed-pitch))
+    (:propertize ( " %3l : %2C  ") face (:foreground "#000"
+                                         :background ,(my/vim-color)
+                                         :family "Iosevka" :weight normal
+                                         :box '(:line-width (-1 . -1) :color "#222")))))
 
 (defun my/modeline-position-pdf ()
   (require 'pdf-view)
@@ -1548,16 +1650,18 @@ apart in languages that only use whitespace to separate list elements."
   (let ((str (format " Page %d/%d  "
                      (pdf-view-current-page)
                      (pdf-info-number-of-pages))))
-    `((:propertize "▕" face ((:height 150) fixed-pitch))
-      (:propertize ,str face (:background ,(my/vim-color)
+    `((:propertize "▕" face ((:foreground "#000" :height 150) fixed-pitch))
+      (:propertize ,str face (:foreground "#000"
+                              :background ,(my/vim-color)
                               :family "Iosevka" :weight normal)))))
 
 (defun my/modeline-position-doc-view ()
   (let ((str (format " Page %d/%d  "
                      (doc-view-current-page)
                      (doc-view-last-page-number))))
-    `((:propertize "▕" face ((:height 150) fixed-pitch))
-      (:propertize ,str face (:background ,(my/vim-color)
+    `((:propertize "▕" face ((:foreground "#000" :height 150) fixed-pitch))
+      (:propertize ,str face (:foreground "#000"
+                              :background ,(my/vim-color)
                               :family "Iosevka" :weight normal)))))
 
 (defun my/modeline-position ()
@@ -1603,11 +1707,11 @@ apart in languages that only use whitespace to separate list elements."
   "Based on simple-modeline. Show a modified indicator for non-special
 buffers."
   (if (string-match-p "\\`[ ]?\\*" (buffer-name))
-      (propertize "⚪" 'face '(:foreground "#F7F7F7"))
+      " " ;; (propertize "▫" 'face '(:foreground "#F7F7F7"))
     (let ((read-only (and buffer-read-only (buffer-file-name)))
           (modified (buffer-modified-p)))
       (propertize
-       (if read-only "🔒 " (if modified  "⚫ "  "⚪️️ "))
+       (if read-only "🔒 " (if modified  "● "  "○ "))
        'face `(:inherit
                ,(if modified 'error
                   (if read-only 'black
