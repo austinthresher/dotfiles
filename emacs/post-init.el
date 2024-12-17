@@ -903,8 +903,7 @@ apart in languages that only use whitespace to separate list elements."
 (use-package fennel-mode :ensure t
   :mode "\\.fnl\\'"
   :config
-  (add-hook 'fennel-mode-hook 'my/lisp-word-syntax)
-  (put 'when-let 'fennel-indent-function 1))
+  (add-hook 'fennel-mode-hook 'my/lisp-word-syntax))
 
 (use-package slime :ensure t
   :config (setq inferior-lisp-program "sbcl"))
@@ -1669,17 +1668,37 @@ buffers."
       "s" #'evil-surround-region
       "S" #'evil-Surround-region)))
 
-(defun recompile-or-prompt ()
-  (interactive)
-  (if (string= compile-command "make -k ")
-      ;; Subtle change from the default to make this not trigger a second time
-      (progn (setq compile-command "make -k")
-             (call-interactively 'compile))
-    (call-interactively 'recompile)))
+;; (defun my/foo ()
+;;   (interactive)
+;;   (message "PREFIX: %s" current-prefix-arg))
 
-(general-def
-  "<f5>" 'recompile-or-prompt
-  "<S-f5>" 'compile)
+(defvar my/project-commands '())
+(defun my/current-project-symbol ()
+  (let ((cur (project-current)))
+    (if cur (intern (project-name cur)) 'none)))
+(defun my/current-project-compile-command ()
+  (plist-get my/project-commands (my/current-project-symbol)))
+(defun my/update-current-project-compile-command (cmd)
+  (setq my/project-commands
+        (plist-put my/project-commands (my/current-project-symbol) cmd)))
+
+(defun compile-interactively (command)
+  "Prompts for the compile command the first time it's called, or when called
+with a prefix. Always starts the compilation buffer in comint mode to allow
+interaction. Tracks the compile command used on a per-project basis."
+  (interactive
+   (list
+    (let ((command (my/current-project-compile-command)))
+      (if (or (null command)
+              current-prefix-arg)
+          (let ((new-command (compilation-read-command command)))
+            (my/update-current-project-compile-command new-command)
+            new-command)
+        ;; default to the previous used command, but don't store it
+        (or command compile-command)))))
+  (compile command t))
+
+(general-def "<f5>" 'compile-interactively)
 
 (keymap-global-set "C-x C-m" 'pp-macroexpand-last-sexp)
 
@@ -1811,4 +1830,6 @@ pressed twice in a row."
           (side . bottom))
          )))
 
-(load custom-file t)
+(when custom-file
+  (load custom-file))
+
