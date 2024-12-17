@@ -663,57 +663,60 @@ apart in languages that only use whitespace to separate list elements."
   :hook (embark-collect-mode . consult-preview-at-point-mode))
 
 (use-package consult :ensure t :demand t
-  :bind (("C-c M-x" . consult-mode-command)
-         ("C-c h" . consult-history)
-         ("C-c k" . consult-kmacro)
-         ("C-c m" . consult-man)
-         ("C-c i" . consult-info)
-         ([remap Info-search] . consult-info)
-         ;; C-x bindings in `ctl-x-map'
-         ("C-x M-:" . consult-complex-command)
-         ("C-x b" . consult-buffer)
-         ("C-x 4 b" . consult-buffer-other-window)
-         ("C-x 5 b" . consult-buffer-other-frame)
-         ("C-x t b" . consult-buffer-other-tab)
-         ("C-x r b" . consult-bookmark)
-         ("C-x p b" . consult-project-buffer)
-         ;; Custom M-# bindings for fast register access
-         ("M-#" . consult-register-load)
-         ("M-'" . consult-register-store)
-         ("C-M-#" . consult-register)
-         ;; Other custom bindings
-         ("M-y" . consult-yank-pop)
-         ;; M-g bindings in `goto-map'
-         ("M-g e" . consult-compile-error)
-         ("M-g f" . consult-flymake)
-         ("M-g g" . consult-goto-line)
-         ("M-g M-g" . consult-goto-line)
-         ("M-g o" . consult-outline)
-         ("M-g m" . consult-mark)
-         ("M-g k" . consult-global-mark)
-         ("M-g i" . consult-imenu)
-         ("M-g I" . consult-imenu-multi)
-         ;; M-s bindings in `search-map'
-         ("M-s d" . consult-find)
-         ("M-s c" . consult-locate)
-         ("M-s g" . consult-grep)
-         ("M-s G" . consult-git-grep)
-         ("M-s r" . consult-ripgrep)
-         ("M-s l" . consult-line)
-         ("M-s L" . consult-line-multi)
-         ("M-s k" . consult-keep-lines)
-         ("M-s f" . consult-focus-lines)
-         ;; Isearch integration
-         ("M-s e" . consult-isearch-history)
-         :map isearch-mode-map
-         ("M-e" . consult-isearch-history)
-         ("M-s e" . consult-isearch-history)
-         ("M-s l" . consult-line)
-         ("M-s L" . consult-line-multi)
-         ;; Minibuffer history
-         :map minibuffer-local-map
-         ("M-s" . consult-history)
-         ("M-r" . consult-history))
+  :general
+  ("C-c M-x" 'consult-mode-command
+   "C-c h" 'consult-history
+   "C-c k" 'consult-kmacro
+   "C-c m" 'consult-man
+   "C-c i" 'consult-info
+   [remap Info-search] 'consult-info
+   ;; C-x bindings in `ctl-x-map'
+   "C-x M-:" 'consult-complex-command
+   "C-x b" 'consult-buffer
+   "C-x 4 b" 'consult-buffer-other-window
+   "C-x 5 b" 'consult-buffer-other-frame
+   "C-x t b" 'consult-buffer-other-tab
+   "C-x r b" 'consult-bookmark
+   "C-x p b" 'consult-project-buffer
+   ;; Custom M-# bindings for fast register access
+   "M-#" 'consult-register-load
+   "M-'" 'consult-register-store
+   "C-M-#" 'consult-register
+   ;; Other custom bindings
+   "M-y" 'consult-yank-pop
+   ;; M-g bindings in `goto-map'
+   "M-g e" 'consult-compile-error
+   "M-g f" 'consult-flymake
+   "M-g g" 'consult-goto-line
+   "M-g M-g" 'consult-goto-line
+   "M-g o" 'consult-outline
+   "M-g m" 'consult-mark
+   "M-g k" 'consult-global-mark
+   "M-g i" 'consult-imenu
+   "M-g I" 'consult-imenu-multi
+   ;; M-s bindings in `search-map'
+   "M-s d" (or (and (executable-find "fd") 'consult-fd)
+               (and (executable-find "fdfind") 'consult-fd)
+               'consult-find)
+   "M-s c" 'consult-locate
+   "M-s g" 'consult-grep
+   "M-s G" 'consult-git-grep
+   "M-s r" 'consult-ripgrep
+   "M-s l" 'consult-line
+   "M-s L" 'consult-line-multi
+   "M-s k" 'consult-keep-lines
+   "M-s f" 'consult-focus-lines
+   ;; Isearch integration
+   "M-s e" 'consult-isearch-history)
+  ('isearch-mode-map
+   "M-e" 'consult-isearch-history
+   "M-s e" 'consult-isearch-history
+   "M-s l" 'consult-line
+   "M-s L" 'consult-line-multi)
+  ('minibuffer-local-map
+   "M-s" 'consult-history
+   "M-r" 'consult-history)
+
   ;; Enable automatic preview at point in the *Completions* buffer.
   :hook (completion-list-mode . consult-preview-at-point-mode)
   :init
@@ -1083,10 +1086,17 @@ apart in languages that only use whitespace to separate list elements."
   (setq treesit-auto-langs (seq-map #'treesit-auto-recipe-lang
                                     treesit-auto-recipe-list)))
 
+;; Note: install fd for faster file operations (package is named "fd-find" in apt/dnf)
 (use-package projectile :ensure t :demand t
   :config (projectile-mode)
   :general
   ('projectile-mode-map "C-c p" 'projectile-command-map))
+
+;; WIP: Try this out, figure out buffer switching
+;; (use-package consult-projectile :ensure t)
+
+;; TODO: Figure out isolating visible buffers / etc on a per-project basis
+;; (use-package perspective :ensure t)
 
 (unless (version< emacs-version "30")
   (use-package which-key-posframe :ensure t
@@ -1327,7 +1337,7 @@ apart in languages that only use whitespace to separate list elements."
   (tab-bar-show 1)
   (tab-bar-auto-width nil)
   :custom-face
-  (tab-bar ((t (:foreground "#DDD"
+  (tab-bar ((t (:foreground "#444"
                 :background "#DDD"
                 :height 120
                 :underline (:color "#AAA" :position 0 :extend t)))))
@@ -1448,7 +1458,7 @@ apart in languages that only use whitespace to separate list elements."
 (defun my/inactive-left ()
   (if (mode-line-window-selected-p)
       ""
-    '(:propertize "▌" face ((:height 150 :weight bold :foreground "#DDD") fixed-pitch))))
+    '(:propertize "▌ " face ((:height 150 :weight bold :foreground "#DDD") fixed-pitch))))
 
 (defun my/vim-state ()
   (if (mode-line-window-selected-p)
@@ -1503,9 +1513,21 @@ apart in languages that only use whitespace to separate list elements."
 (defun my/evil-state () '(:eval (my/vim-state)))
 
 (defun my/modeline-modes ()
-  (if (mode-line-window-selected-p) 
+  (if (mode-line-window-selected-p)
       minions-mode-line-modes
-    (format-mode-line mode-name)))
+    (concat " " (format-mode-line mode-name))))
+
+(defun my/modeline-project ()
+  (let ((home (concat (getenv "HOME") "/")))
+    (unless (string= home (projectile-project-p))
+      (concat " "
+              (propertize (concat (projectile-project-name) " ")
+                          'face '(:foreground "#999"
+                                  :family "Noto Sans"
+                                  :weight normal
+                                  :height 0.8)
+                          'display '(raise 0.075))
+              " "))))
 
 (defun my/modeline-buffer-name ()
   `(:propertize "%b" face
@@ -1567,8 +1589,8 @@ apart in languages that only use whitespace to separate list elements."
 
 (defun my/modeline-fly ()
   (if (mode-line-window-selected-p)
-      (cond ((bound-and-true-p flymake-mode) '("" (:eval (my/flymake-status)) "▕ "))
-            ((bound-and-true-p flycheck-mode) '("" (:eval (my/flycheck-status)) "▕ "))
+      (cond ((bound-and-true-p flymake-mode) '(" " (:eval (my/flymake-status)) "  "))
+            ((bound-and-true-p flycheck-mode) '(" " (:eval (my/flycheck-status)) "  "))
             (t ""))
     ""))
 
@@ -1596,12 +1618,13 @@ buffers."
 (setq-default mode-line-format
               '((:eval (my/inactive-left))
                 (:eval (my/evil-state))
-                (:eval (my/modeline-modified))
+ (:eval (my/modeline-modified))
                 (:eval (my/modeline-buffer-name))
                 (:eval (my/modeline-search))
                 (:eval (my/modeline-eldoc))
                 mode-line-misc-info
                 mode-line-format-right-align
+                (:eval (my/modeline-project))
                 (:eval (my/modeline-fly))
                 (:eval (my/modeline-modes))
                 (:eval (my/modeline-position))

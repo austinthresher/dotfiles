@@ -59,13 +59,15 @@ fi
 alias tmux='tmux -u'
 alias usermount="udisksctl"
 
-if command -v lsb_release &> /dev/null; then
-    alias ubuntu='lsb_release -d'
-fi
+is_executable () {
+    command -v "$@" &> /dev/null
+}
+
+is_executable lsb_release && alias ubuntu='lsb_release -d'
 
 # Use neovim for vim commands when vim isn't available.
-if command -v nvim &> /dev/null; then
-    if ! command -v vim &> /dev/null; then
+if is_executable nvim; then
+    if ! is_executable vim; then
         alias vim=nvim
         alias view='nvim -R'
         alias vimdiff='nvim -d -R'
@@ -73,7 +75,7 @@ if command -v nvim &> /dev/null; then
 fi
 
 # Allow launching emacsclient directly without having to start a daemon first
-if command -v emacsclient &> /dev/null; then
+if is_executable emacsclient; then
     alias emc='emacsclient-wrapper'
     alias em='emacsclient --alternate-editor="" --tty'
 fi
@@ -83,9 +85,8 @@ fi
 export EDITOR=edit-tty
 export VISUAL=edit
 
-
 # Use bat for man pages if it's installed
-if command -v bat &> /dev/null; then
+if is_executable bat; then
     export MANPAGER="sh -c 'col -bx | bat -l man -p'"
     bathelp() {
         bat --plain --language=help
@@ -96,13 +97,8 @@ if command -v bat &> /dev/null; then
 fi
 
 # I'll probably type "md" to try and find a Markdown viewer
-if command -v glow &> /dev/null; then
-    alias mdv='glow -p'
-fi
+is_executable glow && alias mdv='glow -p'
+is_executable rlwrap && is_executable sbcl && alias sbcl='rlwrap sbcl'
+is_executable fdfind && alias fd='fdfind'
 
-if command -v rlwrap &> /dev/null; then
-    if command -v sbcl &> /dev/null; then
-        alias sbcl='rlwrap sbcl'
-    fi
-fi
 source promptcolor
