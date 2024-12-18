@@ -78,10 +78,9 @@ the property list can optionally be given directly in the arguments instead of a
 ;; faces and then inherit from each. Inheriting from a face that tries to
 ;; use 'reset or 'unspecified as a mask does not work.
 
-;; These make it slightly easier to change themes. Still need to be updated
-;; manually when changing.
-(defvar dark-fg "#ECEFF4")
-(defvar dark-bg "#2E3440")
+;; These will be overwritten by actual values in setup-fonts
+(defvar dark-fg "#EEE")
+(defvar dark-bg "#222")
 (defvar light-fg "#333")
 (defvar light-bg "#FFF")
 
@@ -106,38 +105,6 @@ be evaluated twice, once for light and once for dark."
 
 (require 'color)
 
-(my/face* 'default-bg :bg bg)
-(my/face* 'default-fg :fg fg)
-(my/face 'popup-border
-  :light `(:fg ,(color-darken-name light-bg 20)
-           :bg ,(color-darken-name light-bg 20))
-  :dark `(:fg ,(color-lighten-name dark-bg 60)
-          :bg ,(color-lighten-name dark-bg 60)))
-(my/face 'popup-bg
-  :light `(:bg ,(color-darken-name light-bg 3))
-  :dark `(:bg ,(color-lighten-name dark-bg 20)))
-(my/face* 'dimmed-background :bg (color-darken-name bg 15))
-(my/face* 'thick-strike-through
-  :strike-through "#F00" :bg "#A22" :fg 'unspecified
-  :underline '(:color "#F44" :position 15) :weight 'unspecified
-  :box `(:line-width (-1 . -12) :color ,bg))
-(my/face-alias 'evil-ex-substitute-matches 'thick-strike-through)
-(my/face* 'replacement-box
-  :box `(:line-width (1 . -1) :color "#A3BE8C")
-  :fg 'unspecified :weight 'unspecified :bg bg)
-(my/face-alias 'evil-ex-substitute-replacement 'replacement-box)
-(my/face 'medium-weight :weight 'medium)
-(my/face-alias 'anzu-mode-line 'medium-weight)
-(my/face 'selected-item
-  :light '(:bg "#D0F0FF" :box (:line-width (1 . -1) :color "#DDD"))
-  :dark `(:bg "#434C5E" :box (:line-width (1 . -1)
-                              :color ,(color-lighten-name dark-bg 60))))
-(my/face-alias 'vertico-current 'selected-item)
-(my/face-alias 'corfu-current 'selected-item)
-(my/face-alias 'corfu-border 'popup-border)
-(my/face-alias 'corfu-popupinfo 'popup-bg)
-(my/face-alias 'corfu-default 'default-bg)
-
 
 
 
@@ -146,155 +113,195 @@ be evaluated twice, once for light and once for dark."
 
 (use-package doom-themes :ensure t :demand t)
 
-(defun light-theme ()
-  (interactive)
-  (load-theme 'doom-tomorrow-day t)
-  (setq frame-background-mode 'light)
-  (mapc 'frame-set-background-mode (frame-list))
-  ;; Note- using color names like "white" will not give correct results for
-  ;; terminal sessions
-  (set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'normal
-                      :foreground "#333"
-                      :background "#FFF")
-  (set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 140 :weight 'normal)
-  (set-face-attribute 'variable-pitch-text nil :height 'unspecified)
-  (set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
-  (set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140)
-  (set-face-attribute 'fringe nil :background "#FFFFFF")
-  (set-face-attribute 'mode-line nil :family "Roboto" :height 140 :weight 'light
-                      :box '(:line-width (-1 . -1) :color "#222"))
-  (set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light)
-  (set-face-attribute 'header-line nil :weight 'normal)
-  (set-face-attribute 'vertical-border nil :foreground "#DDD" :background "#DDD")
+(require-theme 'doom-tomorrow-day-theme)
+(require-theme 'doom-nord-theme)
+(defvar light-theme-name 'doom-tomorrow-day)
+(defvar dark-theme-name 'doom-nord)
+
+(defun my/collect-faces (theme-settings)
+  (seq-filter #'identity
+              (mapcar (lambda (x)
+                        (pcase x
+                          (`(theme-face ,face-name ,_ ,spec)
+                           `(,face-name . ,(face-spec-choose spec)))))
+                      theme-settings)))
+
+(defun my/setup-face-functions ()
+  (load-theme light-theme-name :no-confirm :no-enable)
+  (load-theme dark-theme-name :no-confirm :no-enable)
+  (let* ((light-plist (get light-theme-name 'theme-settings))
+         (dark-plist (get dark-theme-name 'theme-settings))
+         (light-faces (my/collect-faces light-plist))
+         (dark-faces (my/collect-faces dark-plist)))
+    (defun my/get-fg-light (face)
+      (or (plist-get (cdr (assoc face light-faces)) :foreground) light-fg))
+    (defun my/get-bg-light (face)
+      (or (plist-get (cdr (assoc face light-faces)) :background) light-bg))
+    (defun my/get-fg-dark (face)
+      (or (plist-get (cdr (assoc face dark-faces)) :foreground) dark-fg))
+    (defun my/get-bg-dark (face)
+      (or (plist-get (cdr (assoc face dark-faces)) :background) dark-bg)))
+  (setq dark-fg (my/get-fg-dark 'default)
+        dark-bg (my/get-bg-dark 'default)
+        light-fg (my/get-fg-light 'default)
+        light-bg (my/get-bg-light 'default)))
+
+(defun my/setup-faces ()
+  (my/setup-face-functions)
+  (my/face 'default :family "Iosevka" :height 140 :weight 'normal)
+  (my/face 'variable-pitch :family "Noto Sans" :height 140 :weight 'normal)
+  (my/face 'variable-pitch-text :inherit 'variable-pitch)
+  (my/face 'fixed-pitch :family "Iosevka Slab" :height 140)
+  (my/face 'fixed-pitch-serif :family "Iosevka Slab" :height 140)
+  (my/face 'mode-line :family "Roboto" :height 140 :weight 'light
+           :box '(:line-width (-1 . -1) :color "#222"))
+  (my/face* 'mode-line-inactive
+    :family "Roboto" :height 140 :weight 'light
+    :background (color-darken-name bg 15))
+  (my/face 'vertical-border :fg "#444" :bg "#444")
   ;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
   ;; relatively unobtrusive.
-  (set-face-attribute 'trailing-whitespace nil
-                      :background 'unspecified :foreground "#FDD"
-                      :stipple '(8 2 "\xAA\x55"))
-  (set-face-attribute 'match nil
-                      :foreground "dark cyan"
-                      :background 'unspecified
-                      :underline t)
-  (set-face-attribute 'elisp-shorthand-font-lock-face nil
-                      :weight 'normal
-                      :slant 'italic
-                      :foreground 'unspecified)
-  (set-face-attribute 'font-lock-string-face nil
-                      :foreground "#070"
-                      :weight 'normal)
+  (my/face 'trailing-whitespace :fg "#844" :stipple '(8 2 "\xAA\x55"))
   (set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab" :weight 'normal)
   (set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab" :weight 'normal)
-  (set-face-attribute 'font-lock-type-face nil
-                      :foreground "DarkOrange3")
-  (set-face-attribute 'font-lock-comment-face nil
-                      :foreground "#777"
-                      :weight 'light
-                      :slant 'unspecified)
-  (set-face-attribute 'font-lock-doc-face nil
-                      :foreground "#777"
-                      :weight 'light
-                      :slant 'unspecified)
-  ;; Help differentiate the escapes from the grouped characters.
-  (set-face-attribute 'font-lock-regexp-grouping-backslash nil
-                      :foreground "#BBB"
-                      :weight 'semibold)
-  (set-face-attribute 'font-lock-regexp-grouping-construct nil
-                      :foreground "#22F"
-                      :weight 'bold)
-  (set-face-attribute 'font-lock-punctuation-face nil :foreground "#000" :weight 'light)
-  (set-face-attribute 'font-lock-variable-name-face nil :foreground "#333" :weight 'normal)
-  (set-face-attribute 'font-lock-variable-use-face nil :foreground "#333" :weight 'normal)
+  (set-face-attribute 'font-lock-comment-face nil :weight 'light :slant 'unspecified)
+  (set-face-attribute 'font-lock-doc-face nil :weight 'light :slant 'unspecified)
+  (set-face-attribute 'font-lock-regexp-grouping-backslash nil :weight 'semibold)
+  (set-face-attribute 'font-lock-regexp-grouping-construct nil :weight 'bold)
+  (my/face* 'font-lock-punctuation-face :fg fg :weight 'light)
+  (set-face-attribute 'font-lock-variable-name-face nil :weight 'normal)
+  (set-face-attribute 'font-lock-variable-use-face nil :weight 'normal)
   (set-face-attribute 'font-lock-function-name-face nil :weight 'normal)
-  (set-face-attribute 'font-lock-constant-face nil
-                      :foreground "IndianRed4"
-                      :family "Iosevka Slab")
+  (set-face-attribute 'font-lock-constant-face nil :family "Iosevka Slab")
   (set-face-attribute 'font-lock-escape-face nil
                       :foreground 'unspecified
                       :inherit '(font-lock-constant-face))
   (set-face-attribute 'font-lock-number-face nil
                       :foreground 'unspecified
                       :inherit '(font-lock-constant-face))
-  (set-face-attribute 'font-lock-preprocessor-face nil
-                      :foreground "dark cyan"
-                      :weight 'normal)
-  (set-face-attribute 'font-lock-warning-face nil :foreground "DarkOrange2"))
+  (set-face-attribute 'font-lock-preprocessor-face nil :weight 'normal)
+  (set-face-attribute 'header-line nil :weight 'normal)
+  (my/face* 'default-bg :bg bg)
+  (my/face* 'default-fg :fg fg)
+  (my/face 'popup-border
+    :light `(:fg ,(color-darken-name light-bg 20)
+             :bg ,(color-darken-name light-bg 20))
+    :dark `(:fg ,(color-lighten-name dark-bg 20)
+            :bg ,(color-lighten-name dark-bg 20)))
+  (my/face 'popup-bg
+    :light `(:bg ,(color-darken-name light-bg 3))
+    :dark `(:bg ,(color-lighten-name dark-bg 10)))
+  (my/face* 'dimmed-background :bg (color-darken-name bg 15))
+  (my/face* 'thick-strike-through
+    :strike-through "#F00" :bg "#A22" :fg 'unspecified
+    :underline '(:color "#F44" :position 15) :weight 'unspecified
+    :box `(:line-width (-1 . -12) :color ,bg))
+  (my/face-alias 'evil-ex-substitute-matches 'thick-strike-through)
+  (my/face* 'replacement-box
+    :box `(:line-width (1 . -1) :color "#A3BE8C")
+    :fg 'unspecified :weight 'unspecified :bg bg)
+  (my/face-alias 'evil-ex-substitute-replacement 'replacement-box)
+  (my/face 'medium-weight :weight 'medium)
+  (my/face-alias 'anzu-mode-line 'medium-weight)
+  (my/face 'selected-item
+    :light '(:bg "#D0F0FF" :box (:line-width (1 . -1) :color "#DDD"))
+    :dark `(:bg "#434C5E" :box (:line-width (1 . -1)
+                                :color ,(color-lighten-name dark-bg 60))))
+  (my/face-alias 'vertico-current 'selected-item)
+  (my/face-alias 'corfu-current 'selected-item)
+  (my/face-alias 'corfu-border 'popup-border)
+  (my/face-alias 'corfu-popupinfo 'popup-bg)
+  (my/face-alias 'corfu-default 'default-bg))
+
+;; TODO: uh, this
+;; (defun light-theme ()
+;;   (interactive)
+;;   (load-theme 'doom-tomorrow-day t)
+;;   (setq frame-background-mode 'light)
+;;   (mapc 'frame-set-background-mode (frame-list))
+;;   ;; Note- using color names like "white" will not give correct results for
+;;   ;; terminal sessions
+;;   (set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'normal
+;;                       :foreground "#333"
+;;                       :background "#FFF")
+;;   (set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 140 :weight 'normal)
+;;   (set-face-attribute 'variable-pitch-text nil :height 'unspecified)
+;;   (set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
+;;   (set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140)
+;;   (set-face-attribute 'fringe nil :background "#FFFFFF")
+;;   (set-face-attribute 'mode-line nil :family "Roboto" :height 140 :weight 'light
+;;                       :box '(:line-width (-1 . -1) :color "#222"))
+;;   (set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light)
+;;   (set-face-attribute 'header-line nil :weight 'normal)
+;;   (set-face-attribute 'vertical-border nil :foreground "#DDD" :background "#DDD")
+;;   ;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
+;;   ;; relatively unobtrusive.
+;;   (set-face-attribute 'trailing-whitespace nil
+;;                       :background 'unspecified :foreground "#FDD"
+;;                       :stipple '(8 2 "\xAA\x55"))
+;;   (set-face-attribute 'match nil
+;;                       :foreground "dark cyan"
+;;                       :background 'unspecified
+;;                       :underline t)
+;;   (set-face-attribute 'elisp-shorthand-font-lock-face nil
+;;                       :weight 'normal
+;;                       :slant 'italic
+;;                       :foreground 'unspecified)
+;;   (set-face-attribute 'font-lock-string-face nil
+;;                       :foreground "#070"
+;;                       :weight 'normal)
+;;   (set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab" :weight 'normal)
+;;   (set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab" :weight 'normal)
+;;   (set-face-attribute 'font-lock-type-face nil
+;;                       :foreground "DarkOrange3")
+;;   (set-face-attribute 'font-lock-comment-face nil
+;;                       :foreground "#777"
+;;                       :weight 'light
+;;                       :slant 'unspecified)
+;;   (set-face-attribute 'font-lock-doc-face nil
+;;                       :foreground "#777"
+;;                       :weight 'light
+;;                       :slant 'unspecified)
+;;   ;; Help differentiate the escapes from the grouped characters.
+;;   (set-face-attribute 'font-lock-regexp-grouping-backslash nil
+;;                       :foreground "#BBB"
+;;                       :weight 'semibold)
+;;   (set-face-attribute 'font-lock-regexp-grouping-construct nil
+;;                       :foreground "#22F"
+;;                       :weight 'bold)
+;;   (set-face-attribute 'font-lock-punctuation-face nil :foreground "#000" :weight 'light)
+;;   (set-face-attribute 'font-lock-variable-name-face nil :foreground "#333" :weight 'normal)
+;;   (set-face-attribute 'font-lock-variable-use-face nil :foreground "#333" :weight 'normal)
+;;   (set-face-attribute 'font-lock-function-name-face nil :weight 'normal)
+;;   (set-face-attribute 'font-lock-constant-face nil
+;;                       :foreground "IndianRed4"
+;;                       :family "Iosevka Slab")
+;;   (set-face-attribute 'font-lock-escape-face nil
+;;                       :foreground 'unspecified
+;;                       :inherit '(font-lock-constant-face))
+;;   (set-face-attribute 'font-lock-number-face nil
+;;                       :foreground 'unspecified
+;;                       :inherit '(font-lock-constant-face))
+;;   (set-face-attribute 'font-lock-preprocessor-face nil
+;;                       :foreground "dark cyan"
+;;                       :weight 'normal)
+;;   (set-face-attribute 'font-lock-warning-face nil :foreground "DarkOrange2"))
+
+(defun light-theme ()
+  (interactive)
+  (disable-theme dark-theme-name)
+  (enable-theme light-theme-name)
+  (my/setup-faces)
+  (setq frame-background-mode 'dark)
+  (mapc 'frame-set-background-mode (frame-list)))
 
 (defun dark-theme ()
   (interactive)
-  (load-theme 'doom-nord t)
+  (disable-theme light-theme-name)
+  (enable-theme dark-theme-name)
+  (my/setup-faces)
   (setq frame-background-mode 'dark)
-  (mapc 'frame-set-background-mode (frame-list))
-  ;; Note- using color names like "white" will not give correct results for
-  ;; terminal sessions
-  (set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'normal)
-  (set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 140 :weight 'normal)
-  (set-face-attribute 'variable-pitch-text nil :height 'unspecified)
-  (set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
-  (set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140)
-  ;;(set-face-attribute 'fringe nil :background "#FFFFFF")
-  (set-face-attribute 'mode-line nil :family "Roboto" :height 140 :weight 'light
-                      :box '(:line-width (-1 . -1) :color "#222")
-                      )
-  (set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light
-                      :background "#3B4252"
-                      )
-  (set-face-attribute 'header-line nil :weight 'normal)
-  (set-face-attribute 'vertical-border nil :foreground "#444" :background "#444")
-  ;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
-  ;; relatively unobtrusive.
-  (set-face-attribute 'trailing-whitespace nil
-                      :background 'unspecified :foreground "#844"
-                      :stipple '(8 2 "\xAA\x55"))
-  (set-face-attribute 'match nil
-                      :foreground "dark cyan"
-                      :background 'unspecified
-                      :underline t)
-  (set-face-attribute 'elisp-shorthand-font-lock-face nil
-                      :weight 'normal
-                      :slant 'italic
-                      :foreground 'unspecified)
-  (set-face-attribute 'font-lock-string-face nil
-                      ;;:foreground "#070"
-                      :weight 'normal)
-  (set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab" :weight 'normal)
-  (set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab" :weight 'normal)
-  ;;(set-face-attribute 'font-lock-type-face nil :foreground "DarkOrange3")
-  (set-face-attribute 'font-lock-comment-face nil
-                      ;;:foreground "#777"
-                      :weight 'light
-                      :slant 'unspecified)
-  (set-face-attribute 'font-lock-doc-face nil
-                      ;;:foreground "#777"
-                      :weight 'light
-                      :slant 'unspecified)
-  ;; Help differentiate the escapes from the grouped characters.
-  (set-face-attribute 'font-lock-regexp-grouping-backslash nil
-                      ;;:foreground "#BBB"
-                      :weight 'semibold)
-  (set-face-attribute 'font-lock-regexp-grouping-construct nil
-                      ;;:foreground "#22F"
-                      :weight 'bold)
-  (set-face-attribute 'font-lock-punctuation-face nil :foreground "#FFF"
-                      :weight 'light)
-  (set-face-attribute 'font-lock-variable-name-face nil ;;:foreground "#333"
-                      :weight 'normal)
-  (set-face-attribute 'font-lock-variable-use-face nil ;;:foreground "#333"
-                      :weight 'normal)
-  (set-face-attribute 'font-lock-function-name-face nil :weight 'normal)
-  (set-face-attribute 'font-lock-constant-face nil
-                      ;;:foreground "IndianRed4"
-                      :family "Iosevka Slab")
-  (set-face-attribute 'font-lock-escape-face nil
-                      :foreground 'unspecified
-                      :inherit '(font-lock-constant-face))
-  (set-face-attribute 'font-lock-number-face nil
-                      :foreground 'unspecified
-                      :inherit '(font-lock-constant-face))
-  (set-face-attribute 'font-lock-preprocessor-face nil
-                      ;;:foreground "dark cyan"
-                      :weight 'normal)
-  ;;(set-face-attribute 'font-lock-warning-face nil :foreground "DarkOrange2")
-  )
+  (mapc 'frame-set-background-mode (frame-list)))
 
 (light-theme)
 
@@ -486,11 +493,9 @@ be evaluated twice, once for light and once for dark."
 (defun my/no-mode-line (&rest _)
   "Add this as a hook to modes that should not have a modeline. Leaves a tiny
 line so that it still acts as a grabbable window divider."
-  (let ((shared '(:height 10 :inherit nil :box nil)))
-    (apply #'face-remap-add-relative 'mode-line-active
-           :foreground "#AAA" shared)
-    (apply #'face-remap-add-relative 'mode-line-inactive
-           :foreground "#DDD" shared))
+  (dolist (face '(mode-line-active mode-line-inactive))
+    (face-remap-add-relative face
+                             '(:height 10 :box nil :inherit popup-bg)))
   (setq-local mode-line-format
               (propertize " "
                           'face '(:underline (:position 0))
@@ -1604,7 +1609,8 @@ apart in languages that only use whitespace to separate list elements."
                   'my/no-fringes)
 
 (general-add-hook (list 'evil-collection-eldoc-doc-buffer-mode-hook
-                        'eww-mode-hook 'help-mode-hook 'Custom-mode-hook)
+                        'eww-mode-hook 'help-mode-hook 'Custom-mode-hook
+                        'messages-buffer-mode-hook)
                   'my/no-mode-line)
 
 (general-add-hook (list 'help-mode-hook 'eww-mode-hook 'compilation-mode-hook
