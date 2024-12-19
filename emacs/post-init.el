@@ -103,44 +103,74 @@ be evaluated twice, once for light and once for dark."
   "Make the face named `dst' an alias for the face named `src'."
   (put dst 'face-alias src))
 
-(require 'color)
-
-
-
 
 ;;(setq modus-themes-mixed-fonts t)
 ;;(load-theme 'modus-operandi t)
 
 (use-package doom-themes :ensure t :demand t)
+;; Wrapping these just in case I decide not to use doom-themes.
+;; All colors are hex strings and `alpha' is a float from 0 to 1.
+;; NOTE: The colors for doom-blend are reversed from what I'd expect
+(defun my/blend (hex-from hex-to alpha) (doom-blend hex-to hex-from alpha))
+(defun my/darken (hex-color alpha) (doom-darken hex-color alpha))
+(defun my/lighten (hex-color alpha) (doom-lighten hex-color alpha))
 
-(require-theme 'doom-tomorrow-day-theme)
-(require-theme 'doom-nord-theme)
+(defun my/make-cursor-colors (start-col end-col)
+  (mapcar
+   (apply-partially #'my/blend start-col end-col)
+   '(0.0 0.25 0.5 0.75 0.9 0.75 0.5 0.25)))
+
+;; These will also be overwritten when applying a theme
+(defvar my/cursor-colors-normal (my/make-cursor-colors "#000" "#FFF"))
+(defvar my/cursor-colors-emacs (my/make-cursor-colors "#F0F" "#FFF"))
+
 (defvar light-theme-name 'doom-tomorrow-day)
-(defvar dark-theme-name 'doom-nord)
+(defvar dark-theme-name 'doom-nord-aurora)
+(require-theme 'doom-tomorrow-day-theme)
+(require-theme 'doom-nord-aurora-theme)
 
 (defun my/collect-faces (theme-settings)
-  (seq-filter #'identity
-              (mapcar (lambda (x)
-                        (pcase x
-                          (`(theme-face ,face-name ,_ ,spec)
-                           `(,face-name . ,(face-spec-choose spec)))))
-                      theme-settings)))
+  (cl-flet ((extract-spec (lambda (theme-entry)
+                            (pcase theme-entry
+                              (`(theme-face ,face-name ,_ ,spec)
+                               `(,face-name . ,(face-spec-choose spec)))))))
+    (remq nil (mapcar #'extract-spec theme-settings))))
 
 (defun my/setup-face-functions ()
-  (load-theme light-theme-name :no-confirm :no-enable)
-  (load-theme dark-theme-name :no-confirm :no-enable)
+  (unless (get light-theme-name 'theme-settings)
+    (load-theme light-theme-name :no-confirm :no-enable))
+  (unless (get dark-theme-name 'theme-settings)
+    (load-theme dark-theme-name :no-confirm :no-enable))
   (let* ((light-plist (get light-theme-name 'theme-settings))
          (dark-plist (get dark-theme-name 'theme-settings))
          (light-faces (my/collect-faces light-plist))
          (dark-faces (my/collect-faces dark-plist)))
-    (defun my/get-fg-light (face)
-      (or (plist-get (cdr (assoc face light-faces)) :foreground) light-fg))
-    (defun my/get-bg-light (face)
-      (or (plist-get (cdr (assoc face light-faces)) :background) light-bg))
-    (defun my/get-fg-dark (face)
-      (or (plist-get (cdr (assoc face dark-faces)) :foreground) dark-fg))
-    (defun my/get-bg-dark (face)
-      (or (plist-get (cdr (assoc face dark-faces)) :background) dark-bg)))
+    (defun my/get-fg-light (face &optional default)
+      (or (plist-get (cdr (assoc face light-faces)) :foreground)
+          default
+          light-fg))
+    (defun my/get-bg-light (face &optional default)
+      (or (plist-get (cdr (assoc face light-faces)) :background)
+          default
+          light-bg))
+    (defun my/get-fg-dark (face &optional default)
+      (or (plist-get (cdr (assoc face dark-faces)) :foreground)
+          default
+          dark-fg))
+    (defun my/get-bg-dark (face &optional default)
+      (or (plist-get (cdr (assoc face dark-faces)) :background)
+          default
+          dark-bg))
+    (defun my/face-fg (name source &optional default-light default-dark)
+      "Create a new face that copies the foreground color from another face"
+      (my/face name
+        :light `(:fg ,(my/get-fg-light source default-light))
+        :dark `(:fg ,(my/get-fg-dark source (or default-dark default-light)))))
+    (defun my/face-bg (name source &optional default-light default-dark)
+      "Create a new face that copies the background color from another face"
+      (my/face name
+        :light `(:bg ,(my/get-bg-light source default-light))
+        :dark `(:bg ,(my/get-bg-dark source (or default-dark default-light))))))
   (setq dark-fg (my/get-fg-dark 'default)
         dark-bg (my/get-bg-dark 'default)
         light-fg (my/get-fg-light 'default)
@@ -148,30 +178,31 @@ be evaluated twice, once for light and once for dark."
 
 (defun my/setup-faces ()
   (my/setup-face-functions)
-  (my/face 'default :family "Iosevka" :height 140 :weight 'normal)
-  (my/face 'variable-pitch :family "Noto Sans" :height 140 :weight 'normal)
+  (my/face 'default :family "Iosevka" :height 140)
+  (my/face 'variable-pitch :family "Noto Sans" :height 140)
   (my/face 'variable-pitch-text :inherit 'variable-pitch)
   (my/face 'fixed-pitch :family "Iosevka Slab" :height 140)
   (my/face 'fixed-pitch-serif :family "Iosevka Slab" :height 140)
   (my/face 'mode-line :family "Roboto" :height 140 :weight 'light
-           :box '(:line-width (-1 . -1) :color "#222"))
+           ;; :box '(:line-width (-1 . -1) :color "#222")
+           )
   (my/face* 'mode-line-inactive
     :family "Roboto" :height 140 :weight 'light
-    :background (color-darken-name bg 15))
-  (my/face 'vertical-border :fg "#444" :bg "#444")
+    ;; :background (my/darken bg 0.15)
+    )
+  ;; Never let themes set different fringe colors
+  (my/face* 'fringe :bg bg)
+  (my/face* 'vertical-border :fg (my/blend bg fg 0.2))
   ;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
   ;; relatively unobtrusive.
   (my/face 'trailing-whitespace :fg "#844" :stipple '(8 2 "\xAA\x55"))
-  (set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab" :weight 'normal)
-  (set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab" :weight 'normal)
+  (my/face* 'font-lock-punctuation-face :fg fg :weight 'light)
+  (set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab")
+  (set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab")
   (set-face-attribute 'font-lock-comment-face nil :weight 'light :slant 'unspecified)
   (set-face-attribute 'font-lock-doc-face nil :weight 'light :slant 'unspecified)
   (set-face-attribute 'font-lock-regexp-grouping-backslash nil :weight 'semibold)
   (set-face-attribute 'font-lock-regexp-grouping-construct nil :weight 'bold)
-  (my/face* 'font-lock-punctuation-face :fg fg :weight 'light)
-  (set-face-attribute 'font-lock-variable-name-face nil :weight 'normal)
-  (set-face-attribute 'font-lock-variable-use-face nil :weight 'normal)
-  (set-face-attribute 'font-lock-function-name-face nil :weight 'normal)
   (set-face-attribute 'font-lock-constant-face nil :family "Iosevka Slab")
   (set-face-attribute 'font-lock-escape-face nil
                       :foreground 'unspecified
@@ -184,116 +215,74 @@ be evaluated twice, once for light and once for dark."
   (my/face* 'default-bg :bg bg)
   (my/face* 'default-fg :fg fg)
   (my/face 'popup-border
-    :light `(:fg ,(color-darken-name light-bg 20)
-             :bg ,(color-darken-name light-bg 20))
-    :dark `(:fg ,(color-lighten-name dark-bg 20)
-            :bg ,(color-lighten-name dark-bg 20)))
+    :light `(:fg ,(my/darken light-bg 0.20)
+             :bg ,(my/darken light-bg 0.20))
+    :dark `(:fg ,(my/lighten dark-bg 0.20)
+            :bg ,(my/lighten dark-bg 0.20)))
   (my/face 'popup-bg
-    :light `(:bg ,(color-darken-name light-bg 3))
-    :dark `(:bg ,(color-lighten-name dark-bg 10)))
-  (my/face* 'dimmed-background :bg (color-darken-name bg 15))
+    :light `(:bg ,(my/darken light-bg 0.03))
+    :dark `(:bg ,(my/lighten dark-bg 0.10)))
+  (my/face* 'dimmed-background :bg (my/darken bg 0.15))
   (my/face* 'thick-strike-through
     :strike-through "#F00" :bg "#A22" :fg 'unspecified
     :underline '(:color "#F44" :position 15) :weight 'unspecified
     :box `(:line-width (-1 . -12) :color ,bg))
-  (my/face-alias 'evil-ex-substitute-matches 'thick-strike-through)
   (my/face* 'replacement-box
     :box `(:line-width (1 . -1) :color "#A3BE8C")
     :fg 'unspecified :weight 'unspecified :bg bg)
-  (my/face-alias 'evil-ex-substitute-replacement 'replacement-box)
+  (my/face 'normal-weight :weight 'normal)
   (my/face 'medium-weight :weight 'medium)
-  (my/face-alias 'anzu-mode-line 'medium-weight)
+  (my/face 'light-weight :weight 'light)
+  (my/face 'extralight-weight :weight 'extralight)
+  (my/face 'no-slant :slant 'reset)
+  (my/face 'oblique :slant 'oblique)
   (my/face 'selected-item
     :light '(:bg "#D0F0FF" :box (:line-width (1 . -1) :color "#DDD"))
     :dark `(:bg "#434C5E" :box (:line-width (1 . -1)
-                                :color ,(color-lighten-name dark-bg 60))))
-  (my/face-alias 'vertico-current 'selected-item)
-  (my/face-alias 'corfu-current 'selected-item)
-  (my/face-alias 'corfu-border 'popup-border)
-  (my/face-alias 'corfu-popupinfo 'popup-bg)
-  (my/face-alias 'corfu-default 'default-bg))
+                                :color ,(my/lighten dark-bg 0.60))))
 
-;; TODO: uh, this
-;; (defun light-theme ()
-;;   (interactive)
-;;   (load-theme 'doom-tomorrow-day t)
-;;   (setq frame-background-mode 'light)
-;;   (mapc 'frame-set-background-mode (frame-list))
-;;   ;; Note- using color names like "white" will not give correct results for
-;;   ;; terminal sessions
-;;   (set-face-attribute 'default nil :family "Iosevka" :height 140 :weight 'normal
-;;                       :foreground "#333"
-;;                       :background "#FFF")
-;;   (set-face-attribute 'variable-pitch nil :family "Noto Sans" :height 140 :weight 'normal)
-;;   (set-face-attribute 'variable-pitch-text nil :height 'unspecified)
-;;   (set-face-attribute 'fixed-pitch nil :family "Iosevka Slab" :height 140)
-;;   (set-face-attribute 'fixed-pitch-serif nil :family "Iosevka Slab" :height 140)
-;;   (set-face-attribute 'fringe nil :background "#FFFFFF")
-;;   (set-face-attribute 'mode-line nil :family "Roboto" :height 140 :weight 'light
-;;                       :box '(:line-width (-1 . -1) :color "#222"))
-;;   (set-face-attribute 'mode-line-inactive nil :family "Roboto" :height 140 :weight 'light)
-;;   (set-face-attribute 'header-line nil :weight 'normal)
-;;   (set-face-attribute 'vertical-border nil :foreground "#DDD" :background "#DDD")
-;;   ;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
-;;   ;; relatively unobtrusive.
-;;   (set-face-attribute 'trailing-whitespace nil
-;;                       :background 'unspecified :foreground "#FDD"
-;;                       :stipple '(8 2 "\xAA\x55"))
-;;   (set-face-attribute 'match nil
-;;                       :foreground "dark cyan"
-;;                       :background 'unspecified
-;;                       :underline t)
-;;   (set-face-attribute 'elisp-shorthand-font-lock-face nil
-;;                       :weight 'normal
-;;                       :slant 'italic
-;;                       :foreground 'unspecified)
-;;   (set-face-attribute 'font-lock-string-face nil
-;;                       :foreground "#070"
-;;                       :weight 'normal)
-;;   (set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab" :weight 'normal)
-;;   (set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab" :weight 'normal)
-;;   (set-face-attribute 'font-lock-type-face nil
-;;                       :foreground "DarkOrange3")
-;;   (set-face-attribute 'font-lock-comment-face nil
-;;                       :foreground "#777"
-;;                       :weight 'light
-;;                       :slant 'unspecified)
-;;   (set-face-attribute 'font-lock-doc-face nil
-;;                       :foreground "#777"
-;;                       :weight 'light
-;;                       :slant 'unspecified)
-;;   ;; Help differentiate the escapes from the grouped characters.
-;;   (set-face-attribute 'font-lock-regexp-grouping-backslash nil
-;;                       :foreground "#BBB"
-;;                       :weight 'semibold)
-;;   (set-face-attribute 'font-lock-regexp-grouping-construct nil
-;;                       :foreground "#22F"
-;;                       :weight 'bold)
-;;   (set-face-attribute 'font-lock-punctuation-face nil :foreground "#000" :weight 'light)
-;;   (set-face-attribute 'font-lock-variable-name-face nil :foreground "#333" :weight 'normal)
-;;   (set-face-attribute 'font-lock-variable-use-face nil :foreground "#333" :weight 'normal)
-;;   (set-face-attribute 'font-lock-function-name-face nil :weight 'normal)
-;;   (set-face-attribute 'font-lock-constant-face nil
-;;                       :foreground "IndianRed4"
-;;                       :family "Iosevka Slab")
-;;   (set-face-attribute 'font-lock-escape-face nil
-;;                       :foreground 'unspecified
-;;                       :inherit '(font-lock-constant-face))
-;;   (set-face-attribute 'font-lock-number-face nil
-;;                       :foreground 'unspecified
-;;                       :inherit '(font-lock-constant-face))
-;;   (set-face-attribute 'font-lock-preprocessor-face nil
-;;                       :foreground "dark cyan"
-;;                       :weight 'normal)
-;;   (set-face-attribute 'font-lock-warning-face nil :foreground "DarkOrange2"))
+  ;; Default colors are taken from Tomorrow and Tomorrow Night.
+  (my/face-fg 'blue-fg    'ansi-color-blue    "#4271AE" "#81A2BE")
+  (my/face-fg 'magenta-fg 'ansi-color-magenta "#8959A8" "#B294BB")
+  (my/face-fg 'green-fg   'ansi-color-green   "#718C00" "#B5BD68")
+  (my/face-fg 'yellow-fg  'ansi-color-yellow  "#EAB700" "#F0C674")
+  (my/face-fg 'red-fg     'ansi-color-red     "#C82829" "#CC6666")
+  (my/face-fg 'cyan-fg    'ansi-color-cyan    "#3E999F" "#8ABEB7")
+
+  (my/face-bg 'blue-bg    'ansi-color-blue    "#4271AE" "#81A2BE")
+  (my/face-bg 'magenta-bg 'ansi-color-magenta "#8959A8" "#B294BB")
+  (my/face-bg 'green-bg   'ansi-color-green   "#718C00" "#B5BD68")
+  (my/face-bg 'yellow-bg  'ansi-color-yellow  "#EAB700" "#F0C674")
+  (my/face-bg 'red-bg     'ansi-color-red     "#C82829" "#CC6666")
+  (my/face-bg 'cyan-bg    'ansi-color-cyan    "#3E999F" "#8ABEB7")
+
+  ;; The ANSI colors in a lot of themes aren't legible as backgrounds, so this
+  ;; blends them towards the theme's background color.
+  (defun my/face-blended-bg (name source light-default dark-default)
+    (my/face name
+      :light `(:bg ,(my/blend (my/get-bg-light source light-default) light-bg 0.5))
+      :dark `(:bg ,(my/blend (my/get-bg-dark source dark-default) dark-bg 0.5))))
+
+  (my/face-blended-bg 'blue-blended-bg    'ansi-color-blue    "#4271AE" "#81A2BE")
+  (my/face-blended-bg 'magenta-blended-bg 'ansi-color-magenta "#8959A8" "#B294BB")
+  (my/face-blended-bg 'green-blended-bg   'ansi-color-green   "#718C00" "#B5BD68")
+  (my/face-blended-bg 'yellow-blended-bg  'ansi-color-yellow  "#EAB700" "#F0C674")
+  (my/face-blended-bg 'red-blended-bg     'ansi-color-red     "#C82829" "#CC6666")
+  (my/face-blended-bg 'cyan-blended-bg    'ansi-color-cyan    "#3E999F" "#8ABEB7")
+
+  )
 
 (defun light-theme ()
   (interactive)
   (disable-theme dark-theme-name)
   (enable-theme light-theme-name)
   (my/setup-faces)
-  (setq frame-background-mode 'dark)
-  (mapc 'frame-set-background-mode (frame-list)))
+  (setq frame-background-mode 'light)
+  (mapc 'frame-set-background-mode (frame-list))
+  (setq my/cursor-colors-normal
+        (my/make-cursor-colors (my/get-bg-light 'cursor) light-bg)
+        my/cursor-colors-emacs
+        (my/make-cursor-colors "#F0F" light-bg)))
 
 (defun dark-theme ()
   (interactive)
@@ -301,9 +290,37 @@ be evaluated twice, once for light and once for dark."
   (enable-theme dark-theme-name)
   (my/setup-faces)
   (setq frame-background-mode 'dark)
-  (mapc 'frame-set-background-mode (frame-list)))
+  (mapc 'frame-set-background-mode (frame-list))
+  (setq my/cursor-colors-normal
+        (my/make-cursor-colors (my/get-bg-light 'cursor) dark-bg)
+        my/cursor-colors-emacs
+        (my/make-cursor-colors "#F0F" dark-bg)))
 
-(light-theme)
+(defun after-theme-enabled (_)
+  (let ((theme-name (car custom-enabled-themes)))
+    (message "after-theme-enabled: %s" theme-name)
+    (let ((bg (face-attribute 'default :background)))
+      (require 'faces)
+      (require 'color)
+      (if (color-dark-p (color-name-to-rgb bg))
+          (progn (message "color-dark-p true: %s" bg)
+                 (setq dark-theme-name theme-name
+                       frame-background-mode 'dark))
+        (message "color-dark-p false: %s" bg)
+        (setq light-theme-name theme-name
+              frame-background-mode 'light))
+      (mapc 'frame-set-background-mode (frame-list))))
+  (my/setup-faces)
+  (let ((cursor (face-attribute 'cursor :background))
+        (bg (face-attribute 'default :background)))
+    (setq my/cursor-colors-normal (my/make-cursor-colors cursor bg))
+    (setq my/cursor-colors-emacs (my/make-cursor-colors "#F0F" bg))
+    ))
+
+;; Enable this manually when paging through themes
+;; (add-hook 'enable-theme-functions 'after-theme-enabled)
+
+(dark-theme)
 
 ;;;; General settings
 ;;;; ======================================================================
@@ -366,14 +383,13 @@ be evaluated twice, once for light and once for dark."
                            ((bar . 4) . (bar . 4))))
 (setq cursor-in-non-selected-windows nil)
 
+(defun my/get-cursor-colors ()
+  (if (and (boundp 'evil-state) (eq evil-state 'emacs))
+      my/cursor-colors-emacs
+    my/cursor-colors-normal))
+
 (defvar my/cursor-color-idx 0)
-(defun my/get-cursor-color ()
-  (nth my/cursor-color-idx
-       (if (and (boundp 'evil-state) (eq evil-state 'emacs))
-           '("#FF00FF" "#FF33FF" "#FF77FF" "#FFBBFF"
-             "#FFEEFF" "#FFBBFF" "#FF77FF" "#FF33FF")
-         '("#000000" "#333333" "#777777" "#BBBBBB"
-           "#EEEEEE" "#BBBBBB" "#777777" "#333333"))))
+(defun my/get-cursor-color () (nth my/cursor-color-idx (my/get-cursor-colors)))
 
 (defvar my/underline-ov nil)
 
@@ -390,12 +406,12 @@ be evaluated twice, once for light and once for dark."
   (and (not (my/cursor-over-image?))
        blink-cursor-mode))
 
+;; TODO: Only apply to active window
 (defun my/update-cursor-overlay (&rest _)
   ;; Diminished cursor, usually reading a document or something
   (unless blink-cursor-mode
-    (set-face-attribute 'cursor nil :background
-                        (if (and (boundp 'evil-state) (eq evil-state 'emacs))
-                            "#FFBBFF" "#BBBBBB")))
+    (set-face-attribute 'cursor nil
+                        :background (nth 3 (my/get-cursor-colors))))
   (or (ignore-errors
         (if (or (not (eq evil-state 'normal))
                 (not (my/cursor-should-underline?)))
@@ -408,7 +424,7 @@ be evaluated twice, once for light and once for dark."
               (forward-char)
               (move-overlay my/underline-ov start (point) (current-buffer)))))
         t)
-      ;; If we had any errors, just delete the overlay entirely to try again
+      ;; If we had any errors, just delete the overlay ;entirely to try again
       ;; next time.
       (progn (when (overlayp my/underline-ov) (delete-overlay my/underline-ov))
              (setq my/underline-ov nil))))
@@ -433,9 +449,10 @@ be evaluated twice, once for light and once for dark."
      (my/cursor-color-reset)))
 
 (defun my/cursor-color-advance (&rest _)
-   (setq my/cursor-color-idx (% (+ 1 my/cursor-color-idx) 8))
-   (set-face-attribute 'cursor nil :background (my/get-cursor-color))
-   (my/update-underline-color))
+  (setq my/cursor-color-idx (% (1+ my/cursor-color-idx)
+                               (length (my/get-cursor-colors))))
+  (set-face-attribute 'cursor nil :background (my/get-cursor-color))
+  (my/update-underline-color))
 
 (advice-add 'blink-cursor-start :after 'my/cursor-start-blink)
 (advice-add 'blink-cursor-end :before 'my/cursor-color-reset)
@@ -503,7 +520,6 @@ line so that it still acts as a grabbable window divider."
 
 (defun my/no-fringes (&rest _)
   "Add this as a hook to buffers that should not show fringes"
-  ;; comment
   (setq-local left-fringe-width 1
               right-fringe-width 1))
 
@@ -610,6 +626,9 @@ apart in languages that only use whitespace to separate list elements."
   (evil-want-C-w-delete nil)
   (evil-cross-lines t)
   (evil-want-abbrev-expand-on-insert-exit nil)
+  :custom-face
+  (evil-ex-substitute-matches ((t (:inherit thick-strike-through))))
+  (evil-ex-substitute-replacement ((t (:inherit replacement-box))))
   :config
   (setq evil-lookup-func 'help-follow-symbol)
   (setq evil-default-cursor '((bar . 2)))
@@ -695,6 +714,8 @@ apart in languages that only use whitespace to separate list elements."
 
 (use-package evil-anzu :ensure t
   :custom (anzu-cons-mode-line-p nil)
+  :custom-face
+  (anzu-mode-line ((t (:foreground unspecified :inherit medium-weight))))
   :config
   (require 'evil-anzu) ; Somehow this is necessary
   (global-anzu-mode))
@@ -766,6 +787,8 @@ apart in languages that only use whitespace to separate list elements."
   (vertico-cycle t)
   (vertico-scroll-margin 1)
   (vertico-resize t)
+  :custom-face
+  (vertico-current ((t (:inherit selected-item))))
   :config
   (cl-defmethod vertico--display-candidates (lines)
     "Put the vertico prompt at the bottom without reversing the entire display"
@@ -811,22 +834,10 @@ apart in languages that only use whitespace to separate list elements."
                                    (eglot (styles orderless))
                                    (eglot-capf (styles orderless))))
   :custom-face
-  (orderless-match-face-0 ((((background light)) :underline t
-                            :background unspecified :foreground "royal blue")
-                           (((background dark))  :underline t
-                            :background unspecified :foreground "#81A1C1")))
-  (orderless-match-face-1 ((((background light)) :underline t
-                            :background unspecified :foreground "magenta3")
-                           (((background dark))  :underline t
-                            :background unspecified :foreground "#B48EAD")))
-  (orderless-match-face-2 ((((background light)) :underline t
-                            :background unspecified :foreground "SpringGreen4")
-                           (((background dark))  :underline t
-                            :background unspecified :foreground "#A3BE8C")))
-  (orderless-match-face-3 ((((background light)) :underline t
-                            :background unspecified :foreground "DarkGoldenrod3")
-                           (((background dark))  :underline t
-                            :background unspecified :foreground "#EBCB8B"))))
+  (orderless-match-face-0 ((t (:inherit (underline blue-fg)))))
+  (orderless-match-face-1 ((t (:inherit (underline magenta-fg)))))
+  (orderless-match-face-2 ((t (:inherit (underline green-fg)))))
+  (orderless-match-face-3 ((t (:inherit (underline yellow-fg))))))
 
 (use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
@@ -976,7 +987,13 @@ apart in languages that only use whitespace to separate list elements."
   ;; Hide commands in M-x which do not apply to the current mode.
   (read-extended-command-predicate #'command-completion-default-include-p)
   (text-mode-ispell-word-completion nil)
-  (tab-always-indent 'complete))
+  (tab-always-indent 'complete)
+  :custom-face
+  (corfu-default ((t (:inherit default-bg))))
+  (corfu-current ((t (:inherit selected-item))))
+  (corfu-border ((t (:inherit popup-border))))
+  (corfu-popupinfo ((t (:inherit popup-bg))))
+  )
 
 ;; Note: this _might_ be conflicting with popupinfo in the GUI, needs testing
 (use-package corfu-terminal :ensure t
@@ -1031,14 +1048,10 @@ apart in languages that only use whitespace to separate list elements."
   :custom-face
   (show-paren-match ((t (:weight black
                          :foreground "orange red"
-                         :background unspecified)
-                        )))
-  (rainbow-delimiters-depth-1-face ((((background light)) :weight medium :foreground "#000")
-                                    (((background dark)) :weight medium :foreground "#DDD")))
-  (rainbow-delimiters-depth-2-face ((((background light)) :weight light :foreground "#000")
-                                    (((background dark)) :weight light :foreground "#DDD")))
-  (rainbow-delimiters-depth-3-face ((((background light)) :weight extralight :foreground "#000")
-                                    (((background dark)) :weight extralight :foreground "#DDD"))))
+                         :background unspecified))))
+  (rainbow-delimiters-depth-1-face ((t (:foreground unspecified :inherit (default-fg medium-weight)))))
+  (rainbow-delimiters-depth-2-face ((t (:foreground unspecified :inherit (default-fg light-weight)))))
+  (rainbow-delimiters-depth-3-face ((t (:foreground unspecified :inherit (default-fg extralight-weight))))))
 
 (use-package yasnippet :ensure t
   :custom (yas-alias-to-yas/prefix-p nil)
@@ -1109,8 +1122,6 @@ apart in languages that only use whitespace to separate list elements."
   (sp-delete-blank-sexps t)
   :config
   (require 'smartparens-config)
-  ;;(sp-with-modes '(css-base-mode js-base-mode)
-  ;;  (sp-local-pair "{" nil :post-handlers '(("||\n[i]" "RET"))))
   (require 'aggressive-indent)
   (defun my/wrap-quotes ()
     (interactive "*")
@@ -1226,8 +1237,7 @@ apart in languages that only use whitespace to separate list elements."
   (markdown-list-item-bullets '("•" "‣" "‧" "╴"))
   :custom-face
   (markdown-code-face ((t (:background unspecified
-                           :weight normal
-                           :inherit fixed-pitch))))
+                           :inherit (normal-weight fixed-pitch)))))
   :config
   (general-add-hook (list 'markdown-mode-hook 'markdown-view-mode-hook
                           'gfm-mode-hook 'gfm-view-mode-hook)
@@ -1313,6 +1323,11 @@ apart in languages that only use whitespace to separate list elements."
    "u" 'winner-undo
    "C-r" 'winner-redo)
   :custom (winner-dont-bind-my-keys t))
+
+(use-package custom :ensure nil
+  :custom
+  (custom-search-field nil)
+  (custom-buffer-done-kill t))
 
 ;; TODO: Set up which-key-replacement-alist and which-key-special-keys
 (unless (version< emacs-version "30")
@@ -1482,14 +1497,14 @@ apart in languages that only use whitespace to separate list elements."
 
 (use-package shr :ensure nil :defer t
   :custom-face
-  (shr-code ((t (:family "Iosevka Slab" :inherit unspecified :weight medium))))
-  (shr-text ((t (:family "Noto Sans" :inherit unspecified))))
-  (shr-h1 ((t (:height 1.50 :slant unspecified :weight bold :underline t))))
-  (shr-h2 ((t (:height 1.45 :slant unspecified :weight bold))))
-  (shr-h3 ((t (:height 1.30 :slant unspecified :weight bold))))
-  (shr-h4 ((t (:height 1.20 :slant unspecified :weight medium))))
-  (shr-h5 ((t (:height 1.15 :slant unspecified :weight normal))))
-  (shr-h6 ((t (:height 1.10 :slant oblique :weight normal)))))
+  (shr-code ((t (:inherit (medium-weight fixed-pitch-serif)))))
+  (shr-text ((t (:inherit variable-pitch))))
+  (shr-h1 ((t (:height 1.50 :inherit (no-slant bold underline shr-text)))))
+  (shr-h2 ((t (:height 1.45 :inherit (no-slant bold shr-text)))))
+  (shr-h3 ((t (:height 1.30 :inherit (no-slant bold shr-text)))))
+  (shr-h4 ((t (:height 1.20 :inherit (no-slant medium-weight shr-text)))))
+  (shr-h5 ((t (:height 1.15 :inherit (no-slant normal-weight shr-text)))))
+  (shr-h6 ((t (:height 1.10 :inherit (oblique normal-weight shr-text))))))
 
 (use-package proced :ensure nil
   :custom
@@ -1541,7 +1556,7 @@ apart in languages that only use whitespace to separate list elements."
                                               tab-bar-tab-name-format-close-button
                                               my/tab-bar-tab-name-format-spaces
                                               tab-bar-tab-name-format-face))
-  (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:inherit ansi-color-bright-black)))
+  (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:inherit popup-border)))
   (tab-bar-mode t))
 
 (use-package tab-line :ensure nil
@@ -1562,8 +1577,9 @@ apart in languages that only use whitespace to separate list elements."
   (tab-line-highlight ((t (:box (:line-width (-1 . -1) :color "#000" :style released-button)
                            :overline nil :inherit unspecified))))
   :config
-  (setq tab-line-separator (my/make-pixel-spacer 2 'face
-                                                 '(:inherit ((:height 100) ansi-color-bright-black)))))
+  (setq tab-line-separator
+        (my/make-pixel-spacer
+         1 'face '(:inherit ((:height 100) popup-border)))))
 
 (use-package dabbrev :ensure nil
   :config (add-to-list* 'dabbrev-ignored-buffer-modes
@@ -1628,30 +1644,28 @@ apart in languages that only use whitespace to separate list elements."
 (defun my/vim-color ()
   (if (mode-line-window-selected-p)
       (pcase (symbol-name evil-state)
-        ("normal"   "#a4d5f9")
-        ("insert"   "#8adf80")
-        ("visual"   "#fff576")
-        ("replace"  "#ff8f88")
-        ("operator" "#d5a4f9")
-        ("emacs"    "#ffddff")
+        ("normal"   'blue-blended-bg) ;; "#a4d5f9" (old values, remove later)
+        ("insert"   'green-blended-bg) ;; "#8adf80"
+        ("visual"   'yellow-blended-bg) ;; "#fff576"
+        ("replace"  'red-blended-bg) ;; "#ff8f88"
+        ("operator" 'cyan-blended-bg) ;; "#d5a4f9"
+        ("emacs"    'magenta-blended-bg) ;; "#ffddff"
         (_ 'unspecified))
     'unspecified))
 
 (defun my/inactive-left ()
   (if (mode-line-window-selected-p)
       ""
-    '(:propertize "▌ " face ((:height 150 :weight bold :foreground "#DDD") fixed-pitch))))
+    '(:propertize "▌ " face ((:height 150 :weight bold) shadow fixed-pitch))))
 
 (defun my/vim-state ()
   (if (mode-line-window-selected-p)
       (let ((mode-text (concat " " (upcase (symbol-name evil-state)) " ")))
         (concat (propertize mode-text 'face
-                            `(:foreground "#000"
-                              :background ,(my/vim-color)
+                            `(:inherit (,(my/vim-color) default-fg)
                               :weight normal
-                              :family "Iosevka"
-                              :box '(:line-width (-1 . -1) :color "#222")))
-                (propertize "▏" 'face `((:foreground "#000" :height 150) fixed-pitch))))))
+                              :family "Iosevka"))
+                (propertize "▏" 'face `((:height 150) shadow fixed-pitch))))))
 
 (defun my/make-check-text (status errors warnings info map)
   (if (or (null status) (string= status ""))
@@ -1705,10 +1719,9 @@ apart in languages that only use whitespace to separate list elements."
     (unless (string= home (projectile-project-p))
       (concat " "
               (propertize (concat (projectile-project-name) " ")
-                          'face '(:foreground "#999"
-                                  :family "Noto Sans"
+                          'face '(:family "Noto Sans"
                                   :weight normal
-                                  :height 0.8)
+                                  :height 0.8 :inherit shadow)
                           'display '(raise 0.075))
               " "))))
 
@@ -1722,11 +1735,9 @@ apart in languages that only use whitespace to separate list elements."
 (defun my/modeline-position-default ()
   `(;; Uncomment this to include the %
     ;;(-3 "%3o%")
-    (:propertize "▕" face ((:foreground "#000" :height 150 :weight bold) fixed-pitch))
-    (:propertize ( " %3l : %2C  ") face (:foreground "#000"
-                                         :background ,(my/vim-color)
-                                         :family "Iosevka" :weight normal
-                                         :box '(:line-width (-1 . -1) :color "#222")))))
+    (:propertize "▕" face ((:height 150) bold shadow fixed-pitch))
+    (:propertize ( " %3l : %2C  ") face (:inherit ,(my/vim-color)
+                                         :family "Iosevka" :weight normal))))
 
 (defun my/modeline-position-pdf ()
   (require 'pdf-view)
@@ -1734,18 +1745,16 @@ apart in languages that only use whitespace to separate list elements."
   (let ((str (format " Page %d/%d  "
                      (pdf-view-current-page)
                      (pdf-info-number-of-pages))))
-    `((:propertize "▕" face ((:foreground "#000" :height 150) fixed-pitch))
-      (:propertize ,str face (:foreground "#000"
-                              :background ,(my/vim-color)
+    `((:propertize "▕" face ((:height 150) bold shadow fixed-pitch))
+      (:propertize ,str face (:inherit ,(my/vim-color)
                               :family "Iosevka" :weight normal)))))
 
 (defun my/modeline-position-doc-view ()
   (let ((str (format " Page %d/%d  "
                      (doc-view-current-page)
                      (doc-view-last-page-number))))
-    `((:propertize "▕" face ((:foreground "#000" :height 150) fixed-pitch))
-      (:propertize ,str face (:foreground "#000"
-                              :background ,(my/vim-color)
+    `((:propertize "▕" face ((:height 150) bold shadow fixed-pitch))
+      (:propertize ,str face (:inherit ,(my/vim-color)
                               :family "Iosevka" :weight normal)))))
 
 (defun my/modeline-position ()
@@ -1791,7 +1800,7 @@ apart in languages that only use whitespace to separate list elements."
   "Based on simple-modeline. Show a modified indicator for non-special
 buffers."
   (if (string-match-p "\\`[ ]?\\*" (buffer-name))
-      " " ;; (propertize "▫" 'face '(:foreground "#F7F7F7"))
+      " "
     (let ((read-only (and buffer-read-only (buffer-file-name)))
           (modified (buffer-modified-p)))
       (propertize
@@ -1899,10 +1908,7 @@ interaction. Tracks the compile command used on a per-project basis."
 
 ;; I really want escape to do what it says
 ;; Unbind anything that waits for a key after Escape
-;; NOTE: I probably don't need to unbind anything as long as <escape> bindings
-;; shadow anything that would otherwise wait for a key after ESC. That way all
-;; of the default bindings still work in the terminal.
-;;(general-unbind "M-ESC :") ; the only default keybind prefixed by M-ESC
+(general-unbind "M-ESC :") ; the only default keybind prefixed by M-ESC
 (general-def '(minibuffer-local-map minibuffer-local-ns-map
                minibuffer-local-completion-map minibuffer-local-must-match-map
                minibuffer-local-isearch-map)
@@ -1982,6 +1988,7 @@ pressed twice in a row."
   t)
 
 
+;; TODO: Advise customize functions so they stop hijacking the current window
 (setq display-buffer-alist
       (let* ((bot-common '(display-buffer-in-side-window
                            (side . bottom) (preserve-size . (nil . t))
@@ -1990,7 +1997,7 @@ pressed twice in a row."
              (bot-right-window `(,@bot-common (slot . 1)))
              (bot-left-rx (rx bos
                               (| " " "*" " *")
-                              (| "Help" "Customize" "info" "eldoc" "Occur"
+                              (| "Help" "Custom" "info" "eldoc" "Occur"
                                  "grep" "devdocs" "Pp" "eww")))
              (bot-right-rx (rx bos
                                (| " " "*" " *")
