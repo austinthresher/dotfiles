@@ -79,18 +79,18 @@ the property list can optionally be given directly in the arguments instead of a
 ;; use 'reset or 'unspecified as a mask does not work.
 
 ;; These will be overwritten by actual values in setup-fonts
-(defvar dark-fg "#EEE")
-(defvar dark-bg "#222")
-(defvar light-fg "#333")
-(defvar light-bg "#FFF")
+(defvar my/dark-fg "#EEE")
+(defvar my/dark-bg "#222")
+(defvar my/light-fg "#333")
+(defvar my/light-bg "#FFF")
 
 (defun my/face-calculated-impl (name fn)
   "Accepts a function that takes a foreground and background color and returns
 a face spec, automatically applying that to light and dark colors."
   (declare (indent 1))
   (my/face name
-    :light (funcall fn light-fg light-bg)
-    :dark (funcall fn dark-fg dark-bg)))
+    :light (funcall fn my/light-fg my/light-bg)
+    :dark (funcall fn my/dark-fg my/dark-bg)))
 
 (defmacro my/face* (name &rest spec)
   "Anaphoric macro, where `bg' and `fg' are bound to the foreground and
@@ -121,13 +121,48 @@ be evaluated twice, once for light and once for dark."
    '(0.0 0.25 0.5 0.75 0.9 0.75 0.5 0.25)))
 
 ;; These will also be overwritten when applying a theme
-(defvar my/cursor-colors-normal (my/make-cursor-colors "#000" "#FFF"))
-(defvar my/cursor-colors-emacs (my/make-cursor-colors "#F0F" "#FFF"))
+(defvar my/cursor-colors-normal (my/make-cursor-colors "#888" "#DDD"))
+(defvar my/cursor-colors-emacs (my/make-cursor-colors "#F0F" "#888"))
 
-(defvar light-theme-name 'doom-tomorrow-day)
-(defvar dark-theme-name 'doom-nord-aurora)
+(defvar my/light-theme-name 'doom-tomorrow-day)
+(defvar my/dark-theme-name 'doom-nord-aurora)
+
+;; TODO: Do all themes follow this naming scheme? Make the symbol from the name if so
 (require-theme 'doom-tomorrow-day-theme)
 (require-theme 'doom-nord-aurora-theme)
+
+;; Each of these will be populated on theme load
+(defvar my/light-theme-faces '())
+(defvar my/dark-theme-faces '())
+
+(defun my/get-fg-light (face &optional default)
+  (or (plist-get (cdr (assoc face my/light-theme-faces)) :foreground)
+      default
+      my/light-fg))
+(defun my/get-bg-light (face &optional default)
+  (or (plist-get (cdr (assoc face my/light-theme-faces)) :background)
+      default
+      my/light-bg))
+(defun my/get-fg-dark (face &optional default)
+  (or (plist-get (cdr (assoc face my/dark-theme-faces)) :foreground)
+      default
+      my/dark-fg))
+(defun my/get-bg-dark (face &optional default)
+  (or (plist-get (cdr (assoc face my/dark-theme-faces)) :background)
+      default
+      my/dark-bg))
+
+(defun my/face-fg (name source &optional default-light default-dark)
+  "Create a new face that copies the foreground color from another face"
+  (my/face name
+    :light `(:fg ,(my/get-fg-light source default-light))
+    :dark `(:fg ,(my/get-fg-dark source (or default-dark default-light)))))
+
+(defun my/face-bg (name source &optional default-light default-dark)
+  "Create a new face that copies the background color from another face"
+  (my/face name
+    :light `(:bg ,(my/get-bg-light source default-light))
+    :dark `(:bg ,(my/get-bg-dark source (or default-dark default-light)))))
 
 (defun my/collect-faces (theme-settings)
   (cl-flet ((extract-spec (lambda (theme-entry)
@@ -136,48 +171,25 @@ be evaluated twice, once for light and once for dark."
                                `(,face-name . ,(face-spec-choose spec)))))))
     (remq nil (mapcar #'extract-spec theme-settings))))
 
-(defun my/setup-face-functions ()
-  (unless (get light-theme-name 'theme-settings)
-    (load-theme light-theme-name :no-confirm :no-enable))
-  (unless (get dark-theme-name 'theme-settings)
-    (load-theme dark-theme-name :no-confirm :no-enable))
-  (let* ((light-plist (get light-theme-name 'theme-settings))
-         (dark-plist (get dark-theme-name 'theme-settings))
-         (light-faces (my/collect-faces light-plist))
-         (dark-faces (my/collect-faces dark-plist)))
-    (defun my/get-fg-light (face &optional default)
-      (or (plist-get (cdr (assoc face light-faces)) :foreground)
-          default
-          light-fg))
-    (defun my/get-bg-light (face &optional default)
-      (or (plist-get (cdr (assoc face light-faces)) :background)
-          default
-          light-bg))
-    (defun my/get-fg-dark (face &optional default)
-      (or (plist-get (cdr (assoc face dark-faces)) :foreground)
-          default
-          dark-fg))
-    (defun my/get-bg-dark (face &optional default)
-      (or (plist-get (cdr (assoc face dark-faces)) :background)
-          default
-          dark-bg))
-    (defun my/face-fg (name source &optional default-light default-dark)
-      "Create a new face that copies the foreground color from another face"
-      (my/face name
-        :light `(:fg ,(my/get-fg-light source default-light))
-        :dark `(:fg ,(my/get-fg-dark source (or default-dark default-light)))))
-    (defun my/face-bg (name source &optional default-light default-dark)
-      "Create a new face that copies the background color from another face"
-      (my/face name
-        :light `(:bg ,(my/get-bg-light source default-light))
-        :dark `(:bg ,(my/get-bg-dark source (or default-dark default-light))))))
-  (setq dark-fg (my/get-fg-dark 'default)
-        dark-bg (my/get-bg-dark 'default)
-        light-fg (my/get-fg-light 'default)
-        light-bg (my/get-bg-light 'default)))
+(defun my/no-frames-exist? () (string= "initial_terminal" (terminal-name)))
+
+(defun my/extract-theme-faces ()
+  (unless (my/no-frames-exist?)
+    (unless (get my/light-theme-name 'theme-settings)
+      (load-theme my/light-theme-name :no-confirm :no-enable))
+    (unless (get my/dark-theme-name 'theme-settings)
+      (load-theme my/dark-theme-name :no-confirm :no-enable))
+    (let* ((light-plist (get my/light-theme-name 'theme-settings))
+           (dark-plist (get my/dark-theme-name 'theme-settings)))
+      (setq my/light-theme-faces (my/collect-faces light-plist)
+            my/dark-theme-faces (my/collect-faces dark-plist)
+            my/dark-fg (my/get-fg-dark 'default)
+            my/dark-bg (my/get-bg-dark 'default)
+            my/light-fg (my/get-fg-light 'default)
+            my/light-bg (my/get-bg-light 'default)))))
 
 (defun my/setup-faces ()
-  (my/setup-face-functions)
+  (my/extract-theme-faces)
   (my/face 'default :family "Iosevka" :height 140)
   (my/face 'variable-pitch :family "Noto Sans" :height 140)
   (my/face 'variable-pitch-text :inherit 'variable-pitch)
@@ -215,13 +227,13 @@ be evaluated twice, once for light and once for dark."
   (my/face* 'default-bg :bg bg)
   (my/face* 'default-fg :fg fg)
   (my/face 'popup-border
-    :light `(:fg ,(my/darken light-bg 0.20)
-             :bg ,(my/darken light-bg 0.20))
-    :dark `(:fg ,(my/lighten dark-bg 0.20)
-            :bg ,(my/lighten dark-bg 0.20)))
+    :light `(:fg ,(my/darken my/light-bg 0.20)
+             :bg ,(my/darken my/light-bg 0.20))
+    :dark `(:fg ,(my/lighten my/dark-bg 0.20)
+            :bg ,(my/lighten my/dark-bg 0.20)))
   (my/face 'popup-bg
-    :light `(:bg ,(my/darken light-bg 0.03))
-    :dark `(:bg ,(my/lighten dark-bg 0.10)))
+    :light `(:bg ,(my/darken my/light-bg 0.03))
+    :dark `(:bg ,(my/lighten my/dark-bg 0.10)))
   (my/face* 'dimmed-background :bg (my/darken bg 0.15))
   (my/face* 'thick-strike-through
     :strike-through "#F00" :bg "#A22" :fg 'unspecified
@@ -239,7 +251,7 @@ be evaluated twice, once for light and once for dark."
   (my/face 'selected-item
     :light '(:bg "#D0F0FF" :box (:line-width (1 . -1) :color "#DDD"))
     :dark `(:bg "#434C5E" :box (:line-width (1 . -1)
-                                :color ,(my/lighten dark-bg 0.60))))
+                                :color ,(my/lighten my/dark-bg 0.60))))
 
   ;; Default colors are taken from Tomorrow and Tomorrow Night.
   (my/face-fg 'blue-fg    'ansi-color-blue    "#4271AE" "#81A2BE")
@@ -260,8 +272,8 @@ be evaluated twice, once for light and once for dark."
   ;; blends them towards the theme's background color.
   (defun my/face-blended-bg (name source light-default dark-default)
     (my/face name
-      :light `(:bg ,(my/blend (my/get-bg-light source light-default) light-bg 0.5))
-      :dark `(:bg ,(my/blend (my/get-bg-dark source dark-default) dark-bg 0.5))))
+      :light `(:bg ,(my/blend (my/get-bg-light source light-default) my/light-bg 0.5))
+      :dark `(:bg ,(my/blend (my/get-bg-dark source dark-default) my/dark-bg 0.5))))
 
   (my/face-blended-bg 'blue-blended-bg    'ansi-color-blue    "#4271AE" "#81A2BE")
   (my/face-blended-bg 'magenta-blended-bg 'ansi-color-magenta "#8959A8" "#B294BB")
@@ -274,27 +286,27 @@ be evaluated twice, once for light and once for dark."
 
 (defun light-theme ()
   (interactive)
-  (disable-theme dark-theme-name)
-  (enable-theme light-theme-name)
+  (disable-theme my/dark-theme-name)
+  (enable-theme my/light-theme-name)
   (my/setup-faces)
   (setq frame-background-mode 'light)
   (mapc 'frame-set-background-mode (frame-list))
   (setq my/cursor-colors-normal
-        (my/make-cursor-colors (my/get-bg-light 'cursor) light-bg)
+        (my/make-cursor-colors (my/get-bg-light 'cursor) my/light-bg)
         my/cursor-colors-emacs
-        (my/make-cursor-colors "#F0F" light-bg)))
+        (my/make-cursor-colors "#F0F" my/light-bg)))
 
 (defun dark-theme ()
   (interactive)
-  (disable-theme light-theme-name)
-  (enable-theme dark-theme-name)
+  (disable-theme my/light-theme-name)
+  (enable-theme my/dark-theme-name)
   (my/setup-faces)
   (setq frame-background-mode 'dark)
   (mapc 'frame-set-background-mode (frame-list))
   (setq my/cursor-colors-normal
-        (my/make-cursor-colors (my/get-bg-light 'cursor) dark-bg)
+        (my/make-cursor-colors (my/get-bg-light 'cursor) my/dark-bg)
         my/cursor-colors-emacs
-        (my/make-cursor-colors "#F0F" dark-bg)))
+        (my/make-cursor-colors "#F0F" my/dark-bg)))
 
 (defun after-theme-enabled (_)
   (let ((theme-name (car custom-enabled-themes)))
@@ -304,10 +316,10 @@ be evaluated twice, once for light and once for dark."
       (require 'color)
       (if (color-dark-p (color-name-to-rgb bg))
           (progn (message "color-dark-p true: %s" bg)
-                 (setq dark-theme-name theme-name
+                 (setq my/dark-theme-name theme-name
                        frame-background-mode 'dark))
         (message "color-dark-p false: %s" bg)
-        (setq light-theme-name theme-name
+        (setq my/light-theme-name theme-name
               frame-background-mode 'light))
       (mapc 'frame-set-background-mode (frame-list))))
   (my/setup-faces)
@@ -320,7 +332,12 @@ be evaluated twice, once for light and once for dark."
 ;; Enable this manually when paging through themes
 ;; (add-hook 'enable-theme-functions 'after-theme-enabled)
 
-(dark-theme)
+(if (not (daemonp))
+    (dark-theme)
+  (defun my/first-time-enable-theme ()
+    (unless custom-enabled-themes (dark-theme)))
+  (add-hook 'server-after-make-frame-hook 'my/first-time-enable-theme))
+
 
 ;;;; General settings
 ;;;; ======================================================================
@@ -1227,6 +1244,9 @@ apart in languages that only use whitespace to separate list elements."
   :config
   (general-add-hook 'nov-mode-hook (list 'my/no-blink-cursor)))
 
+(use-package info-colors :ensure t
+  :hook (Info-selection . info-colors-fontify-node))
+
 (use-package markdown-mode :ensure t
   :custom
   (markdown-display-remote-images t)
@@ -1260,7 +1280,7 @@ apart in languages that only use whitespace to separate list elements."
                      treesit-auto-recipe-list)))
   (defun my/symcat (a b) (intern (concat (symbol-name a) (symbol-name b))))
   (defun my/patch-treesit-auto-recipe (lang field val)
-    (when-let ((recipe (my/find-treesit-auto-recipe lang)))
+    (when-let* ((recipe (my/find-treesit-auto-recipe lang)))
       (let ((fn-sym (my/symcat 'treesit-auto-recipe- field)))
         (eval `(setf (,fn-sym ,recipe) ,val)))))
   ;; Janet has the wrong name
@@ -1397,11 +1417,11 @@ apart in languages that only use whitespace to separate list elements."
   (shr-max-inline-image-size '(0.75 . 50.0))
   :init
   (defun my/prompt-for-url (prompt url-fmt history &optional replace-spaces)
-    (when-let ((str (read-string prompt nil history))
-               (str-replaced (if replace-spaces
-                                 (string-replace " " replace-spaces str)
-                               str))
-               (url (format url-fmt str-replaced)))
+    (when-let* ((str (read-string prompt nil history))
+                (str-replaced (if replace-spaces
+                                  (string-replace " " replace-spaces str)
+                                str))
+                (url (format url-fmt str-replaced)))
       (eww url :newbuffer)))
   (defun read-the-docs ()
     (interactive)
@@ -1650,8 +1670,8 @@ apart in languages that only use whitespace to separate list elements."
         ("replace"  'red-blended-bg) ;; "#ff8f88"
         ("operator" 'cyan-blended-bg) ;; "#d5a4f9"
         ("emacs"    'magenta-blended-bg) ;; "#ffddff"
-        (_ 'unspecified))
-    'unspecified))
+        (_ 'default-bg))
+    'mode-line-inactive))
 
 (defun my/inactive-left ()
   (if (mode-line-window-selected-p)
