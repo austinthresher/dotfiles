@@ -2,8 +2,6 @@
 
 ;; TODO: Pick a single key binding for buffer swapping, probably a function key
 
-;; TODO: Map custom faces to defface so I can swap them for light / dark themes
-
 ;; TODOs that probably require writing elisp:
 ;; - Make keybinds for the mouse back/forward buttons that call appropriate
 ;;   functions in the window under the mouse, based on the major mode of that
@@ -39,9 +37,22 @@ multiple times."
       (find-file-other-tab filename wildcards)))
   (raise-frame))
 
+;;;; Early dependencies
+;;;; ======================================================================
+
+(use-package dash :ensure t :demand t)
+
 
 ;;;; Theme and font
 ;;;; ======================================================================
+
+(use-package doom-themes :ensure t :demand t)
+;; Wrapping these just in case I decide not to use doom-themes.
+;; All colors are hex strings and `alpha' is a float from 0 to 1.
+;; NOTE: The colors for doom-blend are reversed from what I'd expect
+(defun my/blend (hex-from hex-to alpha) (doom-blend hex-to hex-from alpha))
+(defun my/darken (hex-color alpha) (doom-darken hex-color alpha))
+(defun my/lighten (hex-color alpha) (doom-lighten hex-color alpha))
 
 (defun my/expand-fg-bg (plist)
   "Replace :bg and :fg shorthand keys in a property list."
@@ -102,18 +113,6 @@ be evaluated twice, once for light and once for dark."
 (defun my/face-alias (dst src)
   "Make the face named `dst' an alias for the face named `src'."
   (put dst 'face-alias src))
-
-
-;;(setq modus-themes-mixed-fonts t)
-;;(load-theme 'modus-operandi t)
-
-(use-package doom-themes :ensure t :demand t)
-;; Wrapping these just in case I decide not to use doom-themes.
-;; All colors are hex strings and `alpha' is a float from 0 to 1.
-;; NOTE: The colors for doom-blend are reversed from what I'd expect
-(defun my/blend (hex-from hex-to alpha) (doom-blend hex-to hex-from alpha))
-(defun my/darken (hex-color alpha) (doom-darken hex-color alpha))
-(defun my/lighten (hex-color alpha) (doom-lighten hex-color alpha))
 
 (defun my/make-cursor-colors (start-col end-col)
   (mapcar
@@ -200,10 +199,8 @@ be evaluated twice, once for light and once for dark."
            )
   (my/face* 'mode-line-inactive
     :family "Roboto" :height 140 :weight 'light
-    ;; :background (my/darken bg 0.15)
-    )
-  ;; Never let themes set different fringe colors
-  (my/face* 'fringe :bg bg)
+    :background (my/blend bg fg 0.05))
+  (my/face* 'fringe :bg bg)  ;; Never let themes set different fringe colors
   (my/face* 'vertical-border :fg (my/blend bg fg 0.2))
   ;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
   ;; relatively unobtrusive.
@@ -242,6 +239,15 @@ be evaluated twice, once for light and once for dark."
   (my/face* 'replacement-box
     :box `(:line-width (1 . -1) :color "#A3BE8C")
     :fg 'unspecified :weight 'unspecified :bg bg)
+  (my/face* 'form-feed-line-normal
+    :box `(:line-width (-1 . -12) :color ,bg)
+    :underline `(:color ,(my/blend bg fg 0.4) :position 13)
+    :background (my/blend bg fg 0.1))
+  (my/face* 'form-feed-line-small
+    :box `(:line-width (-1 . -9) :color ,bg)
+    :underline `(:color ,(my/blend bg fg 0.4) :position 10)
+    :background (my/blend bg fg 0.1))
+
   (my/face 'normal-weight :weight 'normal)
   (my/face 'medium-weight :weight 'medium)
   (my/face 'light-weight :weight 'light)
@@ -251,7 +257,7 @@ be evaluated twice, once for light and once for dark."
   (my/face 'selected-item
     :light '(:bg "#D0F0FF" :box (:line-width (1 . -1) :color "#DDD"))
     :dark `(:bg "#434C5E" :box (:line-width (1 . -1)
-                                :color ,(my/lighten my/dark-bg 0.60))))
+                                :color ,(my/lighten my/dark-bg 0.20))))
 
   ;; Default colors are taken from Tomorrow and Tomorrow Night.
   (my/face-fg 'blue-fg    'ansi-color-blue    "#4271AE" "#81A2BE")
@@ -282,61 +288,72 @@ be evaluated twice, once for light and once for dark."
   (my/face-blended-bg 'red-blended-bg     'ansi-color-red     "#C82829" "#CC6666")
   (my/face-blended-bg 'cyan-blended-bg    'ansi-color-cyan    "#3E999F" "#8ABEB7")
 
+  (my/face 'link-visited :fg 'unspecified :inherit '(magenta-fg link))
+  (my/face* 'string-underline
+    :underline `(:color ,(my/blend bg fg 0.1) :position 3))
   )
 
 (defun light-theme ()
+  "Activates a light-mode theme."
   (interactive)
   (disable-theme my/dark-theme-name)
   (enable-theme my/light-theme-name)
   (my/setup-faces)
   (setq frame-background-mode 'light)
   (mapc 'frame-set-background-mode (frame-list))
-  (setq my/cursor-colors-normal
-        (my/make-cursor-colors (my/get-bg-light 'cursor) my/light-bg)
-        my/cursor-colors-emacs
-        (my/make-cursor-colors "#F0F" my/light-bg)))
+  (let ((cursor (my/get-bg-light 'cursor)))
+    (setq my/cursor-colors-normal (my/make-cursor-colors cursor my/light-bg)
+          my/cursor-colors-emacs (my/make-cursor-colors "#F0F" my/light-bg))))
 
 (defun dark-theme ()
+  "Activates a dark-mode theme."
   (interactive)
+  (message "last command: %s" last-command)
+  (message "this command: %s" this-command)
   (disable-theme my/light-theme-name)
   (enable-theme my/dark-theme-name)
   (my/setup-faces)
   (setq frame-background-mode 'dark)
   (mapc 'frame-set-background-mode (frame-list))
-  (setq my/cursor-colors-normal
-        (my/make-cursor-colors (my/get-bg-light 'cursor) my/dark-bg)
-        my/cursor-colors-emacs
-        (my/make-cursor-colors "#F0F" my/dark-bg)))
+  (let ((cursor (my/get-bg-dark 'cursor)))
+    (setq my/cursor-colors-normal (my/make-cursor-colors cursor my/dark-bg)
+          my/cursor-colors-emacs (my/make-cursor-colors "#F0F" my/dark-bg))))
 
-(defun after-theme-enabled (_)
-  (let ((theme-name (car custom-enabled-themes)))
-    (message "after-theme-enabled: %s" theme-name)
-    (let ((bg (face-attribute 'default :background)))
-      (require 'faces)
-      (require 'color)
-      (if (color-dark-p (color-name-to-rgb bg))
-          (progn (message "color-dark-p true: %s" bg)
-                 (setq my/dark-theme-name theme-name
-                       frame-background-mode 'dark))
-        (message "color-dark-p false: %s" bg)
+(defun my/after-theme-enabled (&rest _)
+  "Add this as a hook to `enable-theme-functions' to automatically update
+faces when the theme changes (useful with `consult-theme'). Only runs when
+the theme wasn't set with `light-theme' or `dark-theme'."
+  (when (not (or (eq this-command 'light-theme)
+                 (eq this-command 'dark-theme)))
+    (require 'faces)
+    (require 'color)
+    (let* ((theme-name (car custom-enabled-themes))
+           (bg (face-attribute 'default :background))
+           (theme-is-dark? (color-dark-p (color-name-to-rgb bg))))
+      (message "theme enabled: %s, dark=%s" theme-name theme-is-dark?)
+      (if theme-is-dark?
+          (setq my/dark-theme-name theme-name
+                frame-background-mode 'dark)
         (setq my/light-theme-name theme-name
-              frame-background-mode 'light))
-      (mapc 'frame-set-background-mode (frame-list))))
-  (my/setup-faces)
-  (let ((cursor (face-attribute 'cursor :background))
-        (bg (face-attribute 'default :background)))
-    (setq my/cursor-colors-normal (my/make-cursor-colors cursor bg))
-    (setq my/cursor-colors-emacs (my/make-cursor-colors "#F0F" bg))
-    ))
+              frame-background-mode 'light)
+        (mapc 'frame-set-background-mode (frame-list))))
+    (my/setup-faces)
+    (let ((cursor (face-attribute 'cursor :background))
+          (bg (face-attribute 'default :background)))
+      (setq my/cursor-colors-normal (my/make-cursor-colors cursor bg))
+      (setq my/cursor-colors-emacs (my/make-cursor-colors "#F0F" bg)))))
 
-;; Enable this manually when paging through themes
-;; (add-hook 'enable-theme-functions 'after-theme-enabled)
+(add-hook 'enable-theme-functions 'my/after-theme-enabled)
 
+;; When running as a daemon, we need to wait for a frame to exist before
+;; trying to set up fonts / etc.
 (if (not (daemonp))
     (dark-theme)
-  (defun my/first-time-enable-theme ()
-    (unless custom-enabled-themes (dark-theme)))
-  (add-hook 'server-after-make-frame-hook 'my/first-time-enable-theme))
+  (defun my/set-theme-for-new-frame ()
+    (cond ((eq nil custom-enabled-themes) (dark-theme))
+          ((eq (car custom-enabled-themes) my/dark-theme-name) (dark-theme))
+          ((eq (car custom-enabled-themes) my/light-theme-name) (light-theme))))
+  (add-hook 'server-after-make-frame-hook 'my/set-theme-for-new-frame))
 
 
 ;;;; General settings
@@ -347,6 +364,7 @@ be evaluated twice, once for light and once for dark."
 (setq large-file-warning-threshold nil)
 (setq fast-but-imprecise-scrolling nil)
 (setq disabled-command-function nil)
+(setq display-raw-bytes-as-hex t)
 ;; (setq scroll-conservatively 101)
 (setq idle-update-delay 0.1)
 (setq mouse-1-click-follows-link t)
@@ -365,6 +383,7 @@ be evaluated twice, once for light and once for dark."
 (setq shell-kill-buffer-on-exit t)
 (setq eshell-kill-on-exit t)
 (setq eshell-scroll-to-bottom-on-input 'this)
+(setq view-inhibit-help-message t)
 (setq compilation-scroll-output t)
 (setq c-ts-mode-indent-style 'k&r)
 (setq c-ts-mode-indent-offset 4)
@@ -413,7 +432,8 @@ be evaluated twice, once for light and once for dark."
 (defun my/update-underline-color ()
   (when (overlayp my/underline-ov)
     (overlay-put my/underline-ov 'face
-                 `(:underline (:color ,(my/get-cursor-color) :position 0)))))
+                 `(:underline (:color ,(my/get-cursor-color) :position 0)))
+    (overlay-put my/underline-ov 'window (selected-window))))
 
 (defun my/cursor-over-image? ()
   (let ((prop (get-text-property (point) 'display)))
@@ -423,7 +443,6 @@ be evaluated twice, once for light and once for dark."
   (and (not (my/cursor-over-image?))
        blink-cursor-mode))
 
-;; TODO: Only apply to active window
 (defun my/update-cursor-overlay (&rest _)
   ;; Diminished cursor, usually reading a document or something
   (unless blink-cursor-mode
@@ -435,11 +454,11 @@ be evaluated twice, once for light and once for dark."
             (when (overlayp my/underline-ov) (delete-overlay my/underline-ov))
           (unless (overlayp my/underline-ov)
             (setq my/underline-ov (make-overlay (point) (point))))
-          (my/update-underline-color)
           (let ((start (point)))
             (save-excursion
               (forward-char)
-              (move-overlay my/underline-ov start (point) (current-buffer)))))
+              (move-overlay my/underline-ov start (point) (current-buffer))
+              (my/update-underline-color))))
         t)
       ;; If we had any errors, just delete the overlay ;entirely to try again
       ;; next time.
@@ -497,12 +516,11 @@ be evaluated twice, once for light and once for dark."
 ;; (add-hook 'after-init-hook 'pixel-scroll-precision-mode)
 (add-hook 'after-init-hook 'delete-selection-mode)
 (add-hook 'after-init-hook 'undelete-frame-mode)
-;; Adding this even though minimal-emacs.d adds it because (display-graphic-p)
-;; will return false for the daemon, preventing it from being loaded.
+;; Even though minimal-emacs.d tries to add this, (display-graphic-p) will
+;; return nil when running as a daemon, preventing it from adding the hook.
 (add-hook 'after-init-hook 'context-menu-mode)
-;; TODO: remove some of these, like "or"
+;; TODO: remove some of these symbols, like "or", and re-enable
 ;; (add-hook 'prog-mode-hook 'global-prettify-symbols-mode)
-;; (show-paren-mode -1)
 
 
 ;;;; File type associations
@@ -577,12 +595,12 @@ line so that it still acts as a grabbable window divider."
   (face-remap-add-relative 'fixed-pitch-serif '(:height 120))
   (face-remap-add-relative 'header-line '(:height 120))
   (face-remap-add-relative 'form-feed-st-line
-                           '(:underline (:color "#CDE" :position 18))))
+                           '(:inherit form-feed-line-small)))
 
 (defun my/font-weight (&rest _)
   "Add this as a hook to buffers that should have slightly heavier default
 font weight"
-  (face-remap-add-relative 'default '(:weight normal)))
+  (face-remap-add-relative 'default '(:weight medium)))
 
 (defun my/line-spacing (&rest _)
   "Add this as a hook to buffers that should have extra line spacing"
@@ -601,8 +619,18 @@ font weight"
   "Add a faint underline to string literals to make it easier to tell them
 apart in languages that only use whitespace to separate list elements."
   (face-remap-add-relative 'font-lock-string-face
-                           '(:underline (:color "#E0EFE0" :position 6))))
+                           '(:inherit string-underline)))
 
+(defun my/temp-buffer-view-mode (&rest args)
+  "Make pretty-printed buffers use view-mode, be read-only, and easily
+closable. I don't know what else uses with-output-to-temp-buffer so I'm
+matching against the buffer name for now."
+  (when (string-prefix-p "*Pp" (buffer-name))
+    (view-mode-enter nil 'kill-buffer-if-not-modified)))
+(add-hook 'temp-buffer-show-hook 'my/temp-buffer-view-mode)
+
+;;;; Other commands and functions that need early definitions
+;;;; ======================================================================
 
 ;; These are intended to be redefined to whatever actual buffer switching
 ;; functions I decide to use.
@@ -781,17 +809,8 @@ apart in languages that only use whitespace to separate list elements."
          (eshell-load . eat-eshell-visual-command-mode))
   :general-config
   ('(normal insert emacs) eat-mode-map "C-c P" 'eat-send-password)
-  ('(normal insert emacs) eshell-mode-map "C-c P" 'eat-send-password)
-  )
+  ('(normal insert emacs) eshell-mode-map "C-c P" 'eat-send-password))
 
-(use-package devdocs :ensure t
-  :commands devdocs-lookup
-  :bind ("C-h D" . devdocs-lookup)
-  :config
-  (general-add-hook 'devdocs-mode-hook (list 'my/smaller-fonts
-                                             'my/word-wrap
-                                             'my/no-mode-line
-                                             'my/no-fringes)))
 
 (use-package vertico :ensure t :defer t
   :commands (vertico-mode vertico-reverse-mode vertico-mouse-mode)
@@ -1020,24 +1039,23 @@ apart in languages that only use whitespace to separate list elements."
   :commands (cape-dabbrev cape-file cape-elisp-block)
   :bind ("C-c p" . cape-prefix-map)
   :init
-  (general-add-hook 'completion-at-point-functions
-                    (list 'cape-dabbrev 'cape-file))
+  (general-add-hook 'completion-at-point-functions '( cape-dabbrev cape-file))
   :config
   ;; TODO: Look at corfu wiki for example merging elisp cap with dabbrev
 
   ;; Fix the issue where completion doesn't show all of the candidates
-  (advice-add 'eglot-completion-at-point :around 'cape-wrap-buster)
-  )
+  (advice-add 'eglot-completion-at-point :around 'cape-wrap-buster))
 
 (use-package form-feed-st :ensure t
   :hook
   (after-init . global-form-feed-st-mode)
   (server-after-make-frame-hook . global-form-feed-st-mode)
+  :custom (form-feed-st-include-modes
+           '(prog-mode text-mode compilation-mode))
   :custom-face
   ;; strike-through was giving a weird artifact, but this works pretty well
   (form-feed-st-line ((t (:strike-through unspecified
-                          :overline "#ABD"
-                          :underline (:color "#CDE" :position 27))))))
+                          :inherit form-feed-line-normal)))))
 
 
 (use-package highlight-parentheses :ensure t
@@ -1066,9 +1084,12 @@ apart in languages that only use whitespace to separate list elements."
   (show-paren-match ((t (:weight black
                          :foreground "orange red"
                          :background unspecified))))
-  (rainbow-delimiters-depth-1-face ((t (:foreground unspecified :inherit (default-fg medium-weight)))))
-  (rainbow-delimiters-depth-2-face ((t (:foreground unspecified :inherit (default-fg light-weight)))))
-  (rainbow-delimiters-depth-3-face ((t (:foreground unspecified :inherit (default-fg extralight-weight))))))
+  (rainbow-delimiters-depth-1-face ((t (:foreground unspecified
+                                        :inherit (default-fg medium-weight)))))
+  (rainbow-delimiters-depth-2-face ((t (:foreground unspecified
+                                        :inherit (default-fg light-weight)))))
+  (rainbow-delimiters-depth-3-face ((t (:foreground unspecified
+                                        :inherit (default-fg extralight-weight))))))
 
 (use-package yasnippet :ensure t
   :custom (yas-alias-to-yas/prefix-p nil)
@@ -1117,10 +1138,7 @@ apart in languages that only use whitespace to separate list elements."
 (use-package pdf-tools :ensure t :defer t
   :commands pdf-view-mode
   :mode ("\\.[pP][dD][fF]\\'" . pdf-view-mode)
-  :config
-  (pdf-loader-install)
-  (general-add-hook 'pdf-view-mode-hook (list 'my/no-blink-cursor
-                                              'my/no-fringes)))
+  :config (pdf-loader-install))
 
 (use-package org-superstar :ensure t
   :hook (org-mode . org-superstar-mode)
@@ -1233,16 +1251,14 @@ apart in languages that only use whitespace to separate list elements."
   (after-init . minions-mode)
   (server-after-make-frame . minions-mode)
   :custom
-  (minions-mode-line-face 'fixed-pitch)
-  (minions-mode-line-lighter " ≡")
-  (minions-mode-line-delimiters '(" " . "")))
+  (minions-mode-line-face 'variable-pitch)
+  (minions-mode-line-lighter " = ")
+  (minions-mode-line-delimiters '(" " . " ")))
 
 (use-package list-unicode-display :ensure t)
 
 (use-package nov :ensure t
-  :mode ("\\.epub\\'" . nov-mode)
-  :config
-  (general-add-hook 'nov-mode-hook (list 'my/no-blink-cursor)))
+  :mode ("\\.epub\\'" . nov-mode))
 
 (use-package info-colors :ensure t
   :hook (Info-selection . info-colors-fontify-node))
@@ -1257,12 +1273,52 @@ apart in languages that only use whitespace to separate list elements."
   (markdown-list-item-bullets '("•" "‣" "‧" "╴"))
   :custom-face
   (markdown-code-face ((t (:background unspecified
-                           :inherit (normal-weight fixed-pitch)))))
-  :config
-  (general-add-hook (list 'markdown-mode-hook 'markdown-view-mode-hook
-                          'gfm-mode-hook 'gfm-view-mode-hook)
-                    (list 'my/word-wrap 'my/no-fringes 'my/margins 'variable-pitch-mode)))
+                           :inherit (normal-weight fixed-pitch))))))
 
+(use-package devdocs :ensure t
+  :commands devdocs-lookup
+  :bind ("C-h D" . devdocs-lookup))
+
+(use-package dash-docs :ensure t
+  ;; TODO: Try to fix eww's display of a lot of these docs
+  ;; :custom (dash-docs-browser-func 'eww)
+  :config
+  ;; Fix a bug (open issue 20 on github)
+  (defun dash-docs-sql (db-path sql)
+    (dash-docs-parse-sql-results
+     (with-output-to-string
+       (let ((error-file (when dash-docs-enable-debugging
+                           (make-temp-file "dash-docs-errors-file"))))
+         (call-process "sqlite3" nil (list standard-output error-file) nil
+                       "-list" db-path sql)
+         (when (and error-file (file-exists-p error-file))
+           (if (< 0 (nth 7 (file-attributes error-file)))
+               (with-current-buffer (dash-docs-debugging-buffer)
+                 (let ((pos-from-end (- (point-max) (point))))
+                   (or (bobp) (insert "\f\n"))
+                   (format-insert-file error-file nil)
+                   (goto-char (- (point-max) pos-from-end)))
+                 (display-buffer (current-buffer))))
+           (delete-file error-file))))))
+  ;; Set up per-mode associations for docs
+  (defvar my/mode-dash-docs
+    '((sh-mode "Bash") (bash-ts-mode "Bash")
+      (lua-mode "Lua") (lua-ts-mode "Lua") (lua-ts-mode "Lua")
+      (fennel-mode "Lua")
+      (c-mode "C")
+      (c++-mode "C++" "C")
+      ;; TODO: finish setting up modes
+      ))
+  (defvar-local dash-docs-docsets '())
+  (defun my/set-local-dash-doc ()
+    (when-let* ((docs (assoc major-mode my/mode-dash-docs)))
+      (setq-local dash-docs-docsets
+                  (remq nil (mapcar 'dash-docs-docset-installed-p docs)))))
+  (add-hook 'prog-mode-hook 'my/set-local-dash-doc))
+
+(use-package consult-dash :ensure t
+  :bind ("C-h C-d" . consult-dash)
+  )
 
 (use-package treesit-auto :ensure t
   :hook
@@ -1321,7 +1377,8 @@ apart in languages that only use whitespace to separate list elements."
 ;;   :vc (:url "https://github.com/alphapapa/bufler.el")
 ;;   :custom (bufler-columns '("Name" "Path")))
 
-;;;; Internal Packages
+
+;;;; Built-in Packages
 ;;;; ======================================================================
 
 (use-package eshell :ensure nil
@@ -1335,14 +1392,14 @@ apart in languages that only use whitespace to separate list elements."
    "C-n" 'eshell-next-matching-input-from-input))
 
 (use-package winner-mode :ensure nil
-  :hook
-  (after-init . winner-mode)
-  (server-after-make-frame-hook . winner-mode)
-  :general
-  (:keymaps 'evil-window-map            ; C-w prefix
-   "u" 'winner-undo
-   "C-r" 'winner-redo)
+  :config (winner-mode)
+  :general (:keymaps 'evil-window-map            ; C-w prefix
+            "u" 'winner-undo
+            "C-r" 'winner-redo)
   :custom (winner-dont-bind-my-keys t))
+
+(use-package pp :ensure nil
+  :custom (pp-default-function 'pp-emacs-lisp-code))
 
 (use-package custom :ensure nil
   :custom
@@ -1359,7 +1416,6 @@ apart in languages that only use whitespace to separate list elements."
     (which-key-show-operator-state-maps t)
     (which-key-min-column-description-width 32)
     (which-key-max-description-length 48)
-    ;; (which-key-add-column-padding 1)
     (which-key-max-display-columns 4)
     (which-key-echo-keystrikes 0.1)
     :config
@@ -1383,11 +1439,7 @@ apart in languages that only use whitespace to separate list elements."
       (flymake-goto-prev-error))))
 
 (use-package doc-view :ensure nil :defer t
-  :custom
-  (doc-view-continuous t)
-  :config
-  (general-add-hook 'doc-view-mode-hook (list 'my/no-blink-cursor
-                                              'my/no-fringes))
+  :custom (doc-view-continuous t)
   :general
   ('normal 'doc-view-mode-map
            "C-j" 'my/switch-to-next-buffer
@@ -1442,18 +1494,11 @@ apart in languages that only use whitespace to separate list elements."
     "Make Github repos slightly more readable in eww."
     (let ((url (alist-get 'href (cadr document))))
       (when (string-match "github" url)
-        (let ((nodes (dom-by-class document
-                                   (rx (and (= 0 "user-content-")
-                                            (or "pagehead-actions"
-                                                "HeaderMktg"
-                                                "UnderlineNav-"
-                                                "flash-warn"
-                                                "TextInput-"
-                                                "types__StyledButton"
-                                                "form-control"
-                                                "flash-full"
-                                                "search"
-                                                ))))))
+        (let* ((reg (rx (and (= 0 "user-content-")
+                             (or "pagehead-actions" "HeaderMktg" "UnderlineNav-"
+                                 "flash-warn" "TextInput-" "types__StyledButton"
+                                 "form-control" "flash-full" "search"))))
+               (nodes (dom-by-class document reg)))
           (dolist (child nodes)
             (dom-remove-node (dom-parent document child) child))))))
   (advice-add 'eww-display-document :before 'my/clean-github))
@@ -1551,6 +1596,7 @@ apart in languages that only use whitespace to separate list elements."
   (tab-bar-show 1)
   (tab-bar-auto-width nil)
   :custom-face
+  ;; TODO: Finish moving these faces
   (tab-bar ((((background light))
              :foreground "#444" :background "#DDD"
              :height 120 :underline (:color "#AAA" :position 0 :extend t))
@@ -1622,39 +1668,49 @@ apart in languages that only use whitespace to separate list elements."
                            'find-alternate-file))
   (advice-add 'dired-mouse-find-file-other-window :override
               'my/dired-mouse-find-file-smart)
-  (general-add-hook 'dired-mode-hook (list 'dired-hide-details-mode
-                                           'dired-omit-mode)))
+  (general-add-hook 'dired-mode-hook '( dired-hide-details-mode
+                                        dired-omit-mode)))
 
-(general-add-hook 'prog-mode-hook (list 'my/prog-word-syntax
-                                        'my/show-trailing-whitespace))
 
-(general-add-hook (list 'lisp-mode-hook
-                        'lisp-data-mode-hook
-                        'fennel-mode-hook)
-                  'my/lisp-word-syntax
-                  'my/string-underline)
+(defvar my/lisp-mode-hooks
+  '(lisp-mode-hook lisp-data-mode-hook fennel-mode-hook))
 
-(general-add-hook (list 'prog-mode-hook
-                        'text-mode-hook)
-                  'my/line-spacing)
+(general-add-hook 'prog-mode-hook
+                  '(my/prog-word-syntax my/show-trailing-whitespace))
 
-(general-add-hook (list 'eww-mode-hook)
-                  'my/word-wrap)
+(general-add-hook my/lisp-mode-hooks
+                  '(my/lisp-word-syntax
+                    ;; my/string-underline ; disabling this for now
+                    ))
 
-(general-add-hook (list 'eww-mode-hook)
-                  'my/no-fringes)
+(general-add-hook '(prog-mode-hook text-mode-hook) 'my/line-spacing)
 
-(general-add-hook (list 'evil-collection-eldoc-doc-buffer-mode-hook
-                        'eww-mode-hook 'help-mode-hook 'Custom-mode-hook
-                        'messages-buffer-mode-hook)
+(general-add-hook '( eww-mode-hook markdown-mode-hook markdown-view-mode-hook
+                     gfm-mode-hook gfm-view-mode-hook)
+                  'my/margins)
+
+(general-add-hook '( eww-mode-hook markdown-mode-hook markdown-view-mode-hook
+                     gfm-mode-hook gfm-view-mode-hook Info-mode-hook)
+                  'variable-pitch-mode)
+
+(general-add-hook '( eww-mode-hook markdown-mode-hook markdown-view-mode-hook
+                     gfm-mode-hook gfm-view-mode-hook devdocs-mode-hook
+                     doc-view-mode-hook)
+                  '(my/word-wrap my/no-fringes))
+
+(general-add-hook '( pdf-view-mode-hook nov-mode-hook doc-view-mode-hook)
+                  'my/no-blink-cursor)
+
+(general-add-hook '( evil-collection-eldoc-doc-buffer-mode-hook eww-mode-hook
+                     help-mode-hook Custom-mode-hook messages-buffer-mode-hook)
                   'my/no-mode-line)
 
-(general-add-hook (list 'help-mode-hook 'eww-mode-hook 'compilation-mode-hook
-                        'comint-mode-hook 'apropos-mode-hook 'Info-mode-hook
-                        'evil-collection-eldoc-doc-buffer-mode-hook
-                        'package-menu-mode-hook 'eat-mode-hook 'proced-mode-hook
-                        'shortdoc-mode-hook 'vterm-mode-hook 'Custom-mode-hook
-                        'bufler-list-mode-hook)
+(general-add-hook '( help-mode-hook eww-mode-hook compilation-mode-hook
+                     comint-mode-hook apropos-mode-hook Info-mode-hook
+                     evil-collection-eldoc-doc-buffer-mode-hook
+                     package-menu-mode-hook eat-mode-hook proced-mode-hook
+                     shortdoc-mode-hook vterm-mode-hook Custom-mode-hook
+                     bufler-list-mode-hook devdocs-mode-hook debugger-mode)
                   'my/smaller-fonts)
 
 
@@ -1731,19 +1787,24 @@ apart in languages that only use whitespace to separate list elements."
 
 (defun my/modeline-modes ()
   (if (mode-line-window-selected-p)
-      minions-mode-line-modes
-    (concat " " (format-mode-line mode-name))))
+      `(:eval (butlast minions-mode-line-modes 3))
+    `(:eval (butlast minions-mode-line-modes 4))))
 
 (defun my/modeline-project ()
   (let ((home (concat (getenv "HOME") "/")))
     (unless (string= home (projectile-project-p))
-      (concat " "
-              (propertize (concat (projectile-project-name) " ")
-                          'face '(:family "Noto Sans"
-                                  :weight normal
-                                  :height 0.8 :inherit shadow)
-                          'display '(raise 0.075))
-              " "))))
+      `(" "
+        (:propertize (:eval (concat (projectile-project-name) " "))
+         face (:family "Noto Sans"
+               :weight normal
+               :height 0.8 :inherit shadow)
+         mouse-face highlight
+         help-echo ,(projectile-project-p)
+         display (raise 0.075)
+         pointer-shape arrow
+         keymap ,(make-mode-line-mouse-map 'mouse-1
+                                           #'projectile-mode-menu))
+        " "))))
 
 (defun my/modeline-buffer-name ()
   `(:propertize "%b" face
@@ -1819,22 +1880,23 @@ apart in languages that only use whitespace to separate list elements."
 (defun my/modeline-modified ()
   "Based on simple-modeline. Show a modified indicator for non-special
 buffers."
-  (if (string-match-p "\\`[ ]?\\*" (buffer-name))
-      " "
-    (let ((read-only (and buffer-read-only (buffer-file-name)))
-          (modified (buffer-modified-p)))
-      (propertize
-       (if read-only "🔒 " (if modified  "● "  "○ "))
-       'face `(:inherit
-               ,(if modified 'error
-                  (if read-only 'black
-                    'shadow)))))))
+  (cond
+   (view-mode "🔍 ")
+   ((string-match-p "\\`[ ]?\\*" (buffer-name)) " ")
+   (t (let ((read-only (and buffer-read-only (buffer-file-name)))
+            (modified (buffer-modified-p)))
+        (propertize
+         (if read-only "🔒 " (if modified  "∙ "  "∘ "))
+         'face `(:inherit
+                 ,(if modified 'error
+                    (if read-only 'black
+                      'shadow))))))))
 
 (setopt mode-line-right-align-edge 'window)
 (setq-default mode-line-format
               '((:eval (my/inactive-left))
                 (:eval (my/evil-state))
- (:eval (my/modeline-modified))
+                (:eval (my/modeline-modified))
                 (:eval (my/modeline-buffer-name))
                 (:eval (my/modeline-search))
                 (:eval (my/modeline-eldoc))
@@ -1856,8 +1918,6 @@ buffers."
 
 ;;;; Other keybinds
 ;;;; ======================================================================
-
-;; TODO: Use general.el
 
 (general-define-key
  "C-x k" 'kill-current-buffer
@@ -1885,9 +1945,6 @@ buffers."
       "s" #'evil-surround-region
       "S" #'evil-Surround-region)))
 
-;; (defun my/foo ()
-;;   (interactive)
-;;   (message "PREFIX: %s" current-prefix-arg))
 
 (defvar my/project-commands '())
 (defun my/current-project-symbol ()
@@ -1921,8 +1978,9 @@ interaction. Tracks the compile command used on a per-project basis."
 
 ;; I don't want the tutorial, license, hello, or any of the other junk that can
 ;; accidentally be fatfingered when using the otherwise useful C-h commands.
+;; Any missing keybinds here are probably reused by one of the packages above.
 (general-unbind
-  "<f1> t" "C-h C-\\" "C-h C-a" "C-h C-c" "C-h C-d" "C-h C-e" "C-h C-n"
+  "<f1> t" "C-h C-\\" "C-h C-a" "C-h C-c" "C-h C-e" "C-h C-n"
   "C-h C-o" "C-h C-p" "C-h C-q" "C-h C-t" "C-h C-w" "C-h RET" "C-h g"
   "C-h h" "C-h n" "C-h t")
 
