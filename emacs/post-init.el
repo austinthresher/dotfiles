@@ -41,18 +41,38 @@ multiple times."
 ;;;; ======================================================================
 
 (use-package dash :ensure t :demand t)
+(require 'color)
+(require 'cl-lib)
 
 
 ;;;; Theme and font
 ;;;; ======================================================================
 
-(use-package doom-themes :ensure t :demand t)
-;; Wrapping these just in case I decide not to use doom-themes.
 ;; All colors are hex strings and `alpha' is a float from 0 to 1.
-;; NOTE: The colors for doom-blend are reversed from what I'd expect
-(defun my/blend (hex-from hex-to alpha) (doom-blend hex-to hex-from alpha))
-(defun my/darken (hex-color alpha) (doom-darken hex-color alpha))
-(defun my/lighten (hex-color alpha) (doom-lighten hex-color alpha))
+(defun my/blend (hex-from hex-to alpha)
+  "Interpolates between `hex-from' and `hex-to'. Returns `hex-from' when
+`alpha' is 0 and returns `hex-to' when `alpha' is 1. `alpha' can be outside
+the range of 0-1, in which case the resulting color is extrapolated."
+  (let ((from (color-name-to-rgb hex-from))
+        (to (color-name-to-rgb hex-to)))
+    (seq-let (r g b) (mapcar #'color-clamp (color-blend to from alpha))
+      (color-rgb-to-hex r g b 2))))
+(defun my/darken (hex-color alpha) (my/blend hex-color "#000" alpha))
+(defun my/lighten (hex-color alpha) (my/blend hex-color "#FFF" alpha))
+;; color-saturate-hsl feels like it's far too sensitive to small arguments.
+;; This version lerps the saturation from the current value instead of just
+;; adding / subtracting to it.
+(defun my/saturate (hex-color alpha)
+  (seq-let (h s l) (->> hex-color color-name-to-rgb (apply #'color-rgb-to-hsl))
+    (let ((s (color-clamp (+ alpha (* s (- 1.0 alpha))))))
+      (seq-let (r g b) (mapcar #'color-clamp (color-hsl-to-rgb h s l))
+        (color-rgb-to-hex r g b 2)))))
+(defun my/desaturate (hex-color alpha)
+  (seq-let (h s l) (->> hex-color color-name-to-rgb (apply #'color-rgb-to-hsl))
+    (let ((s (color-clamp (* s (- 1.0 alpha)))))
+      (seq-let (r g b) (mapcar #'color-clamp (color-hsl-to-rgb h s l))
+        (color-rgb-to-hex r g b 2)))))
+
 
 (defun my/expand-fg-bg (plist)
   "Replace :bg and :fg shorthand keys in a property list."
@@ -60,17 +80,15 @@ multiple times."
             (pcase x (:bg :background) (:fg :foreground) (_ x)))
           plist))
 
-(require 'cl-lib)
 (cl-defun my/face-spec (&key light dark (default nil))
   "Make it easier to define faces without having to remember the exact number
 of required nestings. This will also replace :fg and :bg properties with
 :foreground and :background to make face specs slightly more concise. If
 default is the only value given, it applies to t instead of default."
-  `(,@(when default `((default ,@(my/expand-fg-bg default))))
-    ( ((background light)) ,@(my/expand-fg-bg light))
-    ( ((background dark)) ,@(my/expand-fg-bg dark))
-    ,@(when (and (null light) (null dark))
-        `((t ,@(my/expand-fg-bg default))))))
+  (let ((light-ls (when light `(( ((background light)) ,@(my/expand-fg-bg light)))))
+        (dark-ls (when dark `(( ((background dark)) ,@(my/expand-fg-bg dark)))))
+        (default-ls (when default `((default ,@(my/expand-fg-bg default))))))
+    `(,@default-ls ,@light-ls ,@dark-ls)))
 
 (defun my/face (name &rest args)
   "Wrap my/face-spec to act as a more concise defface replacement. If args
@@ -124,16 +142,28 @@ be evaluated twice, once for light and once for dark."
 (defvar my/cursor-colors-normal (my/make-cursor-colors "#888" "#DDD"))
 (defvar my/cursor-colors-emacs (my/make-cursor-colors "#F0F" "#888"))
 
+(use-package doom-themes :ensure t :demand t)
+
 (defvar my/light-theme-name 'doom-tomorrow-day)
-(defvar my/dark-theme-name 'doom-nord-aurora)
+(defvar my/dark-theme-name 'doom-monokai-machine)
 
 ;; TODO: Do all themes follow this naming scheme? Make the symbol from the name if so
 (require-theme 'doom-tomorrow-day-theme)
-(require-theme 'doom-nord-aurora-theme)
+(require-theme 'doom-monokai-machine-theme)
 
 ;; Each of these will be populated on theme load
 (defvar my/light-theme-faces '())
 (defvar my/dark-theme-faces '())
+
+;; These need to exist so that the mode line doesn't get invalid faces.
+;; They'll be overwritten on theme load.
+(my/face 'state-normal :background "blue")
+(my/face 'state-insert :background "green")
+(my/face 'state-visual :background "yellow")
+(my/face 'state-replace :background "red")
+(my/face 'state-operator :background "cyan")
+(my/face 'state-emacs :background "magenta")
+(my/face 'default-fg :background 'unspecified :inherit 'default)
 
 (defun my/get-fg-light (face &optional default)
   (or (plist-get (cdr (assoc face my/light-theme-faces)) :foreground)
@@ -195,14 +225,18 @@ be evaluated twice, once for light and once for dark."
   (my/face 'variable-pitch-text :inherit 'variable-pitch)
   (my/face 'fixed-pitch :family "Iosevka Slab" :height 140)
   (my/face 'fixed-pitch-serif :family "Iosevka Slab" :height 140)
-  (my/face 'mode-line :family "Roboto" :height 140 :weight 'light
-           ;; :box '(:line-width (-1 . -1) :color "#222")
-           )
+  (my/face* 'mode-line :family "Roboto" :height 140 :weight 'light
+            :box `(:line-width (1 . 1) :color ,(my/blend (my/saturate bg 0.5)
+                                                         (my/saturate fg 0.5)
+                                                         0.5)))
   (my/face* 'mode-line-inactive
     :family "Roboto" :height 140 :weight 'light
-    :background (my/blend bg fg 0.05))
+    :box `(:line-width (1 . 1) :color ,(my/darken (my/blend bg fg 0.1) 0.2))
+    ;:background (my/blend bg fg 0.05)
+    )
   (my/face* 'fringe :bg bg)  ;; Never let themes set different fringe colors
   (my/face* 'vertical-border :fg (my/blend bg fg 0.2))
+  (my/face* 'thin-mode-line :fg (my/darken bg 0.25) :bg (my/darken bg 0.05))
   ;; The stipple here is a simple checkerboard pixel pattern. Noticable, but
   ;; relatively unobtrusive.
   (my/face 'trailing-whitespace :fg "#844" :stipple '(8 2 "\xAA\x55"))
@@ -224,6 +258,7 @@ be evaluated twice, once for light and once for dark."
   (set-face-attribute 'header-line nil :weight 'normal)
   (my/face* 'default-bg :bg bg)
   (my/face* 'default-fg :fg fg)
+  (my/face* 'dark-border :fg (my/darken bg 0.3) :bg (my/darken bg 0.3))
   (my/face 'popup-border
     :light `(:fg ,(my/darken my/light-bg 0.20)
              :bg ,(my/darken my/light-bg 0.20))
@@ -233,6 +268,7 @@ be evaluated twice, once for light and once for dark."
     :light `(:bg ,(my/darken my/light-bg 0.03))
     :dark `(:bg ,(my/lighten my/dark-bg 0.10)))
   (my/face* 'dimmed-background :bg (my/darken bg 0.15))
+  (my/face* 'faded :fg (my/blend fg bg 0.5))
   (my/face* 'thick-strike-through
     :strike-through "#F00" :bg "#A22" :fg 'unspecified
     :underline '(:color "#F44" :position 15) :weight 'unspecified
@@ -289,9 +325,37 @@ be evaluated twice, once for light and once for dark."
   (my/face-blended-bg 'red-blended-bg     'ansi-color-red     "#C82829" "#CC6666")
   (my/face-blended-bg 'cyan-blended-bg    'ansi-color-cyan    "#3E999F" "#8ABEB7")
 
+  ;; For some reason I couldn't redefine these with my/face, but this seems to work.
+  ;; This is still broken when toggling between the light/dark theme.
+  (set-face-attribute 'state-normal nil :background (face-attribute 'blue-blended-bg :background))
+  (set-face-attribute 'state-insert nil :background (face-attribute 'green-blended-bg :background))
+  (set-face-attribute 'state-visual nil :background (face-attribute 'yellow-blended-bg :background))
+  (set-face-attribute 'state-replace nil :background (face-attribute 'red-blended-bg :background))
+  (set-face-attribute 'state-operator nil :background (face-attribute 'cyan-blended-bg :background))
+  (set-face-attribute 'state-emacs nil :background (face-attribute 'magenta-blended-bg :background))
+
   (my/face 'link-visited :fg 'unspecified :inherit '(magenta-fg link))
   (my/face* 'string-underline
     :underline `(:color ,(my/blend bg fg 0.1) :position 3))
+  (my/face* 'tabs-bar
+    :bg (my/darken (my/desaturate bg 0.05) 0.1)
+    :fg (my/blend fg bg 0.1)
+    :underline `(:color ,(my/blend (my/darken bg 0.1) fg 0.1) :position 0 :extend t))
+  (my/face* 'tabs-active
+    :fg fg
+    :bg bg
+    :inherit '(variable-pitch tabs-bar)
+    :weight 'medium
+    :box `(:line-width (-1 . -1) :color ,(my/darken bg 0.15))
+    :underline `(:color ,bg :position 0))
+  (my/face* 'tabs-inactive
+    :fg (my/blend fg bg 0.2)
+    :bg (my/blend (my/saturate bg 0.1) (my/darken fg 0.1) 0.1)
+    :inherit '(variable-pitch tabs-bar)
+    :weight 'light)
+  (my/face* 'tabs-bar-overline
+    :inherit 'tabs-bar
+    :overline (my/blend (my/darken bg 0.25) fg 0.2))
   )
 
 (defun light-theme ()
@@ -309,8 +373,6 @@ be evaluated twice, once for light and once for dark."
 (defun dark-theme ()
   "Activates a dark-mode theme."
   (interactive)
-  (message "last command: %s" last-command)
-  (message "this command: %s" this-command)
   (disable-theme my/light-theme-name)
   (enable-theme my/dark-theme-name)
   (my/setup-faces)
@@ -327,17 +389,15 @@ the theme wasn't set with `light-theme' or `dark-theme'."
   (when (not (or (eq this-command 'light-theme)
                  (eq this-command 'dark-theme)))
     (require 'faces)
-    (require 'color)
     (let* ((theme-name (car custom-enabled-themes))
            (bg (face-attribute 'default :background))
            (theme-is-dark? (color-dark-p (color-name-to-rgb bg))))
-      (message "theme enabled: %s, dark=%s" theme-name theme-is-dark?)
       (if theme-is-dark?
           (setq my/dark-theme-name theme-name
                 frame-background-mode 'dark)
         (setq my/light-theme-name theme-name
-              frame-background-mode 'light)
-        (mapc 'frame-set-background-mode (frame-list))))
+              frame-background-mode 'light)))
+    (mapc 'frame-set-background-mode (frame-list))
     (my/setup-faces)
     (let ((cursor (face-attribute 'cursor :background))
           (bg (face-attribute 'default :background)))
@@ -547,8 +607,11 @@ the theme wasn't set with `light-theme' or `dark-theme'."
   "Add this as a hook to modes that should not have a modeline. Leaves a tiny
 line so that it still acts as a grabbable window divider."
   (dolist (face '(mode-line-active mode-line-inactive))
-    (face-remap-add-relative face
-                             '(:height 10 :box nil :inherit popup-bg)))
+    (face-remap-add-relative face '(:height 10
+                                    :box nil
+                                    :foreground unspecified
+                                    :background unspecified
+                                    :inherit thin-mode-line)))
   (setq-local mode-line-format
               (propertize " "
                           'face '(:underline (:position 0))
@@ -1571,33 +1634,26 @@ apart in languages that only use whitespace to separate list elements."
   (tab-bar-show 1)
   (tab-bar-auto-width nil)
   :custom-face
-  ;; TODO: Finish moving these faces
-  (tab-bar ((((background light))
-             :foreground "#444" :background "#DDD"
-             :height 120 :underline (:color "#AAA" :position 0 :extend t))
-            (((background dark))
-             :foreground "#888" :background "#303038"
-             :height 120 :underline (:color "#444" :position 0 :extend t))
-            ))
-  (tab-bar-tab ((((background light)) :inherit variable-pitch :weight medium
-                 :box (:line-width (-1 . -1) :color "#CCC")
-                 :underline (:color "#FFF" :position 0) :height 130)
-                (((background dark)) :inherit variable-pitch :weight medium
-                 :box (:line-width (-1 . -1) :color "#333")
-                 :underline (:color "#2E3440" :position 0) :height 130)))
-  (tab-bar-tab-inactive ((t (:inherit variable-pitch :weight light :height 130))))
+  (tab-bar ((t (:background unspecified :foreground unspecified
+                :underline unspecified :box unspecified
+                :height 120 :inherit tabs-bar))))
+  (tab-bar-tab ((t (:background unspecified :foreground unspecified
+                    :underline unspecified :box unspecified
+                    :height 130 :box unspecified :inherit tabs-active))))
+  (tab-bar-tab-inactive ((t (:background unspecified :foreground unspecified
+                             :underline unspecified :box unspecified
+                             :height 130 :inherit tabs-inactive))))
   :config
   ;; This doesn't work for format-spaces because the text properties are overwritten
   (defun my/make-pixel-spacer (px &rest props)
     (apply #'propertize " " 'display `(space :width (,px)) props))
-  ;; TODO: Add modified indicator to buffer names
   (defun my/tab-bar-tab-name-format-spaces (name tab number)
     (concat "   " name "   "))
   (setopt tab-bar-tab-name-format-functions '(tab-bar-tab-name-format-hints
                                               tab-bar-tab-name-format-close-button
                                               my/tab-bar-tab-name-format-spaces
                                               tab-bar-tab-name-format-face))
-  (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:inherit popup-border)))
+  (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:inherit dark-border)))
   (tab-bar-mode t))
 
 (use-package tab-line :ensure nil
@@ -1610,17 +1666,25 @@ apart in languages that only use whitespace to separate list elements."
   (tab-line-tab-face-functions nil)
   (tab-line-tab-name-function 'my/tab-line-tab-name)
   :custom-face
-  (tab-line ((((background light)) :inherit tab-bar :height 100 :overline "#DDD")
-             (((background dark)) :inherit tab-bar :height 100 :overline "#444")))
-  (tab-line-tab ((t (:inherit tab-bar-tab :height 100))))
-  (tab-line-tab-current ((t (:inherit tab-line-tab))))
-  (tab-line-tab-inactive ((t (:inherit tab-bar-tab-inactive :height 100))))
-  (tab-line-highlight ((t (:box (:line-width (-1 . -1) :color "#000" :style released-button)
+  (tab-line ((t (:background unspecified :foreground unspecified
+                 :underline unspecified :box unspecified
+                 :inherit tabs-bar-overline :height 100))))
+  (tab-line-tab ((t (:background unspecified :foreground unspecified
+                     :underline unspecified :box unspecified
+                     :inherit tabs-active :height 100))))
+  (tab-line-tab-current ((t (:background unspecified :foreground unspecified
+                             :underline unspecified :box unspecified
+                             :inherit tabs-active :height 100))))
+  (tab-line-tab-inactive ((t (:background unspecified :foreground unspecified
+                              :underline unspecified :box unspecified
+                              :inherit tabs-inactive :height 100))))
+  (tab-line-highlight ((t (:background unspecified :foreground unspecified
+                           :underline unspecified :box unspecified
                            :overline nil :inherit unspecified))))
   :config
   (setq tab-line-separator
         (my/make-pixel-spacer
-         1 'face '(:inherit ((:height 100) popup-border)))))
+         1 'face '(:inherit ((:height 100) dark-border)))))
 
 (use-package dabbrev :ensure nil
   :config (add-to-list* 'dabbrev-ignored-buffer-modes
@@ -1695,28 +1759,62 @@ apart in languages that only use whitespace to separate list elements."
 (defun my/vim-color ()
   (if (mode-line-window-selected-p)
       (pcase (symbol-name evil-state)
-        ("normal"   'blue-blended-bg) ;; "#a4d5f9" (old values, remove later)
-        ("insert"   'green-blended-bg) ;; "#8adf80"
-        ("visual"   'yellow-blended-bg) ;; "#fff576"
-        ("replace"  'red-blended-bg) ;; "#ff8f88"
-        ("operator" 'cyan-blended-bg) ;; "#d5a4f9"
-        ("emacs"    'magenta-blended-bg) ;; "#ffddff"
+        ("normal"   'state-normal)
+        ("insert"   'state-insert)
+        ("visual"   'state-visual)
+        ("replace"  'state-replace)
+        ("operator" 'state-operator)
+        ("emacs"    'state-emacs)
         (_ 'default-bg))
     'mode-line-inactive))
+
+(defun my/spacer (face width height)
+  `(:propertize " "
+    face ,face
+    display (space :width ,width :height ,height)))
+
+(defun my/color-spacer (color width height)
+  (my/spacer `(:background ,color :family "Iosevka") width height))
 
 (defun my/inactive-left ()
   (if (mode-line-window-selected-p)
       ""
-    '(:propertize "▌ " face ((:height 150 :weight bold) shadow fixed-pitch))))
+    `(,(my/spacer '((:family "Iosevka") popup-border) 0.5 1.25) " ")))
+
+;; TODO: Memoize colors if it causes slowdown
+(defun my/gradient-spacer (from-col to-col width height)
+  `(,(my/color-spacer (my/blend from-col to-col 0.25) width height)
+    ,(my/color-spacer (my/blend from-col to-col 0.5) width height)
+    ,(my/color-spacer (my/blend from-col to-col 0.75) width height)))
+
+;; Note that these assume they're being used in the selected mode line
+(defun my/left-gradient (&optional width height)
+  (let ((mode-line-color (face-attribute 'mode-line :background nil 'default))
+        (vim-color (face-attribute (my/vim-color) :background)))
+    (my/gradient-spacer vim-color mode-line-color
+                        (or width 0.25)
+                        (or height 1.25))))
+
+(defun my/right-gradient (&optional width height)
+  (let ((mode-line-color (face-attribute 'mode-line :background nil 'default))
+        (vim-color (face-attribute (my/vim-color) :background)))
+    (my/gradient-spacer mode-line-color vim-color
+                        (or width 0.25)
+                        (or height 1.25))))
 
 (defun my/vim-state ()
   (if (mode-line-window-selected-p)
       (let ((mode-text (concat " " (upcase (symbol-name evil-state)) " ")))
-        (concat (propertize mode-text 'face
-                            `(:inherit (,(my/vim-color) default-fg)
-                              :weight normal
-                              :family "Iosevka"))
-                (propertize "▏" 'face `((:height 150) shadow fixed-pitch))))))
+        `((:propertize ,mode-text
+           face
+           (:inherit (,(my/vim-color) default-fg)
+            :weight normal
+            :family "Iosevka")
+           display (raise 0.05)
+           )
+          ,(my/left-gradient)
+          " "
+          ))))
 
 (defun my/make-check-text (status errors warnings info map)
   (if (or (null status) (string= status ""))
@@ -1773,7 +1871,7 @@ apart in languages that only use whitespace to separate list elements."
         (:propertize (:eval (concat (projectile-project-name) " "))
          face (:family "Noto Sans"
                :weight normal
-               :height 0.8 :inherit shadow)
+               :height 0.8 :inherit faded)
          mouse-face highlight
          help-echo ,(projectile-project-p)
          display (raise 0.075)
@@ -1783,36 +1881,40 @@ apart in languages that only use whitespace to separate list elements."
         " "))))
 
 (defun my/modeline-buffer-name ()
-  `(:propertize "%b" face
-    ,(if (mode-line-window-selected-p)
-         '((:weight normal)
-           mode-line-buffer-id)
-       '((:weight light)))))
+  `(:propertize (:eval (buffer-name))
+    face ,(if (mode-line-window-selected-p)
+              `((:weight normal)
+                ,@(when (and (buffer-file-name) (buffer-modified-p))
+                    '(italic))
+                mode-line-buffer-id)
+            `((:weight light)
+              ,@(when (and (buffer-file-name) (buffer-modified-p))
+                  '(italic))))
+    display (raise 0.05)))
+
+(defun my/propertize-position (pos)
+  `(,(my/right-gradient)
+    (:propertize ,pos
+     face (:inherit (,(my/vim-color) default-fg) :family "Iosevka" :weight normal)
+     display (raise 0.05)
+     )))
 
 (defun my/modeline-position-default ()
-  `(;; Uncomment this to include the %
-    ;;(-3 "%3o%")
-    (:propertize "▕" face ((:height 150) bold shadow fixed-pitch))
-    (:propertize ( " %3l : %2C  ") face (:inherit ,(my/vim-color)
-                                         :family "Iosevka" :weight normal))))
+  (my/propertize-position '( " %3l : %2C  ")))
 
 (defun my/modeline-position-pdf ()
-  (require 'pdf-view)
-  (require 'pdf-info)
-  (let ((str (format " Page %d/%d  "
-                     (pdf-view-current-page)
-                     (pdf-info-number-of-pages))))
-    `((:propertize "▕" face ((:height 150) bold shadow fixed-pitch))
-      (:propertize ,str face (:inherit ,(my/vim-color)
-                              :family "Iosevka" :weight normal)))))
+  (or (ignore-errors
+        (require 'pdf-view)
+        (require 'pdf-info)
+        (my/propertize-position (format " Page %d/%d  "
+                                        (pdf-view-current-page)
+                                        (pdf-info-number-of-pages))))
+      (my/propertize-position "  ")))
 
 (defun my/modeline-position-doc-view ()
-  (let ((str (format " Page %d/%d  "
-                     (doc-view-current-page)
-                     (doc-view-last-page-number))))
-    `((:propertize "▕" face ((:height 150) bold shadow fixed-pitch))
-      (:propertize ,str face (:inherit ,(my/vim-color)
-                              :family "Iosevka" :weight normal)))))
+  (my/propertize-position (format " Page %d/%d  "
+                                  (doc-view-current-page)
+                                  (doc-view-last-page-number))))
 
 (defun my/modeline-position ()
   (if (mode-line-window-selected-p)
@@ -1826,7 +1928,8 @@ apart in languages that only use whitespace to separate list elements."
       (let ((search-info (anzu--update-mode-line)))
         (if (null search-info)
             ""
-          (concat "  ▏" search-info)))
+          (propertize (concat " " search-info)
+                      'display '(raise 0.05))))
     ""))
 
 (defun my/modeline-eldoc ()
@@ -1847,27 +1950,24 @@ apart in languages that only use whitespace to separate list elements."
             (t ""))
     ""))
 
-;; Not actually sure I want this, disabling for now
-;; (defun my/modeline-vc ()
-;;   (if (mode-line-window-selected-p)
-;;       '(vc-mode ("" vc-mode " ▕ "))
-;;     ""))
-
 (defun my/modeline-modified ()
-  "Based on simple-modeline. Show a modified indicator for non-special
-buffers."
-  (cond
-   (view-mode "🔍 ")
-   ((string-match-p "\\`[ ]?\\*" (buffer-name)) " ")
-   (t (let ((read-only (and buffer-read-only (buffer-file-name)))
-            (modified (buffer-modified-p)))
+  "Show an indicator for modified and read-only buffers, as long as they are
+visiting a file."
+  (if (buffer-file-name)
+      (let* ((modified (buffer-modified-p))
+             (view-str (when view-mode "🔍 "))
+             (read-only-str (if buffer-read-only "🔒 " ""))
+             (modified-str (if modified "∙ " "")))
         (propertize
-         (if read-only "🔒 " (if modified  "∙ "  "∘ "))
-         'face `(:inherit
-                 ,(if modified 'error
-                    (if read-only 'black
-                      'shadow))))))))
+         (concat (or view-str read-only-str)
+                 (if (or modified (not buffer-read-only)) modified-str ""))
+         'face `(:inherit ,(if modified 'error 'shadow))
+         'display '(raise 0.05)
+         ))
+    ""))
 
+;; Note: If this starts getting slow, a dummy :eval at the start that caches
+;; some of the faces / strings / etc could help speed things up.
 (setopt mode-line-right-align-edge 'window)
 (setq-default mode-line-format
               '((:eval (my/inactive-left))

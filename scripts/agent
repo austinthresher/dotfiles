@@ -37,6 +37,7 @@ EOF
                 "$HOME/.ssh/${arg}" \
                 "$HOME/.ssh/${arg}_ecdsa" \
                 "$HOME/.ssh/${arg}_rsa" \
+                "$HOME/.ssh/${arg}_ed25519" \
             )
             local key_found=0
             for k in "${keys[@]}"; do
