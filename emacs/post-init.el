@@ -117,7 +117,8 @@ be evaluated twice, once for light and once for dark."
 (defun my/make-cursor-colors (start-col end-col)
   (mapcar
    (apply-partially #'my/blend start-col end-col)
-   '(0.0 0.25 0.5 0.75 0.9 0.75 0.5 0.25)))
+   ;; Doubling up the first one helps hide a stutter when it starts blinking
+   '(0.0 0.0 0.25 0.5 0.75 0.9 0.75 0.5 0.25)))
 
 ;; These will also be overwritten when applying a theme
 (defvar my/cursor-colors-normal (my/make-cursor-colors "#888" "#DDD"))
@@ -404,7 +405,7 @@ the theme wasn't set with `light-theme' or `dark-theme'."
 ;;;; ======================================================================
 
 (setq blink-cursor-blinks 0)
-(setq blink-cursor-delay 0.2)
+(setq blink-cursor-delay 0.1)
 (setq blink-cursor-interval 0.1)
 (setq-default cursor-type 'box)
 (setq blink-cursor-alist '((box . box) (hollow . hollow) (bar . bar)
@@ -621,13 +622,15 @@ apart in languages that only use whitespace to separate list elements."
   (face-remap-add-relative 'font-lock-string-face
                            '(:inherit string-underline)))
 
-(defun my/temp-buffer-view-mode (&rest args)
-  "Make pretty-printed buffers use view-mode, be read-only, and easily
-closable. I don't know what else uses with-output-to-temp-buffer so I'm
-matching against the buffer name for now."
-  (when (string-prefix-p "*Pp" (buffer-name))
-    (view-mode-enter nil 'kill-buffer-if-not-modified)))
-(add-hook 'temp-buffer-show-hook 'my/temp-buffer-view-mode)
+;; FIXME: This is breaking describe-variable sometimes? Maybe it's not this,
+;; but pp--region is giving me random 'End of file during parsing' errors.
+;; (defun my/temp-buffer-view-mode (&rest args)
+;;   "Make pretty-printed buffers use view-mode, be read-only, and easily
+;; closable. I don't know what else uses with-output-to-temp-buffer so I'm
+;; matching against the buffer name for now."
+;;   (when (string-prefix-p "*Pp" (buffer-name))
+;;     (view-mode-enter nil 'kill-buffer-if-not-modified)))
+;; (add-hook 'temp-buffer-show-hook 'my/temp-buffer-view-mode)
 
 ;;;; Other commands and functions that need early definitions
 ;;;; ======================================================================
@@ -1136,6 +1139,7 @@ matching against the buffer name for now."
   :config (setq inferior-lisp-program "sbcl"))
 
 (use-package pdf-tools :ensure t :defer t
+  :if (not (eq system-type 'windows-nt))
   :commands pdf-view-mode
   :mode ("\\.[pP][dD][fF]\\'" . pdf-view-mode)
   :config (pdf-loader-install))
@@ -1279,42 +1283,6 @@ matching against the buffer name for now."
   :commands devdocs-lookup
   :bind ("C-h D" . devdocs-lookup))
 
-(use-package dash-docs :ensure t
-  ;; TODO: Try to fix eww's display of a lot of these docs
-  ;; :custom (dash-docs-browser-func 'eww)
-  :config
-  ;; Fix a bug (open issue 20 on github)
-  (defun dash-docs-sql (db-path sql)
-    (dash-docs-parse-sql-results
-     (with-output-to-string
-       (let ((error-file (when dash-docs-enable-debugging
-                           (make-temp-file "dash-docs-errors-file"))))
-         (call-process "sqlite3" nil (list standard-output error-file) nil
-                       "-list" db-path sql)
-         (when (and error-file (file-exists-p error-file))
-           (if (< 0 (nth 7 (file-attributes error-file)))
-               (with-current-buffer (dash-docs-debugging-buffer)
-                 (let ((pos-from-end (- (point-max) (point))))
-                   (or (bobp) (insert "\f\n"))
-                   (format-insert-file error-file nil)
-                   (goto-char (- (point-max) pos-from-end)))
-                 (display-buffer (current-buffer))))
-           (delete-file error-file))))))
-  ;; Set up per-mode associations for docs
-  (defvar my/mode-dash-docs
-    '((sh-mode "Bash") (bash-ts-mode "Bash")
-      (lua-mode "Lua") (lua-ts-mode "Lua") (lua-ts-mode "Lua")
-      (fennel-mode "Lua")
-      (c-mode "C")
-      (c++-mode "C++" "C")
-      ;; TODO: finish setting up modes
-      ))
-  (defvar-local dash-docs-docsets '())
-  (defun my/set-local-dash-doc ()
-    (when-let* ((docs (assoc major-mode my/mode-dash-docs)))
-      (setq-local dash-docs-docsets
-                  (remq nil (mapcar 'dash-docs-docset-installed-p docs)))))
-  (add-hook 'prog-mode-hook 'my/set-local-dash-doc))
 
 (use-package consult-dash :ensure t
   :bind ("C-h C-d" . consult-dash)
@@ -1327,10 +1295,6 @@ matching against the buffer name for now."
   :custom (treesit-auto-install 'prompt)
   :config
   ;; The package author doesn't seem to update often. Patch or remove broken recipes.
-  (defconst broken-treesit-auto '(markdown latex c-sharp lua))
-  (setq treesit-auto-langs
-        (seq-difference (mapcar #'treesit-auto-recipe-lang treesit-auto-recipe-list)
-                        broken-treesit-auto))
   (defun my/find-treesit-auto-recipe (lang)
     (car (seq-filter (lambda (x) (eq (treesit-auto-recipe-lang x) lang))
                      treesit-auto-recipe-list)))
@@ -1345,16 +1309,26 @@ matching against the buffer name for now."
   (my/patch-treesit-auto-recipe 'cpp 'revision "v0.22.0")
   ;; Update list of languages with patched changes
   (setq treesit-auto-langs (seq-map #'treesit-auto-recipe-lang
-                                    treesit-auto-recipe-list)))
+                                    treesit-auto-recipe-list))
+  ;; Now that the correct language names are in the list, we can filter out
+  ;; ones that are still broken.
+  (defconst broken-treesit-auto '(markdown latex c-sharp lua))
+  (setq treesit-auto-langs
+        (seq-difference (mapcar #'treesit-auto-recipe-lang
+                                treesit-auto-recipe-list)
+                        broken-treesit-auto))
+
+  )
 
 ;; Note: install fd for faster file operations (package is named "fd-find" in apt/dnf)
 (use-package projectile :ensure t :demand t
+  :custom (consult-project-function 'projectile-project-root)
   :config (projectile-mode)
   :general
   ('projectile-mode-map "C-c p" 'projectile-command-map))
 
 ;; WIP: Try this out, figure out buffer switching
-;; (use-package consult-projectile :ensure t)
+(use-package consult-projectile :ensure t)
 
 ;; TODO: Figure out isolating visible buffers / etc on a per-project basis
 ;; (use-package perspective :ensure t)
@@ -1398,8 +1372,9 @@ matching against the buffer name for now."
             "C-r" 'winner-redo)
   :custom (winner-dont-bind-my-keys t))
 
-(use-package pp :ensure nil
-  :custom (pp-default-function 'pp-emacs-lisp-code))
+;; FIXME: Maybe this setting is what's breaking describe-variable
+;; (use-package pp :ensure nil
+;;   :custom (pp-default-function 'pp-emacs-lisp-code))
 
 (use-package custom :ensure nil
   :custom
@@ -1792,7 +1767,8 @@ matching against the buffer name for now."
 
 (defun my/modeline-project ()
   (let ((home (concat (getenv "HOME") "/")))
-    (unless (string= home (projectile-project-p))
+    (unless (or (string= home (projectile-project-p))
+                (string= "-" (projectile-project-name)))
       `(" "
         (:propertize (:eval (concat (projectile-project-name) " "))
          face (:family "Noto Sans"
