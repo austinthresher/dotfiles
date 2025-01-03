@@ -42,19 +42,74 @@ multiple times."
 
 (use-package dash :ensure t :demand t)
 (require 'color)
+(require 'ansi-color)
 (require 'cl-lib)
 
 
 ;;;; Theme and font
 ;;;; ======================================================================
 
-;; All colors are hex strings and `alpha' is a float from 0 to 1.
+(defconst my/term-color-alist
+  '(("black" . "black") ("red" . "red4")
+    ("green" . "green4") ("yellow" . "yellow4")
+    ("blue" . "blue4") ("magenta" . "magenta4")
+    ("cyan" . "cyan4") ("white" . "grey")
+    ("brightblack" . "dim grey") ("brightred" . "red1")
+    ("brightgreen" . "green1") ("brightyellow" . "yellow1")
+    ("brightblue" . "blue1") ("brightmagenta" . "magenta1")
+    ("brightcyan" . "cyan1") ("brightwhite" . "white"))
+  "Mapping of 16 terminal colors to X11 colors.")
+
+(defun my/xterm-color (idx)
+  "Get RGB hex string from an XTerm color index. Modified from eat.el."
+  (setq idx (mod idx 256))
+  (cond ((<= idx 15) (cdr (nth idx my/term-color-alist)))
+        ((<= idx 231) (let ((col (- idx 16)) (res 0) (frac (* 6 6)))
+                        (while (<= 1 frac)
+                          (setq res (* res #x000100))
+                          (let ((color-num (mod (/ col frac) 6)))
+                            (unless (zerop color-num)
+                              (setq res (+ res #x37 (* #x28 color-num)))))
+                          (setq frac (/ frac 6)))
+                        (format "#%06X" res)))
+        (t (format "#%06X" (* #x010101 (+ 8 (* 10 (- idx 232))))))))
+
+(defvar my/seen-unknown-colors '())
+(defun my/color->rgb (color)
+  "Wrapper around `color-name-to-rgb' that attempts to handle invalid color
+names gracefully. Probably not terminal compatible."
+  (or (color-name-to-rgb color)
+      ;; Maybe it's a hex triplet missing the #
+      (and (eq 0 (mod (length color) 3)) (color-values (concat "#" color)))
+      ;; Handle colors that are specified as terminal colors
+      (when-let* ((color-name (cdr-safe (assoc color my/term-color-alist))))
+        (color-values color-name))
+      ;; Handle XTerm 256 color palette indices
+      (and (string-prefix-p "color-" color)
+           (color-values (my/xterm-color (string-to-number (substring color 6)))))
+      ;; Dummy entry to record any colors that haven't matched a previous option
+      (and (add-to-list 'my/seen-unknown-colors color) nil)
+      ;; If we still haven't found a color, resort to brute force. Find the most
+      ;; similar name in the list of valid colors. Slow, but this shouldn't happen
+      ;; often, and only when loading a theme. Print a message so it's obvious if
+      ;; this is happening constantly.
+      (color-values
+       (let ((best-dist 999) (best-color "grey"))
+         (dolist (maybe-this-color (defined-colors))
+           (let ((this-dist (string-distance color maybe-this-color)))
+             (when (< this-dist best-dist)
+               (setq best-dist this-dist
+                     best-color maybe-this-color))))
+         (message "selected '%s' as closest match for unknown color '%s'" best-color color)
+         best-color))))
+
+;; All colors are strings and `alpha' is a float from 0 to 1.
 (defun my/blend (hex-from hex-to alpha)
   "Interpolates between `hex-from' and `hex-to'. Returns `hex-from' when
 `alpha' is 0 and returns `hex-to' when `alpha' is 1. `alpha' can be outside
 the range of 0-1, in which case the resulting color is extrapolated."
-  (let ((from (color-name-to-rgb hex-from))
-        (to (color-name-to-rgb hex-to)))
+  (let ((from (my/color->rgb hex-from))
+        (to (my/color->rgb hex-to)))
     (seq-let (r g b) (mapcar #'color-clamp (color-blend to from alpha))
       (color-rgb-to-hex r g b 2))))
 (defun my/darken (hex-color alpha) (my/blend hex-color "#000" alpha))
@@ -63,16 +118,44 @@ the range of 0-1, in which case the resulting color is extrapolated."
 ;; This version lerps the saturation from the current value instead of just
 ;; adding / subtracting to it.
 (defun my/saturate (hex-color alpha)
-  (seq-let (h s l) (->> hex-color color-name-to-rgb (apply #'color-rgb-to-hsl))
+  (seq-let (h s l) (->> hex-color my/color->rgb (apply #'color-rgb-to-hsl))
     (let ((s (color-clamp (+ alpha (* s (- 1.0 alpha))))))
       (seq-let (r g b) (mapcar #'color-clamp (color-hsl-to-rgb h s l))
         (color-rgb-to-hex r g b 2)))))
 (defun my/desaturate (hex-color alpha)
-  (seq-let (h s l) (->> hex-color color-name-to-rgb (apply #'color-rgb-to-hsl))
+  (seq-let (h s l) (->> hex-color my/color->rgb (apply #'color-rgb-to-hsl))
     (let ((s (color-clamp (* s (- 1.0 alpha)))))
       (seq-let (r g b) (mapcar #'color-clamp (color-hsl-to-rgb h s l))
         (color-rgb-to-hex r g b 2)))))
-
+(defun my/rotate-hue (color delta)
+  (seq-let (h s l) (apply #'color-rgb-to-hsl (my/color->rgb color))
+    (let ((h (mod (+ h delta) 1.0)))
+      (seq-let (r g b) (color-hsl-to-rgb h s l)
+        (color-rgb-to-hex r g b 2)))))
+(defun my/hue (color)
+  (nth 0 (apply #'color-rgb-to-hsl (my/color->rgb color))))
+(defun my/saturation (color)
+  (nth 1 (apply #'color-rgb-to-hsl (my/color->rgb color))))
+(defun my/luminance (color)
+  (nth 2 (apply #'color-rgb-to-hsl (my/color->rgb color))))
+(defun my/brightness (color)
+  (nth 2 (apply #'color-rgb-to-hsv (my/color->rgb color))))
+(defun my/ignore-rest (first &rest _) first)
+(defun my/with-luminance (color lum &optional reduce-fn)
+  (let ((reduce-fn (or reduce-fn 'my/ignore-rest)))
+    (seq-let (h s old-lum) (apply #'color-rgb-to-hsl (my/color->rgb color))
+      (seq-let (r g b) (color-hsl-to-rgb h s (funcall reduce-fn lum old-lum))
+        (color-rgb-to-hex r g b 2)))))
+(defun my/with-hue (color hue &optional reduce-fn)
+  (let ((reduce-fn (or reduce-fn 'my/ignore-rest)))
+    (seq-let (old-hue s l) (apply #'color-rgb-to-hsl (my/color->rgb color))
+      (seq-let (r g b) (color-hsl-to-rgb (funcall reduce-fn hue old-hue) s l)
+        (color-rgb-to-hex r g b 2)))))
+(defun my/with-saturation (color sat &optional reduce-fn)
+  (let ((reduce-fn (or reduce-fn 'my/ignore-rest)))
+    (seq-let (h old-sat l) (apply #'color-rgb-to-hsl (my/color->rgb color))
+      (seq-let (r g b) (color-hsl-to-rgb h (funcall reduce-fn sat old-sat) l)
+        (color-rgb-to-hex r g b 2)))))
 
 (defun my/expand-fg-bg (plist)
   "Replace :bg and :fg shorthand keys in a property list."
@@ -145,11 +228,11 @@ be evaluated twice, once for light and once for dark."
 (use-package doom-themes :ensure t :demand t)
 
 (defvar my/light-theme-name 'doom-tomorrow-day)
-(defvar my/dark-theme-name 'doom-monokai-machine)
+(defvar my/dark-theme-name 'doom-solarized-dark-high-contrast)
 
 ;; TODO: Do all themes follow this naming scheme? Make the symbol from the name if so
 (require-theme 'doom-tomorrow-day-theme)
-(require-theme 'doom-monokai-machine-theme)
+(require-theme 'doom-solarized-dark-high-contrast-theme)
 
 ;; Each of these will be populated on theme load
 (defvar my/light-theme-faces '())
@@ -157,13 +240,16 @@ be evaluated twice, once for light and once for dark."
 
 ;; These need to exist so that the mode line doesn't get invalid faces.
 ;; They'll be overwritten on theme load.
-(my/face 'state-normal :background "blue")
-(my/face 'state-insert :background "green")
-(my/face 'state-visual :background "yellow")
-(my/face 'state-replace :background "red")
-(my/face 'state-operator :background "cyan")
-(my/face 'state-emacs :background "magenta")
-(my/face 'default-fg :background 'unspecified :inherit 'default)
+(my/face 'default-fg :foreground 'reset)
+(dolist (state-colors '((state-normal . ansi-color-blue)
+                        (state-insert . ansi-color-green)
+                        (state-visual . ansi-color-yellow)
+                        (state-replace . ansi-color-red)
+                        (state-operator . ansi-color-cyan)
+                        (state-emacs . ansi-color-magenta)
+                        (state-other . ansi-color-bright-black)))
+  (my/face (car state-colors) :inherit `(default-fg ,(cdr state-colors))
+           :foreground 'reset :family "Iosevka" :weight 'normal))
 
 (defun my/get-fg-light (face &optional default)
   (or (plist-get (cdr (assoc face my/light-theme-faces)) :foreground)
@@ -185,14 +271,104 @@ be evaluated twice, once for light and once for dark."
 (defun my/face-fg (name source &optional default-light default-dark)
   "Create a new face that copies the foreground color from another face"
   (my/face name
-    :light `(:fg ,(my/get-fg-light source default-light))
-    :dark `(:fg ,(my/get-fg-dark source (or default-dark default-light)))))
+    :light `(:foreground ,(my/get-fg-light source default-light))
+    :dark `(:foreground ,(my/get-fg-dark source (or default-dark default-light)))))
 
 (defun my/face-bg (name source &optional default-light default-dark)
   "Create a new face that copies the background color from another face"
   (my/face name
-    :light `(:bg ,(my/get-bg-light source default-light))
-    :dark `(:bg ,(my/get-bg-dark source (or default-dark default-light)))))
+    :light `(:background ,(my/get-bg-light source default-light))
+    :dark `(:background ,(my/get-bg-dark source (or default-dark default-light)))))
+
+;; All theme colors will be tinted towards these colors by the given amount
+(defconst my/light-fg-tint-color "dodger blue")
+(defconst my/light-bg-tint-color my/light-fg-tint-color)
+(defconst my/dark-fg-tint-color "#FFFFFF")
+(defconst my/dark-bg-tint-color my/dark-fg-tint-color)
+(defconst my/light-fg-tint-amount 0.05)
+(defconst my/light-bg-tint-amount my/light-fg-tint-amount)
+(defconst my/dark-fg-tint-amount 0.0)
+(defconst my/dark-bg-tint-amount my/dark-fg-tint-amount)
+
+;; These filter the value of `my/[light|dark]-[fg|bg]', which are used for the
+;; default face. The values passed to each function are the unmodified values
+;; provided by the theme.
+(defun my/tweak-light-default-fg (fg bg) ; Nudge towards darker text
+  (my/blend (my/blend fg (my/with-luminance fg 0.25 #'min) 0.5)
+            my/light-fg-tint-color
+            my/light-fg-tint-amount))
+(defun my/tweak-light-default-bg (fg bg) ; Force light themes closer to white
+  (my/blend (my/lighten (my/desaturate bg 0.75) 0.5)
+            my/light-bg-tint-color
+            my/light-bg-tint-amount))
+(defun my/tweak-dark-default-fg (fg bg)
+  (my/blend (my/blend fg (my/with-luminance fg 0.75) 0.75)
+            my/dark-fg-tint-color
+            my/dark-fg-tint-amount))
+(defun my/tweak-dark-default-bg (fg bg)
+  (my/blend (my/blend bg (my/with-saturation (my/with-luminance bg 0.2) 0.1 #'min) 0.66)
+            my/dark-bg-tint-color
+            my/dark-bg-tint-amount))
+
+
+;; Assumes that the farther a color is from white or black, the more saturated
+;; it should be.
+(defun my/target-saturation (col)
+  (min (* 1.2 (my/saturation col))
+       (- 0.5 (abs (- 0.5 (my/luminance col))))))
+
+;; Algorithmically tweak each face color. Note that at this point,
+;; `my/[light|dark]-[fg|bg]' have their final values, so those can be used to
+;; refer to the colors of the default face.
+(defun my/tweak-light-fg (fg bg)
+  (let* ((target-sat (my/target-saturation fg))
+         (col (my/with-saturation fg target-sat #'max)))
+    (my/blend col (my/with-luminance col 0.3 #'min) 0.5)))
+(defun my/tweak-light-bg (fg bg) bg)
+(defun my/tweak-dark-fg (fg bg)
+  (let* ((target-sat (my/target-saturation fg))
+         (col (my/with-saturation fg target-sat #'max)))
+    (my/blend col (my/with-luminance col 0.6) 0.5)))
+(defun my/tweak-dark-bg (fg bg)
+  (my/lighten
+   (my/saturate (my/blend bg (my/with-luminance bg 0.2) 0.5) 0.1)
+   0.05))
+
+(defun my/tweak-light-bg-tinted (fg bg)
+  (my/blend (my/tweak-light-bg fg bg)
+            my/light-bg-tint-color my/light-bg-tint-amount))
+(defun my/tweak-light-fg-tinted (fg bg)
+  (my/blend (my/tweak-light-fg fg bg)
+            my/light-fg-tint-color my/light-fg-tint-amount))
+(defun my/tweak-dark-bg-tinted (fg bg)
+  (my/blend (my/tweak-dark-bg fg bg)
+            my/dark-bg-tint-color my/dark-bg-tint-amount))
+(defun my/tweak-dark-fg-tinted (fg bg)
+  (my/blend (my/tweak-dark-fg fg bg)
+            my/dark-fg-tint-color my/dark-fg-tint-amount))
+
+;; TODO: Box color / underlines / etc?
+(defun my/tweak-theme-faces ()
+  (cl-flet ((tweak-fg (if (eq 'dark frame-background-mode)
+                          #'my/tweak-dark-fg-tinted #'my/tweak-light-fg-tinted))
+            (tweak-bg (if (eq 'dark frame-background-mode)
+                          #'my/tweak-dark-bg-tinted #'my/tweak-light-bg-tinted)))
+    (dolist (face (face-list))
+      (unless (string-match-p
+               (rx bos (| "eat-term-" "ansi-color-"
+                          (: (or "default" "cursor") eos)))
+               (symbol-name face))
+        (let ((bg (face-attribute face :background))
+              (fg (face-attribute face :foreground))
+              ;; Ensure a valid value is passed as the reference color
+              (inherited-bg (face-attribute face :background nil 'default))
+              (inherited-fg (face-attribute face :foreground nil 'default)))
+          (when (stringp bg)
+            (set-face-attribute face nil
+                                :background (tweak-bg inherited-fg bg)))
+          (when (stringp fg)
+            (set-face-attribute face nil
+                                :foreground (tweak-fg fg inherited-bg))))))))
 
 (defun my/collect-faces (theme-settings)
   (cl-flet ((extract-spec (lambda (theme-entry)
@@ -212,28 +388,44 @@ be evaluated twice, once for light and once for dark."
     (let* ((light-plist (get my/light-theme-name 'theme-settings))
            (dark-plist (get my/dark-theme-name 'theme-settings)))
       (setq my/light-theme-faces (my/collect-faces light-plist)
-            my/dark-theme-faces (my/collect-faces dark-plist)
-            my/dark-fg (my/get-fg-dark 'default)
-            my/dark-bg (my/get-bg-dark 'default)
-            my/light-fg (my/get-fg-light 'default)
-            my/light-bg (my/get-bg-light 'default)))))
+            my/dark-theme-faces (my/collect-faces dark-plist))
+      ;; Apply modifications to the default face colors before other faces get
+      ;; to use them as references. The original theme's colors can still be
+      ;; accessed with `my/get-[fg|bg]-[dark|light]'
+      (let ((dark-fg (my/get-fg-dark 'default))
+            (dark-bg (my/get-bg-dark 'default))
+            (light-fg (my/get-fg-light 'default))
+            (light-bg (my/get-bg-light 'default)))
+        (setq my/dark-fg (my/tweak-dark-default-fg dark-fg dark-bg)
+              my/dark-bg (my/tweak-dark-default-bg dark-fg dark-bg)
+              my/light-fg (my/tweak-light-default-fg light-fg light-bg)
+              my/light-bg (my/tweak-light-default-bg light-fg light-bg))))))
 
 (defun my/setup-faces ()
   (my/extract-theme-faces)
-  (my/face 'default :family "Iosevka" :height 140)
+  (my/tweak-theme-faces)
+  (my/face 'default
+    :default '(:family "Iosevka" :height 140)
+    :light `(:fg ,my/light-fg :bg ,my/light-bg)
+    :dark `(:fg ,my/dark-fg :bg ,my/dark-bg))
   (my/face 'variable-pitch :family "Noto Sans" :height 140)
   (my/face 'variable-pitch-text :inherit 'variable-pitch)
   (my/face 'fixed-pitch :family "Iosevka Slab" :height 140)
   (my/face 'fixed-pitch-serif :family "Iosevka Slab" :height 140)
-  (my/face* 'mode-line :family "Roboto" :height 140 :weight 'light
-            :box `(:line-width (1 . 1) :color ,(my/blend (my/saturate bg 0.5)
-                                                         (my/saturate fg 0.5)
-                                                         0.5)))
-  (my/face* 'mode-line-inactive
-    :family "Roboto" :height 140 :weight 'light
-    :box `(:line-width (1 . 1) :color ,(my/darken (my/blend bg fg 0.1) 0.2))
-    ;:background (my/blend bg fg 0.05)
-    )
+  (let ((bg (face-attribute 'default :background))
+        (fg (face-attribute 'default :foreground)))
+    (set-face-attribute 'mode-line nil
+                        :family "Roboto" :height 140 :weight 'light
+                        :box `(:line-width (1 . 1)
+                               :color ,(my/blend (my/saturate bg 0.5)
+                                                 (my/saturate fg 0.5)
+                                                 0.5)))
+
+    (set-face-attribute 'mode-line-inactive nil
+                        :family "Roboto" :height 140 :weight 'light
+                        :box `(:line-width (1 . 1)
+                               :color ,(my/darken (my/blend bg fg 0.1) 0.2))))
+
   (my/face* 'fringe :bg bg)  ;; Never let themes set different fringe colors
   (my/face* 'vertical-border :fg (my/blend bg fg 0.2))
   (my/face* 'thin-mode-line :fg (my/darken bg 0.25) :bg (my/darken bg 0.05))
@@ -296,6 +488,7 @@ be evaluated twice, once for light and once for dark."
     :dark `(:bg "#434C5E" :box (:line-width (1 . -1)
                                 :color ,(my/lighten my/dark-bg 0.20))))
 
+
   ;; Default colors are taken from Tomorrow and Tomorrow Night.
   (my/face-fg 'blue-fg    'ansi-color-blue    "#4271AE" "#81A2BE")
   (my/face-fg 'magenta-fg 'ansi-color-magenta "#8959A8" "#B294BB")
@@ -325,14 +518,12 @@ be evaluated twice, once for light and once for dark."
   (my/face-blended-bg 'red-blended-bg     'ansi-color-red     "#C82829" "#CC6666")
   (my/face-blended-bg 'cyan-blended-bg    'ansi-color-cyan    "#3E999F" "#8ABEB7")
 
-  ;; For some reason I couldn't redefine these with my/face, but this seems to work.
-  ;; This is still broken when toggling between the light/dark theme.
-  (set-face-attribute 'state-normal nil :background (face-attribute 'blue-blended-bg :background))
-  (set-face-attribute 'state-insert nil :background (face-attribute 'green-blended-bg :background))
-  (set-face-attribute 'state-visual nil :background (face-attribute 'yellow-blended-bg :background))
-  (set-face-attribute 'state-replace nil :background (face-attribute 'red-blended-bg :background))
-  (set-face-attribute 'state-operator nil :background (face-attribute 'cyan-blended-bg :background))
-  (set-face-attribute 'state-emacs nil :background (face-attribute 'magenta-blended-bg :background))
+  (set-face-attribute 'state-normal nil :inherit 'blue-blended-bg)
+  (set-face-attribute 'state-insert nil :inherit 'green-blended-bg)
+  (set-face-attribute 'state-visual nil :inherit 'yellow-blended-bg)
+  (set-face-attribute 'state-replace nil :inherit 'red-blended-bg)
+  (set-face-attribute 'state-operator nil :inherit 'cyan-blended-bg)
+  (set-face-attribute 'state-emacs nil :inherit 'magenta-blended-bg)
 
   (my/face 'link-visited :fg 'unspecified :inherit '(magenta-fg link))
   (my/face* 'string-underline
@@ -358,51 +549,64 @@ be evaluated twice, once for light and once for dark."
     :overline (my/blend (my/darken bg 0.25) fg 0.2))
   )
 
+
 (defun light-theme ()
   "Activates a light-mode theme."
   (interactive)
   (disable-theme my/dark-theme-name)
   (enable-theme my/light-theme-name)
-  (my/setup-faces)
   (setq frame-background-mode 'light)
   (mapc 'frame-set-background-mode (frame-list))
+  (my/setup-faces)
   (let ((cursor (my/get-bg-light 'cursor)))
     (setq my/cursor-colors-normal (my/make-cursor-colors cursor my/light-bg)
-          my/cursor-colors-emacs (my/make-cursor-colors "#F0F" my/light-bg))))
+          my/cursor-colors-emacs (my/make-cursor-colors "#F0F" my/light-bg)))
+  my/light-theme-name)
 
 (defun dark-theme ()
   "Activates a dark-mode theme."
   (interactive)
   (disable-theme my/light-theme-name)
   (enable-theme my/dark-theme-name)
-  (my/setup-faces)
   (setq frame-background-mode 'dark)
   (mapc 'frame-set-background-mode (frame-list))
+  (my/setup-faces)
   (let ((cursor (my/get-bg-dark 'cursor)))
     (setq my/cursor-colors-normal (my/make-cursor-colors cursor my/dark-bg)
-          my/cursor-colors-emacs (my/make-cursor-colors "#F0F" my/dark-bg))))
+          my/cursor-colors-emacs (my/make-cursor-colors "#F0F" my/dark-bg)))
+  my/dark-theme-name)
 
-(defun my/after-theme-enabled (&rest _)
+(defun my/theme-dark? (theme-name)
+  (-> (--find (pcase it (`(theme-face default . ,_) t))
+              (get theme-name 'theme-settings))
+      -fourth-item
+      face-spec-choose
+      (plist-get :background)
+      my/color->rgb
+      color-dark-p))
+
+(defun my/after-theme-enabled (theme-name)
   "Add this as a hook to `enable-theme-functions' to automatically update
 faces when the theme changes (useful with `consult-theme'). Only runs when
 the theme wasn't set with `light-theme' or `dark-theme'."
-  (when (not (or (eq this-command 'light-theme)
+  (when (not (or (eq theme-name 'user)
+                 (eq this-command 'light-theme)
                  (eq this-command 'dark-theme)))
     (require 'faces)
-    (let* ((theme-name (car custom-enabled-themes))
-           (bg (face-attribute 'default :background))
-           (theme-is-dark? (color-dark-p (color-name-to-rgb bg))))
-      (if theme-is-dark?
-          (setq my/dark-theme-name theme-name
-                frame-background-mode 'dark)
-        (setq my/light-theme-name theme-name
-              frame-background-mode 'light)))
+    (if (my/theme-dark? theme-name)
+        (setq my/dark-theme-name theme-name
+              frame-background-mode 'dark)
+      (setq my/light-theme-name theme-name
+            frame-background-mode 'light))
     (mapc 'frame-set-background-mode (frame-list))
+    (remove-hook 'enable-theme-functions 'my/after-theme-enabled)
     (my/setup-faces)
+    (add-hook 'enable-theme-functions 'my/after-theme-enabled)
     (let ((cursor (face-attribute 'cursor :background))
           (bg (face-attribute 'default :background)))
       (setq my/cursor-colors-normal (my/make-cursor-colors cursor bg))
-      (setq my/cursor-colors-emacs (my/make-cursor-colors "#F0F" bg)))))
+      (setq my/cursor-colors-emacs (my/make-cursor-colors "#F0F" bg)))
+    theme-name))
 
 (add-hook 'enable-theme-functions 'my/after-theme-enabled)
 
@@ -1765,7 +1969,7 @@ apart in languages that only use whitespace to separate list elements."
         ("replace"  'state-replace)
         ("operator" 'state-operator)
         ("emacs"    'state-emacs)
-        (_ 'default-bg))
+        (_ 'state-other))
     'mode-line-inactive))
 
 (defun my/spacer (face width height)
@@ -1790,14 +1994,14 @@ apart in languages that only use whitespace to separate list elements."
 ;; Note that these assume they're being used in the selected mode line
 (defun my/left-gradient (&optional width height)
   (let ((mode-line-color (face-attribute 'mode-line :background nil 'default))
-        (vim-color (face-attribute (my/vim-color) :background)))
+        (vim-color (face-attribute (my/vim-color) :background nil 'default)))
     (my/gradient-spacer vim-color mode-line-color
                         (or width 0.25)
                         (or height 1.25))))
 
 (defun my/right-gradient (&optional width height)
   (let ((mode-line-color (face-attribute 'mode-line :background nil 'default))
-        (vim-color (face-attribute (my/vim-color) :background)))
+        (vim-color (face-attribute (my/vim-color) :background nil 'default)))
     (my/gradient-spacer mode-line-color vim-color
                         (or width 0.25)
                         (or height 1.25))))
@@ -1805,13 +2009,7 @@ apart in languages that only use whitespace to separate list elements."
 (defun my/vim-state ()
   (if (mode-line-window-selected-p)
       (let ((mode-text (concat " " (upcase (symbol-name evil-state)) " ")))
-        `((:propertize ,mode-text
-           face
-           (:inherit (,(my/vim-color) default-fg)
-            :weight normal
-            :family "Iosevka")
-           display (raise 0.05)
-           )
+        `((:propertize ,mode-text face ,(my/vim-color) display (raise 0.05))
           ,(my/left-gradient)
           " "
           ))))
@@ -1894,10 +2092,7 @@ apart in languages that only use whitespace to separate list elements."
 
 (defun my/propertize-position (pos)
   `(,(my/right-gradient)
-    (:propertize ,pos
-     face (:inherit (,(my/vim-color) default-fg) :family "Iosevka" :weight normal)
-     display (raise 0.05)
-     )))
+    (:propertize ,pos face ,(my/vim-color) display (raise 0.05))))
 
 (defun my/modeline-position-default ()
   (my/propertize-position '( " %3l : %2C  ")))
