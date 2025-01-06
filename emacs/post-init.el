@@ -49,6 +49,11 @@ multiple times."
 ;;;; Theme and font
 ;;;; ======================================================================
 
+(defconst my/default-font-family "Iosevka")
+(defconst my/variable-font-family "Noto Sans")
+(defconst my/fixed-font-family "Iosevka Slab")
+(defconst my/mode-line-font-family "Roboto")
+
 (defconst my/term-color-alist
   '(("black" . "black") ("red" . "red4")
     ("green" . "green4") ("yellow" . "yellow4")
@@ -228,11 +233,11 @@ be evaluated twice, once for light and once for dark."
 (use-package doom-themes :ensure t :demand t)
 
 (defvar my/light-theme-name 'doom-tomorrow-day)
-(defvar my/dark-theme-name 'doom-solarized-dark-high-contrast)
+(defvar my/dark-theme-name 'doom-spacegrey)
 
 ;; TODO: Do all themes follow this naming scheme? Make the symbol from the name if so
 (require-theme 'doom-tomorrow-day-theme)
-(require-theme 'doom-solarized-dark-high-contrast-theme)
+(require-theme 'doom-spacegrey-theme)
 
 ;; Each of these will be populated on theme load
 (defvar my/light-theme-faces '())
@@ -249,7 +254,7 @@ be evaluated twice, once for light and once for dark."
                         (state-emacs . ansi-color-magenta)
                         (state-other . ansi-color-bright-black)))
   (my/face (car state-colors) :inherit `(default-fg ,(cdr state-colors))
-           :foreground 'reset :family "Iosevka" :weight 'normal))
+           :foreground 'reset :family my/default-font-family :weight 'normal))
 
 (defun my/get-fg-light (face &optional default)
   (or (plist-get (cdr (assoc face my/light-theme-faces)) :foreground)
@@ -302,11 +307,15 @@ be evaluated twice, once for light and once for dark."
             my/light-bg-tint-color
             my/light-bg-tint-amount))
 (defun my/tweak-dark-default-fg (fg bg)
-  (my/blend (my/blend fg (my/with-luminance fg 0.75) 0.75)
+  (my/blend (my/with-saturation (my/blend fg (my/with-luminance fg 0.75) 0.75)
+                                0.2
+                                #'min)
             my/dark-fg-tint-color
             my/dark-fg-tint-amount))
 (defun my/tweak-dark-default-bg (fg bg)
-  (my/blend (my/blend bg (my/with-saturation (my/with-luminance bg 0.2) 0.1 #'min) 0.66)
+  (my/blend (my/blend bg
+                      (my/with-saturation (my/with-luminance bg 0.15) 0.2 #'max)
+                      0.66)
             my/dark-bg-tint-color
             my/dark-bg-tint-amount))
 
@@ -326,13 +335,16 @@ be evaluated twice, once for light and once for dark."
     (my/blend col (my/with-luminance col 0.3 #'min) 0.5)))
 (defun my/tweak-light-bg (fg bg) bg)
 (defun my/tweak-dark-fg (fg bg)
-  (let* ((target-sat (my/target-saturation fg))
-         (col (my/with-saturation fg target-sat #'max)))
-    (my/blend col (my/with-luminance col 0.6) 0.5)))
+  (my/with-saturation (my/lighten (my/saturate fg (my/target-saturation fg)) 0.1)
+                      0.4
+                      #'min))
 (defun my/tweak-dark-bg (fg bg)
-  (my/lighten
-   (my/saturate (my/blend bg (my/with-luminance bg 0.2) 0.5) 0.1)
-   0.05))
+  (my/saturate bg 0.25)
+  ;;(my/darken (my/saturate (my/lighten bg 0.25) 0.25) 0.5)
+  ;; (my/lighten
+  ;;  (my/saturate (my/blend bg (my/with-luminance bg 0.2) 0.5) 0.1)
+  ;;  0.05)
+  )
 
 (defun my/tweak-light-bg-tinted (fg bg)
   (my/blend (my/tweak-light-bg fg bg)
@@ -405,26 +417,28 @@ be evaluated twice, once for light and once for dark."
   (my/extract-theme-faces)
   (my/tweak-theme-faces)
   (my/face 'default
-    :default '(:family "Iosevka" :height 140)
+    :default `(:family ,my/default-font-family :height 140)
     :light `(:fg ,my/light-fg :bg ,my/light-bg)
     :dark `(:fg ,my/dark-fg :bg ,my/dark-bg))
-  (my/face 'variable-pitch :family "Noto Sans" :height 140)
+  (my/face 'variable-pitch :family my/variable-font-family :height 140)
   (my/face 'variable-pitch-text :inherit 'variable-pitch)
-  (my/face 'fixed-pitch :family "Iosevka Slab" :height 140)
-  (my/face 'fixed-pitch-serif :family "Iosevka Slab" :height 140)
+  (my/face 'fixed-pitch :family my/fixed-font-family :height 140)
+  (my/face 'fixed-pitch-serif :family my/fixed-font-family :height 140)
   (let ((bg (face-attribute 'default :background))
         (fg (face-attribute 'default :foreground)))
     (set-face-attribute 'mode-line nil
-                        :family "Roboto" :height 140 :weight 'light
+                        :family my/mode-line-font-family
+                        :height 140 :weight 'light
                         :box `(:line-width (1 . 1)
                                :color ,(my/blend (my/saturate bg 0.5)
                                                  (my/saturate fg 0.5)
                                                  0.5)))
 
     (set-face-attribute 'mode-line-inactive nil
-                        :family "Roboto" :height 140 :weight 'light
+                        :family my/mode-line-font-family
+                        :height 140 :weight 'light
                         :box `(:line-width (1 . 1)
-                               :color ,(my/darken (my/blend bg fg 0.1) 0.2))))
+                               :color ,(my/saturate (my/darken bg 0.2) 0.5))))
 
   (my/face* 'fringe :bg bg)  ;; Never let themes set different fringe colors
   (my/face* 'vertical-border :fg (my/blend bg fg 0.2))
@@ -433,13 +447,13 @@ be evaluated twice, once for light and once for dark."
   ;; relatively unobtrusive.
   (my/face 'trailing-whitespace :fg "#844" :stipple '(8 2 "\xAA\x55"))
   (my/face* 'font-lock-punctuation-face :fg fg :weight 'light)
-  (set-face-attribute 'font-lock-builtin-face nil :family "Iosevka Slab")
-  (set-face-attribute 'font-lock-keyword-face nil :family "Iosevka Slab")
+  (set-face-attribute 'font-lock-builtin-face nil :family my/fixed-font-family)
+  (set-face-attribute 'font-lock-keyword-face nil :family my/fixed-font-family)
   (set-face-attribute 'font-lock-comment-face nil :weight 'light :slant 'unspecified)
   (set-face-attribute 'font-lock-doc-face nil :weight 'light :slant 'unspecified)
   (set-face-attribute 'font-lock-regexp-grouping-backslash nil :weight 'semibold)
   (set-face-attribute 'font-lock-regexp-grouping-construct nil :weight 'bold)
-  (set-face-attribute 'font-lock-constant-face nil :family "Iosevka Slab")
+  (set-face-attribute 'font-lock-constant-face nil :family my/fixed-font-family)
   (set-face-attribute 'font-lock-escape-face nil
                       :foreground 'unspecified
                       :inherit '(font-lock-constant-face))
@@ -508,8 +522,12 @@ be evaluated twice, once for light and once for dark."
   ;; blends them towards the theme's background color.
   (defun my/face-blended-bg (name source light-default dark-default)
     (my/face name
-      :light `(:bg ,(my/blend (my/get-bg-light source light-default) my/light-bg 0.5))
-      :dark `(:bg ,(my/blend (my/get-bg-dark source dark-default) my/dark-bg 0.5))))
+      :light `(:bg ,(my/blend (my/saturate (my/get-bg-light source light-default) 0.25)
+                              my/light-bg
+                              0.5))
+      :dark `(:bg ,(my/blend (my/saturate (my/get-bg-dark source dark-default) 0.25)
+                             my/dark-bg
+                             0.5))))
 
   (my/face-blended-bg 'blue-blended-bg    'ansi-color-blue    "#4271AE" "#81A2BE")
   (my/face-blended-bg 'magenta-blended-bg 'ansi-color-magenta "#8959A8" "#B294BB")
@@ -1396,11 +1414,7 @@ apart in languages that only use whitespace to separate list elements."
 
 (use-package lua-mode :ensure t :mode "\\.lua\\'")
 (use-package vimrc-mode :ensure t :mode "[._]?g?vim\\(rc\\)?")
-
-(use-package fennel-mode :ensure t
-  :mode "\\.fnl\\'"
-  :config
-  (add-hook 'fennel-mode-hook 'my/lisp-word-syntax))
+(use-package fennel-mode :ensure t :mode "\\.fnl\\'")
 
 (use-package slime :ensure t
   :config (setq inferior-lisp-program "sbcl"))
@@ -1587,12 +1601,18 @@ apart in languages that only use whitespace to separate list elements."
 
   )
 
+;;(use-package ggtags :ensure t)
+
 ;; Note: install fd for faster file operations (package is named "fd-find" in apt/dnf)
 (use-package projectile :ensure t :demand t
-  :custom (consult-project-function 'projectile-project-root)
+  :custom
+  (consult-project-function 'projectile-project-root)
+  (projectile-tags-file-name ".tags")
   :config (projectile-mode)
   :general
   ('projectile-mode-map "C-c p" 'projectile-command-map))
+
+;;(use-package gtags-mode :ensure t :config (gtags-mode))
 
 ;; WIP: Try this out, figure out buffer switching
 (use-package consult-projectile :ensure t)
@@ -1978,12 +1998,12 @@ apart in languages that only use whitespace to separate list elements."
     display (space :width ,width :height ,height)))
 
 (defun my/color-spacer (color width height)
-  (my/spacer `(:background ,color :family "Iosevka") width height))
+  (my/spacer `(:background ,color :family ,my/default-font-family) width height))
 
 (defun my/inactive-left ()
   (if (mode-line-window-selected-p)
       ""
-    `(,(my/spacer '((:family "Iosevka") popup-border) 0.5 1.25) " ")))
+    `(,(my/spacer `((:family ,my/default-font-family) popup-border) 0.5 1.25) " ")))
 
 ;; TODO: Memoize colors if it causes slowdown
 (defun my/gradient-spacer (from-col to-col width height)
@@ -2067,7 +2087,7 @@ apart in languages that only use whitespace to separate list elements."
                 (string= "-" (projectile-project-name)))
       `(" "
         (:propertize (:eval (concat (projectile-project-name) " "))
-         face (:family "Noto Sans"
+         face (:family ,my/variable-font-family
                :weight normal
                :height 0.8 :inherit faded)
          mouse-face highlight
