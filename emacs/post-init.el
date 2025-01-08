@@ -49,10 +49,37 @@ multiple times."
 ;;;; Theme and font
 ;;;; ======================================================================
 
-(defconst my/default-font-family "Iosevka")
-(defconst my/variable-font-family "Noto Sans")
-(defconst my/fixed-font-family "Iosevka Slab")
-(defconst my/mode-line-font-family "Roboto")
+(defvar my/font-height 120)
+(defvar my/smaller-font-height 110)
+(defvar my/mode-line-font-height 140)
+(defvar my/default-font-family "Monaspace Neon")
+(defvar my/variable-font-family "Noto Sans")
+(defvar my/fixed-font-family "Monaspace Xenon")
+(defvar my/mode-line-font-family "Roboto")
+
+(defvar my/fallback-fonts
+  '("Symbols Nerd Font Mono" "Noto Sans Symbols" "Noto Sans Symbols 2"
+    "Symbola"))
+
+;; I don't know if this is actually helping, might need to look into fontsets
+(setq face-font-family-alternatives
+      `(( ,my/default-font-family "FreeMono" "courier" "fixed"
+          ,@my/fallback-fonts)
+        ( ,my/fixed-font-family "FreeMono" "courier" "fixed"
+          ,@my/fallback-fonts)
+        ( ,my/variable-font-family ,my/mode-line-font-family "FreeSans" "arial"
+          ,@my/fallback-fonts)
+        ( ,my/mode-line-font-family "FreeSans" "arial"
+          ,@my/fallback-fonts)
+        ( "Monospace" ,my/default-font-family "FreeMono" "courier" "fixed"
+          ,@my/fallback-fonts)
+        ( "Monospace Serif" ,my/fixed-font-family "FreeMono" "courier" "fixed"
+          ,@my/fallback-fonts)
+        ( "courier" "FreeMono" "fixed" ,@my/fallback-fonts)
+        ( "Sans Serif" ,my/variable-font-family "Noto Sans" "Roboto" "FreeSans"
+          "arial" ,@my/fallback-fonts)
+        ( "helv" ,my/variable-font-family "Noto Sans" "Roboto" "FreeSans"
+          "arial" ,@my/fallback-fonts)))
 
 (defconst my/term-color-alist
   '(("black" . "black") ("red" . "red4")
@@ -232,11 +259,11 @@ be evaluated twice, once for light and once for dark."
 
 (use-package doom-themes :ensure t :demand t)
 
-(defvar my/light-theme-name 'doom-tomorrow-day)
+(defvar my/light-theme-name 'doom-gruvbox-light)
 (defvar my/dark-theme-name 'doom-spacegrey)
 
 ;; TODO: Do all themes follow this naming scheme? Make the symbol from the name if so
-(require-theme 'doom-tomorrow-day-theme)
+(require-theme 'doom-gruvbox-light-theme)
 (require-theme 'doom-spacegrey-theme)
 
 ;; Each of these will be populated on theme load
@@ -253,8 +280,9 @@ be evaluated twice, once for light and once for dark."
                         (state-operator . ansi-color-cyan)
                         (state-emacs . ansi-color-magenta)
                         (state-other . ansi-color-bright-black)))
-  (my/face (car state-colors) :inherit `(default-fg ,(cdr state-colors))
-           :foreground 'reset :family my/default-font-family :weight 'normal))
+  (my/face (car state-colors)
+    :inherit `(default-fg ,(cdr state-colors))
+    :foreground 'reset))
 
 (defun my/get-fg-light (face &optional default)
   (or (plist-get (cdr (assoc face my/light-theme-faces)) :foreground)
@@ -299,13 +327,17 @@ be evaluated twice, once for light and once for dark."
 ;; default face. The values passed to each function are the unmodified values
 ;; provided by the theme.
 (defun my/tweak-light-default-fg (fg bg) ; Nudge towards darker text
-  (my/blend (my/blend fg (my/with-luminance fg 0.25 #'min) 0.5)
-            my/light-fg-tint-color
-            my/light-fg-tint-amount))
-(defun my/tweak-light-default-bg (fg bg) ; Force light themes closer to white
-  (my/blend (my/lighten (my/desaturate bg 0.75) 0.5)
-            my/light-bg-tint-color
-            my/light-bg-tint-amount))
+  ;; (my/blend (my/blend fg (my/with-luminance fg 0.25 #'min) 0.5)
+  ;;           my/light-fg-tint-color
+  ;;           my/light-fg-tint-amount)
+  fg
+  )
+(defun my/tweak-light-default-bg (fg bg) ; Force light themes to (nearly) white
+  ;; (my/blend (my/lighten (my/desaturate bg 0.75) 0.75)
+  ;;           my/light-bg-tint-color
+  ;;           my/light-bg-tint-amount)
+  "#FFF"
+  )
 (defun my/tweak-dark-default-fg (fg bg)
   (my/blend (my/with-saturation (my/blend fg (my/with-luminance fg 0.75) 0.75)
                                 0.2
@@ -330,9 +362,10 @@ be evaluated twice, once for light and once for dark."
 ;; `my/[light|dark]-[fg|bg]' have their final values, so those can be used to
 ;; refer to the colors of the default face.
 (defun my/tweak-light-fg (fg bg)
-  (let* ((target-sat (my/target-saturation fg))
-         (col (my/with-saturation fg target-sat #'max)))
-    (my/blend col (my/with-luminance col 0.3 #'min) 0.5)))
+  ;; (let* ((target-sat (my/target-saturation fg))
+  ;;        (col (my/with-saturation fg target-sat #'max)))
+  ;;   (my/blend col (my/with-luminance col 0.3 #'min) 0.5))
+  fg)
 (defun my/tweak-light-bg (fg bg) bg)
 (defun my/tweak-dark-fg (fg bg)
   (my/with-saturation (my/lighten (my/saturate fg (my/target-saturation fg)) 0.1)
@@ -416,19 +449,28 @@ be evaluated twice, once for light and once for dark."
 (defun my/setup-faces ()
   (my/extract-theme-faces)
   (my/tweak-theme-faces)
-  (my/face 'default
-    :default `(:family ,my/default-font-family :height 140)
-    :light `(:fg ,my/light-fg :bg ,my/light-bg)
-    :dark `(:fg ,my/dark-fg :bg ,my/dark-bg))
-  (my/face 'variable-pitch :family my/variable-font-family :height 140)
+  ;; For some reason, the default face specifically gives issues using my/face
+  (face-spec-set
+   'default
+   `((default :family ,my/default-font-family :height ,my/font-height)
+     (((background light)) :foreground ,my/light-fg :background ,my/light-bg)
+     (((background dark)) :foreground ,my/dark-fg :background ,my/dark-bg)))
+  (face-spec-set
+   'default
+   `((default :family ,my/default-font-family :height ,my/font-height)
+     (((background light)) :foreground ,my/light-fg :background ,my/light-bg)
+     (((background dark)) :foreground ,my/dark-fg :background ,my/dark-bg))
+   'face-defface-spec
+   )
+  (my/face 'variable-pitch :family my/variable-font-family :height my/font-height)
   (my/face 'variable-pitch-text :inherit 'variable-pitch)
-  (my/face 'fixed-pitch :family my/fixed-font-family :height 140)
-  (my/face 'fixed-pitch-serif :family my/fixed-font-family :height 140)
+  (my/face 'fixed-pitch :family my/fixed-font-family :height my/font-height)
+  (my/face 'fixed-pitch-serif :family my/fixed-font-family :height my/font-height)
   (let ((bg (face-attribute 'default :background))
         (fg (face-attribute 'default :foreground)))
     (set-face-attribute 'mode-line nil
                         :family my/mode-line-font-family
-                        :height 140 :weight 'light
+                        :height my/mode-line-font-height :weight 'light
                         :box `(:line-width (1 . 1)
                                :color ,(my/blend (my/saturate bg 0.5)
                                                  (my/saturate fg 0.5)
@@ -436,7 +478,7 @@ be evaluated twice, once for light and once for dark."
 
     (set-face-attribute 'mode-line-inactive nil
                         :family my/mode-line-font-family
-                        :height 140 :weight 'light
+                        :height my/mode-line-font-height :weight 'light
                         :box `(:line-width (1 . 1)
                                :color ,(my/saturate (my/darken bg 0.2) 0.5))))
 
@@ -447,8 +489,8 @@ be evaluated twice, once for light and once for dark."
   ;; relatively unobtrusive.
   (my/face 'trailing-whitespace :fg "#844" :stipple '(8 2 "\xAA\x55"))
   (my/face* 'font-lock-punctuation-face :fg fg :weight 'light)
-  (set-face-attribute 'font-lock-builtin-face nil :family my/fixed-font-family)
-  (set-face-attribute 'font-lock-keyword-face nil :family my/fixed-font-family)
+  (set-face-attribute 'font-lock-builtin-face nil :family my/fixed-font-family :weight 'medium)
+  (set-face-attribute 'font-lock-keyword-face nil :family my/fixed-font-family :weight 'medium)
   (set-face-attribute 'font-lock-comment-face nil :weight 'light :slant 'unspecified)
   (set-face-attribute 'font-lock-doc-face nil :weight 'light :slant 'unspecified)
   (set-face-attribute 'font-lock-regexp-grouping-backslash nil :weight 'semibold)
@@ -536,12 +578,18 @@ be evaluated twice, once for light and once for dark."
   (my/face-blended-bg 'red-blended-bg     'ansi-color-red     "#C82829" "#CC6666")
   (my/face-blended-bg 'cyan-blended-bg    'ansi-color-cyan    "#3E999F" "#8ABEB7")
 
-  (set-face-attribute 'state-normal nil :inherit 'blue-blended-bg)
-  (set-face-attribute 'state-insert nil :inherit 'green-blended-bg)
-  (set-face-attribute 'state-visual nil :inherit 'yellow-blended-bg)
-  (set-face-attribute 'state-replace nil :inherit 'red-blended-bg)
-  (set-face-attribute 'state-operator nil :inherit 'cyan-blended-bg)
-  (set-face-attribute 'state-emacs nil :inherit 'magenta-blended-bg)
+  (set-face-attribute 'state-normal nil
+                      :inherit '(medium-weight blue-blended-bg fixed-pitch-serif))
+  (set-face-attribute 'state-insert nil
+                      :inherit '(medium-weight green-blended-bg fixed-pitch-serif))
+  (set-face-attribute 'state-visual nil
+                      :inherit '(medium-weight yellow-blended-bg fixed-pitch-serif))
+  (set-face-attribute 'state-replace nil
+                      :inherit '(medium-weight red-blended-bg fixed-pitch-serif))
+  (set-face-attribute 'state-operator nil
+                      :inherit '(medium-weight cyan-blended-bg fixed-pitch-serif))
+  (set-face-attribute 'state-emacs nil
+                      :inherit '(medium-weight magenta-blended-bg fixed-pitch-serif))
 
   (my/face 'link-visited :fg 'unspecified :inherit '(magenta-fg link))
   (my/face* 'string-underline
@@ -631,7 +679,7 @@ the theme wasn't set with `light-theme' or `dark-theme'."
 ;; When running as a daemon, we need to wait for a frame to exist before
 ;; trying to set up fonts / etc.
 (if (not (daemonp))
-    (dark-theme)
+    (add-hook 'after-init-hook 'dark-theme)
   (defun my/set-theme-for-new-frame ()
     (cond ((eq nil custom-enabled-themes) (dark-theme))
           ((eq (car custom-enabled-themes) my/dark-theme-name) (dark-theme))
@@ -875,11 +923,11 @@ line so that it still acts as a grabbable window divider."
 (defun my/smaller-fonts (&rest _)
   "Add this as a hook to have smaller fonts in a buffer"
   (setq-local line-spacing nil)
-  (face-remap-add-relative 'default '(:height 120 :weight normal))
-  (face-remap-add-relative 'variable-pitch '(:height 110))
-  (face-remap-add-relative 'fixed-pitch '(:height 120))
-  (face-remap-add-relative 'fixed-pitch-serif '(:height 120))
-  (face-remap-add-relative 'header-line '(:height 120))
+  (face-remap-add-relative 'default `(:height ,my/smaller-font-height :weight normal))
+  (face-remap-add-relative 'variable-pitch `(:height ,my/smaller-font-height))
+  (face-remap-add-relative 'fixed-pitch `(:height ,my/smaller-font-height))
+  (face-remap-add-relative 'fixed-pitch-serif `(:height ,my/smaller-font-height))
+  (face-remap-add-relative 'header-line `(:height my/smaller-font-height))
   (face-remap-add-relative 'form-feed-st-line
                            '(:inherit form-feed-line-small)))
 
@@ -1427,10 +1475,31 @@ apart in languages that only use whitespace to separate list elements."
 
 (use-package org-superstar :ensure t
   :hook (org-mode . org-superstar-mode)
-  :custom (org-superstar-special-todo-items t))
+  :custom
+  (org-superstar-special-todo-items nil)
+  ;; Keeping bullet options here for quick reference:
+  ;; Diamonds: ◆⬗⬥⬩🞘🞗
+  ;; Triangles: ▶▷⯈▸▹🞂►▻ 🢒‣
+  ;; Triangle Arrows: ⮞➤➢➣
+  ;; Squares: ▧▨■◼🞍⬝
+  ;; Boxes: 🯦🯧▮▯▬▭𜸞
+  ;; Lines: ╶ ╺ ╼ ╾
+  ;; Circles: ⬤●⚫
+  ;; Three-point stars: 🟂🟁🟃🟀
+  ;; Four-point stars: 🟆✧🟇⯌⯎🟅🟄
+  ;; Brackets: ⟫ 🭬🯛🮥 ⟩ 🯟❱❯❭
+  ;; Arrows: ➜ ⟶ ⟹ ➡ ⮕ ➞ ➝ 🠞🠚🠖 🠊🠆🠂 🡒 🡆🠺 🢂🡺🡲🡪 🢥 🢧
+  ;; Others: ⁍ ⁌ ❫ ❩ ⏩ ⧽ › » 𜱺 𜲂 🠶
+  (org-superstar-item-bullet-alist '((42 . "⸰") (43 . "‣") (45 . "━"))) ; *+-
+  (org-superstar-headline-bullets-list '("◆" "⬗" "⬥" "⬩")))
 
 (use-package org-variable-pitch :ensure t
-  :hook (org-mode . org-variable-pitch-setup))
+  :config
+  (general-add-hook '(after-init-hook server-after-make-frame-hook)
+                    'org-variable-pitch-setup))
+
+(use-package org-autolist :ensure t
+  :hook (org-mode . org-autolist-mode))
 
 ;; NOTE: Remember you can "fix" pairs with replace without toggling strict mode
 (use-package smartparens :ensure t
@@ -1627,7 +1696,7 @@ apart in languages that only use whitespace to separate list elements."
     (which-key-posframe-border ((((background light)) :background "#EEE")
                                 (((background dark)) :background "#777")))
     :custom
-    (which-key-posframe-font "Iosevka Term Slab 12")
+    (which-key-posframe-font (concat my/fixed-font-family " 12"))
     (which-key-posframe-border-width 1)
     (which-key-posframe-parameters '((left-fringe . 0)
                                      (right-fringe . 0)))
@@ -1796,7 +1865,6 @@ apart in languages that only use whitespace to separate list elements."
   :custom (eglot-ignored-server-capabilities '(:inlayHintProvider)))
 
 (use-package org :ensure nil
-  :hook (org-mode . auto-fill-mode)
   :commands org-capture
   :bind (("C-c C-o c" . org-capture))
   :custom
@@ -1808,13 +1876,21 @@ apart in languages that only use whitespace to separate list elements."
   (org-ellipsis " ⤵")
   (org-cycle-separator-lines -1)
   (org-blank-before-new-entry '((heading . auto) (plain-list-item . nil)))
+  (org-archive-default-command 'org-archive-to-archive-sibling)
+  (org-archive-location "::* Archive")
   :custom-face
   (org-block-begin-line ((((background light)) :background "#F5F5F5")
                          (((background dark)) :background "#363E4C")))
   :config
+  (add-to-list 'org-modules 'org-mouse)
   (unless (file-exists-p org-directory) (make-directory org-directory t))
   (setq org-default-notes-file
         (concat (file-name-as-directory org-directory) "notes"))
+  (defun my/org-update () (org-update-checkbox-count t))
+  (defun my/org-mode-local-hooks ()
+    (general-add-hook 'after-save-hook '( my/org-update) nil :local))
+  (general-add-hook 'org-mode-hook '( auto-fill-mode
+                                      my/org-mode-local-hooks))
   :general-config
   ('(normal insert) 'org-mode-map
    "<backtab>" 'org-shifttab)
