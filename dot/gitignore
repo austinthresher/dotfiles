@@ -1,6 +1,9 @@
 # Swap files
 .*.*sw?
-.*.*~
+*.sw?
+.*~
+*~
+\#*#
 
 # Python related files
 __pycache__/
@@ -15,6 +18,7 @@ venv/
 .idea
 tags
 .tags
+.projectile
 
 # Build files (these shouldn't end up in your source anyways!)
 *.o
