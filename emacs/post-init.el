@@ -43,6 +43,43 @@ multiple times."
 (use-package dash :ensure t :demand t)
 (require 'cl-lib)
 
+
+;;;; Theme
+;;;; ======================================================================
+
+(use-package modus-themes :ensure t :demand t
+  :custom
+  (modus-themes-mixed-fonts t)
+  (modus-themes-slanted-constructs t)
+  (modus-themes-bold-constructs t)
+  (modus-themes-variable-pitch-ui t)
+  (modus-themes-to-rotate '(modus-operandi modus-vivendi-tinted))
+  (modus-themes-completions)
+  :config
+  (let ((customizations '((fringe unspecified)
+                          (cursor blue-cooler)
+                          (bg-tab-current bg-main)
+                          (bg-tab-other bg-active)
+                          (bg-tab-bar bg-inactive)))
+        (overrides (copy-sequence modus-themes-preset-overrides-intense)))
+    (dolist (cus customizations)
+      (setf (alist-get (car cus) overrides) (cdr cus)))
+    (setopt modus-themes-common-palette-overrides overrides))
+  (setopt modus-operandi-palette-overrides
+          '((fg-completion-match-0 blue-intense)
+            (fg-completion-match-1 magenta-intense)
+            (fg-completion-match-2 green-intense)
+            (fg-completion-match-3 yellow-intense)))
+  (setopt modus-vivendi-tinted-palette-overrides
+          '((bg-main "#242838")))
+  (load-theme 'modus-vivendi-tinted t))
+
+
+;;;; Font and Faces
+;;;; ======================================================================
+
+;; TODO: Look at fontaine and spacious-padding
+
 (defvar my/font-height 135)
 (defvar my/smaller-font-height 120)
 (defvar my/mode-line-font-height 140)
@@ -51,29 +88,6 @@ multiple times."
 (defvar my/fixed-font-family "Iosevka Slab")
 (defvar my/mode-line-font-family "Roboto")
 
-(use-package modus-themes :ensure t :demand t)
-
-(setopt modus-themes-mixed-fonts t
-        modus-themes-slanted-constructs t
-        modus-themes-bold-constructs t
-        modus-themes-variable-pitch-ui t)
-(load-theme 'modus-vivendi-tinted t)
-(setopt modus-themes-to-rotate '(modus-operandi modus-vivendi-tinted))
-(let ((overrides `(,@modus-themes-preset-overrides-intense)))
-  (setf (alist-get 'fringe overrides) '(bg-main))
-  (setopt modus-themes-common-palette-overrides overrides))
-
-(dolist (state-colors '((state-normal . modus-themes-intense-cyan)
-                        (state-insert . modus-themes-intense-green)
-                        (state-visual . modus-themes-intense-yellow)
-                        (state-replace . modus-themes-intense-red)
-                        (state-operator . modus-themes-intense-blue)
-                        (state-emacs . modus-themes-intense-magenta)
-                        (state-other . modus-themes-prominent-error)))
-  (custom-declare-face (car state-colors) `((t :inherit ,(cdr state-colors)
-                                               :foreground reset
-                                               :family ,my/fixed-font-family))
-                       ""))
 (set-face-attribute 'default nil
                     :family my/default-font-family
                     :height my/font-height)
@@ -83,7 +97,33 @@ multiple times."
 (set-face-attribute 'variable-pitch-text nil :family my/variable-font-family)
 (set-face-attribute 'mode-line nil :family my/mode-line-font-family)
 
-;; TODO: Look at fontaine and spacious-padding
+;; Custom faces for evil-state in the mode line
+(dolist (state-colors '((state-normal . modus-themes-intense-cyan)
+                        (state-insert . modus-themes-intense-green)
+                        (state-visual . modus-themes-intense-yellow)
+                        (state-replace . modus-themes-intense-red)
+                        (state-operator . modus-themes-intense-blue)
+                        (state-emacs . modus-themes-intense-magenta)
+                        (state-other . modus-themes-prominent-error)))
+  (face-spec-set (car state-colors)
+                 `((t :inherit ,(cdr state-colors)
+                      :foreground reset
+                      :family ,my/fixed-font-family))))
+
+;; Faces that are defined here instead of in :custom-face blocks are ones that
+;; would otherwise not follow theme changes correctly (they'd keep dark colors
+;; when switching to the light theme and vice versa). Instead, other faces can
+;; inherit from these and then only the source faces need to be updated when
+;; changing themes.
+
+(defun my/update-faces-for-theme (&rest _)
+  (modus-themes-with-colors
+    ;; Leaving this here because I'm expecting to need it for tab-bar / tab-line
+    ; (custom-set-faces)
+    ))
+(my/update-faces-for-theme)
+(add-hook 'enable-theme-functions 'my/update-faces-for-theme)
+
 
 
 ;;;; General settings
@@ -125,10 +165,124 @@ multiple times."
 (setq-default tab-width 8)
 
 (remove-hook 'after-init-hook 'window-divider-mode)
-;; (set-face-attribute 'window-divider-first-pixel nil :foreground "#FFFFFF")
-;; (set-face-attribute 'window-divider-last-pixel nil :foreground "#FFFFFF")
-;; (setopt window-divider-default-right-width 3)
 
+
+;;;; Cursor customization
+;;;; ======================================================================
+
+(setq blink-cursor-blinks 0)
+(setq blink-cursor-delay 0.1)
+(setq blink-cursor-interval 0.1)
+(setq-default cursor-type 'box)
+(setq blink-cursor-alist '((box . box) (hollow . hollow) (bar . bar)
+                           (t . box) (nil . box)
+                           ((box . 1) . box)
+                           ((hbar . 2) . (hbar . 2))
+                           ((hbar . 4) . (hbar . 4))
+                           ((hbar . 6) . (hbar . 6))
+                           ((hbar . 16) . (hbar . 16))
+                           ((bar . 1) . (bar . 1))
+                           ((bar . 2) . (bar . 2))
+                           ((bar . 4) . (bar . 4))))
+(setq cursor-in-non-selected-windows nil)
+
+(defvar my/cursor-colors-normal '("#888"))
+(defvar my/cursor-colors-emacs '("#F0F"))
+(defvar my/cached-cursor-theme nil)
+
+(defun my/update-cursor-colors ()
+  (require 'color)
+  (let ((bg (color-name-to-rgb (modus-themes-get-color-value 'bg-dim t)))
+        (cursor (color-name-to-rgb (modus-themes-get-color-value 'cursor t)))
+        (emacs-cursor '(1.0 0.0 1.0))
+        (steps '(1.0 1.0 0.75 0.5 0.25 0.0 0.25 0.5 0.75)))
+    (setq my/cursor-colors-normal
+          (--map (apply #'color-rgb-to-hex
+                        `(,@(color-blend cursor bg it) 2))
+                 steps))
+    (setq my/cursor-colors-emacs
+          (--map (apply #'color-rgb-to-hex
+                        `(,@(color-blend emacs-cursor bg it) 2))
+                 steps))))
+
+(defun my/get-cursor-colors ()
+  (when (not (eq (car custom-enabled-themes) my/cached-cursor-theme))
+    (my/update-cursor-colors)
+    (setq my/cached-cursor-theme (car custom-enabled-themes)))
+  (if (and (boundp 'evil-state) (eq evil-state 'emacs))
+      my/cursor-colors-emacs
+    my/cursor-colors-normal))
+
+(defvar my/cursor-color-idx 0)
+(defun my/get-cursor-color () (nth my/cursor-color-idx (my/get-cursor-colors)))
+
+(defvar my/underline-ov nil)
+
+(defun my/update-underline-color ()
+  (when (overlayp my/underline-ov)
+    (overlay-put my/underline-ov 'face
+                 `(:underline (:color ,(my/get-cursor-color) :position 0)))
+    (overlay-put my/underline-ov 'window (selected-window))))
+
+(defun my/cursor-over-image? ()
+  (let ((prop (get-text-property (point) 'display)))
+    (eq 'image (car-safe prop))))
+
+(defun my/cursor-should-underline? ()
+  (and (not (my/cursor-over-image?))
+       blink-cursor-mode))
+
+(defun my/update-cursor-overlay (&rest _)
+  ;; Diminished cursor, usually reading a document or something
+  (unless blink-cursor-mode
+    (set-face-attribute 'cursor nil
+                        :background (nth 3 (my/get-cursor-colors))))
+  (or (ignore-errors
+        (if (or (not (eq evil-state 'normal))
+                (not (my/cursor-should-underline?)))
+            (when (overlayp my/underline-ov) (delete-overlay my/underline-ov))
+          (unless (overlayp my/underline-ov)
+            (setq my/underline-ov (make-overlay (point) (point))))
+          (let ((start (point)))
+            (save-excursion
+              (forward-char)
+              (move-overlay my/underline-ov start (point) (current-buffer))
+              (my/update-underline-color))))
+        t)
+      ;; If we had any errors, just delete the overlay ;entirely to try again
+      ;; next time.
+      (progn (when (overlayp my/underline-ov) (delete-overlay my/underline-ov))
+             (setq my/underline-ov nil))))
+
+(add-hook 'post-command-hook 'my/update-cursor-overlay)
+
+(defun my/cursor-color-reset (&rest _)
+  (setq my/cursor-color-idx 0)
+  (setq blink-cursor-blinks 0)
+  (set-face-attribute 'cursor nil :background (my/get-cursor-color))
+  (my/update-underline-color))
+
+(defun my/cursor-start-blink (&rest _)
+  ;; The animation looks really weird when the cursor is on an image
+  (if (my/cursor-over-image?)
+       (progn (when (overlayp my/underline-ov)
+                (delete-overlay my/underline-ov))
+              (setq blink-cursor-blinks 1)
+              (when blink-cursor-timer (cancel-timer blink-cursor-timer))
+              (setq blink-cursor-timer nil)
+              (blink-cursor-end))
+     (my/cursor-color-reset)))
+
+(defun my/cursor-color-advance (&rest _)
+  (setq my/cursor-color-idx (% (1+ my/cursor-color-idx)
+                               (length (my/get-cursor-colors))))
+  (set-face-attribute 'cursor nil :background (my/get-cursor-color))
+  (my/update-underline-color))
+
+(advice-add 'blink-cursor-start :after 'my/cursor-start-blink)
+(advice-add 'blink-cursor-end :before 'my/cursor-color-reset)
+(advice-add 'blink-cursor-timer-function :before 'my/cursor-color-advance)
+(blink-cursor-mode t)
 
 ;;;; Less noisy minibuffer
 ;;;; ======================================================================
@@ -235,9 +389,7 @@ folding elements, etc.)"
   (face-remap-add-relative 'variable-pitch `(:height ,my/smaller-font-height))
   (face-remap-add-relative 'fixed-pitch `(:height ,my/smaller-font-height))
   (face-remap-add-relative 'fixed-pitch-serif `(:height ,my/smaller-font-height))
-  (face-remap-add-relative 'header-line `(:height my/smaller-font-height))
-  (face-remap-add-relative 'form-feed-st-line
-                           '(:inherit form-feed-line-small)))
+  (face-remap-add-relative 'header-line `(:height ,my/smaller-font-height)))
 
 (defun my/font-weight (&rest _)
   "Add this as a hook to buffers that should have slightly heavier default
@@ -315,9 +467,11 @@ apart in languages that only use whitespace to separate list elements."
   (evil-want-C-w-delete nil)
   (evil-cross-lines t)
   (evil-want-abbrev-expand-on-insert-exit nil)
-  ;; :custom-face
-  ;; (evil-ex-substitute-matches ((t (:inherit thick-strike-through))))
-  ;; (evil-ex-substitute-replacement ((t (:inherit replacement-box))))
+  :custom-face
+  (evil-ex-substitute-matches
+   ((t (:box (:line-width (3 . -3) :style pressed-button)))))
+  (evil-ex-substitute-replacement
+   ((t (:box (:line-width (3 . -3) :style released-button)))))
   :config
   (setq evil-lookup-func 'help-follow-symbol)
   (setq evil-default-cursor '((bar . 2)))
@@ -334,7 +488,8 @@ apart in languages that only use whitespace to separate list elements."
   (setq evil-insert-state-modes
         (seq-remove (lambda (x) (memq x evil-emacs-state-modes))
                     evil-insert-state-modes))
-  ;; (add-hook 'evil-normal-state-entry-hook 'my/cursor-color-reset)
+  (add-hook 'evil-normal-state-entry-hook 'my/cursor-color-reset)
+  (add-hook 'evil-emacs-state-entry-hook 'my/cursor-color-reset)
   (evil-select-search-module 'evil-search-module 'evil-search)
   ;; Evil doesn't give an option to hide the previous search term.
   ;; Always show a blank prompt when performing a search.
@@ -407,8 +562,8 @@ apart in languages that only use whitespace to separate list elements."
 
 (use-package evil-anzu :ensure t
   :custom (anzu-cons-mode-line-p nil)
-  ;; :custom-face
-  ;; (anzu-mode-line ((t (:foreground unspecified :inherit medium-weight))))
+  :custom-face
+  (anzu-mode-line ((t (:foreground unspecified :inherit bold))))
   :config
   (require 'evil-anzu) ; Somehow this is necessary
   (global-anzu-mode))
@@ -474,8 +629,6 @@ apart in languages that only use whitespace to separate list elements."
   (vertico-cycle t)
   (vertico-scroll-margin 1)
   (vertico-resize t)
-  ;; :custom-face
-  ;; (vertico-current ((t (:background unspecified :inherit selected-item))))
   :config
   (cl-defmethod vertico--display-candidates (lines)
     "Put the vertico prompt at the bottom without reversing the entire display"
@@ -944,11 +1097,7 @@ apart in languages that only use whitespace to separate list elements."
   (markdown-fontify-code-blocks-natively t)
   (markdown-hide-markup t)
   (markdown-enable-wiki-links t)
-  (markdown-list-item-bullets '("•" "‣" "‧" "╴"))
-  ;; :custom-face
-  ;; (markdown-code-face ((t (:background unspecified
-  ;;                          :inherit (normal-weight fixed-pitch)))))
-  )
+  (markdown-list-item-bullets '("•" "‣" "‧" "╴")))
 
 (use-package devdocs :ensure t
   :commands devdocs-lookup
@@ -1013,9 +1162,6 @@ apart in languages that only use whitespace to separate list elements."
 (unless (version< emacs-version "30")
   (use-package which-key-posframe :ensure t
     :commands which-key-posframe-mode
-    ;; :custom-face
-    ;; (which-key-posframe-border ((((background light)) :background "#EEE")
-    ;;                             (((background dark)) :background "#777")))
     :custom
     (which-key-posframe-font (concat my/fixed-font-family " 12"))
     (which-key-posframe-border-width 1)
@@ -1284,6 +1430,10 @@ apart in languages that only use whitespace to separate list elements."
   (tab-line-new-button-show nil)
   (tab-line-tab-face-functions nil)
   (tab-line-tab-name-function 'my/tab-line-tab-name)
+  :custom-face
+  (tab-line ((t :height 120 :weight normal)))
+  (tab-line-tab-current ((t :weight normal)))
+  (tab-line-tab ((t :inherit tab-line-tab-current)))
   ;; :custom-face
   ;; (tab-line ((t (:background unspecified :foreground unspecified
   ;;                :underline unspecified :box unspecified
@@ -1487,12 +1637,12 @@ apart in languages that only use whitespace to separate list elements."
         pointer-shape arrow
         keymap ,(make-mode-line-mouse-map 'mouse-1
                                           #'projectile-mode-menu)
-        display (raise 0.1)))))
+        display (raise 0.04)))))
 
 (defun my/modeline-buffer-name ()
   (let* ((face-extra (when (and (buffer-file-name) (buffer-modified-p))
                        '(italic)))
-         (face `(:weight ,(if (mode-line-window-selected-p) 'normal 'light)
+         (face `((:weight ,(if (mode-line-window-selected-p) 'normal 'light))
                  ,@face-extra mode-line-buffer-id))
          (text (concat "  "
                        (my/modeline-modified)
@@ -1586,8 +1736,15 @@ visiting a file."
                     ))
     ""))
 
-;; Note: If this starts getting slow, a dummy :eval at the start that caches
-;; some of the faces / strings / etc could help speed things up.
+(defun my/mode-line-height-hack ()
+  "Terrible hack to fix the annoying resizing that keeps happening. Put an
+invisible copy of the character causing the resizing so it's always present."
+  (let* ((face (if (mode-line-window-selected-p)
+                   'mode-line-active
+                 'mode-line-inactive))
+         (mode-line-color (face-attribute face :background nil 'mode-line)))
+    (propertize "∙" 'face `(:foreground ,mode-line-color))))
+
 (setopt mode-line-right-align-edge 'window)
 (setq-default mode-line-format
               `((:eval (my/inactive-left))
@@ -1596,14 +1753,7 @@ visiting a file."
                 (:eval (my/modeline-search))
                 (:eval (my/modeline-eldoc))
                 mode-line-misc-info
-                ;; Terrible hack to fix the annoying resizing that keeps
-                ;; happening. Put an invisible copy of the character causing
-                ;; the resizing so it's always present.
-                (:propertize "∙"
-                 face (:foreground ,(face-attribute (if (mode-line-window-selected-p)
-                                                        'mode-line
-                                                      'mode-line-inactive)
-                                                    :background)))
+                (:eval (my/mode-line-height-hack))
                 mode-line-format-right-align
                 (:eval (my/modeline-project))
                 (:eval (my/modeline-fly))
@@ -1615,6 +1765,7 @@ visiting a file."
 ;; mode line changes.
 (add-hook 'messages-buffer-mode-hook 'my/smaller-fonts)
 (with-current-buffer (messages-buffer)
+  (setq mode-line-format (default-value 'mode-line-format))
   ;; (my/no-mode-line)
   (my/smaller-fonts))
 
@@ -1675,9 +1826,10 @@ interaction. Tracks the compile command used on a per-project basis."
         (or command compile-command)))))
   (compile command t))
 
-(general-def "<f5>" 'compile-interactively)
-
-(keymap-global-set "C-x C-m" 'pp-macroexpand-last-sexp)
+(general-def
+  "<f12>" 'modus-themes-rotate
+  "<f5>" 'compile-interactively
+  "C-x C-m" 'pp-macroexpand-last-sexp)
 
 ;; I don't want the tutorial, license, hello, or any of the other junk that can
 ;; accidentally be fatfingered when using the otherwise useful C-h commands.
@@ -1690,21 +1842,36 @@ interaction. Tracks the compile command used on a per-project basis."
 ;; I really want escape to do what it says
 ;; Unbind anything that waits for a key after Escape
 (general-unbind "M-ESC :") ; the only default keybind prefixed by M-ESC
+(general-unbind "ESC ESC ESC")
+;; Double-tap is better than triple-tap at least. Should only matter on tty.
+(general-def "ESC ESC" 'keyboard-escape-quit)
 (general-def '(minibuffer-local-map minibuffer-local-ns-map
                minibuffer-local-completion-map minibuffer-local-must-match-map
                minibuffer-local-isearch-map)
   "<escape>" 'keyboard-escape-quit)
 
-;; I want to be able to quit any prefix sequence with escape
-(dolist (keys (list "<escape>" "C-M-g" "C-h <escape>" "C-c <escape>"
-                    "C-x <escape>" "C-c p <escape>" "C-x p <escape>"
-                    "M-s <escape>" "M-g <escape>"))
-  (general-def keys 'keyboard-escape-quit))
+(general-def 'emacs "<escape>" 'keyboard-escape-quit)
+
+(defvar-local my/entered-emacs-state-manually nil
+  "This flag is set in `evil-emacs-state-entry-hook' if `this-command' was
+`evil-emacs-state'. Theoretically this is only the case when the user manually
+swapped into emacs-state. This is checked in `my/keyboard-escape-quit-advice'
+to exit emacs-state without affecting modes that started in emacs-state by
+default.")
+(defun my/enter-emacs-state ()
+  (when (and (eq this-command 'evil-emacs-state)
+             (not (memq major-mode evil-emacs-state-modes)))
+    (setq-local my/entered-emacs-state-manually t)))
+(defun my/exit-emacs-state ()
+  (setq-local my/entered-emacs-state-manually nil))
+(add-hook 'evil-emacs-state-entry-hook 'my/enter-emacs-state)
+(add-hook 'evil-emacs-state-exit-hook 'my/exit-emacs-state)
 
 (defun my/keyboard-escape-quit-advice (fn)
   "Prevents Escape from messing with splits, and also exits emacs-state when
 pressed twice in a row."
-  (if (and (eq last-command 'keyboard-escape-quit)
+  (if (and (or my/entered-emacs-state-manually
+               (eq last-command 'keyboard-escape-quit))
            (evil-emacs-state-p))
       (evil-normal-state nil)
     (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
@@ -1778,8 +1945,8 @@ pressed twice in a row."
              (bot-right-window `(,@bot-common (slot . 1)))
              (bot-left-rx (rx bos
                               (| " " "*" " *")
-                              (| "Help" "Custom" "info" "eldoc" "Occur"
-                                 "grep" "devdocs" "Pp" "eww")))
+                              (| "Help" "Custom" "info" "eldoc" "Occur" "grep"
+                                 "Warnings" "devdocs" "Pp" "eww")))
              (bot-right-rx (rx bos
                                (| " " "*" " *")
                                (| (regex "[e]?shell") (regex "[v]?term")
