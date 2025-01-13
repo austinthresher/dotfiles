@@ -53,26 +53,33 @@ multiple times."
   (modus-themes-slanted-constructs t)
   (modus-themes-bold-constructs t)
   (modus-themes-variable-pitch-ui t)
-  (modus-themes-to-rotate '(modus-operandi modus-vivendi-tinted))
-  (modus-themes-completions)
+  (modus-themes-to-rotate '(modus-operandi modus-vivendi))
+  (modus-themes-common-palette-overrides
+   '((fringe unspecified)
+     (cursor blue-cooler)
+     ;(bg-tab-current bg-main)
+     (bg-tab-current bg-dim)
+     (bg-tab-other bg-inactive)
+     (bg-tab-bar bg-main)
+     (bg-region bg-cyan-subtle)
+     (bg-mode-line-active bg-sage)
+     ))
+  (modus-operandi-palette-overrides
+   '((accent-2 "#0AA")
+     (fg-completion-match-0 blue-intense)
+     (fg-completion-match-1 magenta-intense)
+     (fg-completion-match-2 green-intense)
+     (fg-completion-match-3 yellow-intense)
+     ))
+  ;; (modus-vivendi-palette-overrides
+  ;;  '((bg-main "#292e3b")
+  ;;    (bg-mode-line-active "#244060")
+  ;;    (border-mode-line-active "#6b8699")
+  ;;    (bg-tab-bar "#151824")
+  ;;    (bg-tab-other "#595e6b")
+  ;;    ))
   :config
-  (let ((customizations '((fringe unspecified)
-                          (cursor blue-cooler)
-                          (bg-tab-current bg-main)
-                          (bg-tab-other bg-active)
-                          (bg-tab-bar bg-inactive)))
-        (overrides (copy-sequence modus-themes-preset-overrides-intense)))
-    (dolist (cus customizations)
-      (setf (alist-get (car cus) overrides) (cdr cus)))
-    (setopt modus-themes-common-palette-overrides overrides))
-  (setopt modus-operandi-palette-overrides
-          '((fg-completion-match-0 blue-intense)
-            (fg-completion-match-1 magenta-intense)
-            (fg-completion-match-2 green-intense)
-            (fg-completion-match-3 yellow-intense)))
-  (setopt modus-vivendi-tinted-palette-overrides
-          '((bg-main "#242838")))
-  (load-theme 'modus-vivendi-tinted t))
+  (load-theme 'modus-vivendi t))
 
 
 ;;;; Font and Faces
@@ -97,6 +104,11 @@ multiple times."
 (set-face-attribute 'variable-pitch-text nil :family my/variable-font-family)
 (set-face-attribute 'mode-line nil :family my/mode-line-font-family)
 
+;; Useful for including in inherit lists
+(defface normal '((t (:weight normal))) "Normal weight")
+(defface light '((t (:weight light))) "Light weight")
+(defface medium '((t (:weight medium))) "Medium weight")
+
 ;; Custom faces for evil-state in the mode line
 (dolist (state-colors '((state-normal . modus-themes-intense-cyan)
                         (state-insert . modus-themes-intense-green)
@@ -118,11 +130,49 @@ multiple times."
 
 (defun my/update-faces-for-theme (&rest _)
   (modus-themes-with-colors
-    ;; Leaving this here because I'm expecting to need it for tab-bar / tab-line
-    ; (custom-set-faces)
-    ))
+    (custom-set-faces
+     `(tab-bar ((t (:family ,my/mode-line-font-family :overline ,bg-tab-bar))) t)
+     `(tab-line ((t (:family ,my/mode-line-font-family :overline ,bg-tab-bar))) t)
+     ;; May or may not use these. Leaving them here for now.
+     `(tabs-bar ((t (:overline ,bg-inactive :box ,border))) t)
+     `(tabs-active ((t (:overline ,accent-2))) t)
+     `(tabs-divider ((t (:background ,border :overline ,bg-tab-bar))) t)
+     `(tabs-inactive ((t (:overline ,bg-tab-bar))) t)
+     `(tabs-tab-bar-active ((t (:underline (:position 24 :color ,accent-2)
+                                :height 130)))
+                           t)
+     `(tabs-tab-bar-inactive ((t (:underline (:position 24 :color ,border)
+                                  :height 130)))
+                             t)
+     `(tabs-tab-line-active ((t (:underline (:position 18 :color ,accent-2)
+                                 :height 100)))
+                            t)
+     `(tabs-tab-line-inactive ((t (:underline (:position 18 :color ,border)
+                                   :height 100)))
+                              t)
+     `(tabs-tab-line-divider ((t (:underline (:position 18 :color ,bg-tab-bar)
+                                  :height 100)))
+                             t)
+     ;; `(header-line ((t (:box (:color ,bg-main :line-width (2 . 2))
+     ;;                    :background ,bg-hl-line
+     ;;                    :family ,my/mode-line-font-family
+     ;;                    :height 125)))
+     ;;               t)
+     )))
 (my/update-faces-for-theme)
+
 (add-hook 'enable-theme-functions 'my/update-faces-for-theme)
+
+(use-package spacious-padding :ensure t :demand t
+  :custom (spacious-padding-widths
+           '(:internal-border-width 8
+             :header-line-width 3
+             :mode-line-width 6
+             :tab-width 4
+             :right-divider-width 8
+             :scroll-bar-width 8
+             :fringe-width 8))
+  :config (spacious-padding-mode))
 
 
 
@@ -389,7 +439,7 @@ folding elements, etc.)"
   (face-remap-add-relative 'variable-pitch `(:height ,my/smaller-font-height))
   (face-remap-add-relative 'fixed-pitch `(:height ,my/smaller-font-height))
   (face-remap-add-relative 'fixed-pitch-serif `(:height ,my/smaller-font-height))
-  (face-remap-add-relative 'header-line `(:height ,my/smaller-font-height)))
+  (face-remap-add-relative 'header-line `(:height ,(- my/smaller-font-height 10))))
 
 (defun my/font-weight (&rest _)
   "Add this as a hook to buffers that should have slightly heavier default
@@ -1103,11 +1153,6 @@ apart in languages that only use whitespace to separate list elements."
   :commands devdocs-lookup
   :bind ("C-h D" . devdocs-lookup))
 
-
-(use-package consult-dash :ensure t
-  :bind ("C-h C-d" . consult-dash)
-  )
-
 (use-package treesit-auto :ensure t
   :hook
   (after-init . global-treesit-auto-mode)
@@ -1136,11 +1181,7 @@ apart in languages that only use whitespace to separate list elements."
   (setq treesit-auto-langs
         (seq-difference (mapcar #'treesit-auto-recipe-lang
                                 treesit-auto-recipe-list)
-                        broken-treesit-auto))
-
-  )
-
-;;(use-package ggtags :ensure t)
+                        broken-treesit-auto)))
 
 ;; Note: install fd for faster file operations (package is named "fd-find" in apt/dnf)
 (use-package projectile :ensure t :demand t
@@ -1150,8 +1191,6 @@ apart in languages that only use whitespace to separate list elements."
   :config (projectile-mode)
   :general
   ('projectile-mode-map "C-c p" 'projectile-command-map))
-
-;;(use-package gtags-mode :ensure t :config (gtags-mode))
 
 ;; WIP: Try this out, figure out buffer switching
 (use-package consult-projectile :ensure t)
@@ -1174,7 +1213,6 @@ apart in languages that only use whitespace to separate list elements."
 ;;   :vc (:url "https://github.com/alphapapa/bufler.el")
 ;;   :custom (bufler-columns '("Name" "Path")))
 
-
 ;;;; Built-in Packages
 ;;;; ======================================================================
 
@@ -1195,9 +1233,8 @@ apart in languages that only use whitespace to separate list elements."
             "C-r" 'winner-redo)
   :custom (winner-dont-bind-my-keys t))
 
-;; FIXME: Maybe this setting is what's breaking describe-variable
-;; (use-package pp :ensure nil
-;;   :custom (pp-default-function 'pp-emacs-lisp-code))
+(use-package pp :ensure nil
+  :custom (pp-default-function 'pp-emacs-lisp-code))
 
 (use-package custom :ensure nil
   :custom
@@ -1362,18 +1399,6 @@ apart in languages that only use whitespace to separate list elements."
            "C-j" 'my/switch-to-next-buffer
            "C-k" 'my/switch-to-prev-buffer))
 
-(use-package shr :ensure nil :defer t
-  ;; :custom-face
-  ;; (shr-code ((t (:inherit (medium-weight fixed-pitch-serif)))))
-  ;; (shr-text ((t (:inherit variable-pitch))))
-  ;; (shr-h1 ((t (:height 1.50 :inherit (no-slant bold underline shr-text)))))
-  ;; (shr-h2 ((t (:height 1.45 :inherit (no-slant bold shr-text)))))
-  ;; (shr-h3 ((t (:height 1.30 :inherit (no-slant bold shr-text)))))
-  ;; (shr-h4 ((t (:height 1.20 :inherit (no-slant medium-weight shr-text)))))
-  ;; (shr-h5 ((t (:height 1.15 :inherit (no-slant normal-weight shr-text)))))
-  ;; (shr-h6 ((t (:height 1.10 :inherit (oblique normal-weight shr-text)))))
-  )
-
 (use-package proced :ensure nil
   :custom
   (proced-auto-update-flag 'visible)
@@ -1398,62 +1423,72 @@ apart in languages that only use whitespace to separate list elements."
   (tab-bar-select-restore-windows nil)
   (tab-bar-show 1)
   (tab-bar-auto-width nil)
-  ;; :custom-face
-  ;; (tab-bar ((t (:background unspecified :foreground unspecified
-  ;;               :underline unspecified :box unspecified
-  ;;               :height 120 :inherit tabs-bar))))
-  ;; (tab-bar-tab ((t (:background unspecified :foreground unspecified
-  ;;                   :underline unspecified :box unspecified
-  ;;                   :height 130 :box unspecified :inherit tabs-active))))
-  ;; (tab-bar-tab-inactive ((t (:background unspecified :foreground unspecified
-  ;;                            :underline unspecified :box unspecified
-  ;;                            :height 130 :inherit tabs-inactive))))
+  (tab-bar-separator "")
+  :custom-face
+  (tab-bar ((t (:weight normal))))
+  (tab-bar-tab ((t (:weight medium))))
+  (tab-bar-tab-inactive ((t (:weight light :foreground "#888"))))
+  ;; (tab-bar ((t (:height 120
+  ;;               :inherit (tabs-bar modus-themes-ui-variable-pitch)))))
+  ;; (tab-bar-tab ((t (:inherit (tabs-tab-bar-active tabs-active tab-bar)))))
+  ;; (tab-bar-tab-inactive ((t (:inherit (tabs-tab-bar-inactive tabs-inactive tab-bar)))))
   :config
-  ;; This doesn't work for format-spaces because the text properties are overwritten
-  (defun my/make-pixel-spacer (px &rest props)
-    (apply #'propertize " " 'display `(space :width (,px)) props))
-  (defun my/tab-bar-tab-name-format-spaces (name tab number)
-    (concat "   " name "   "))
+  ;; (defun my/make-pixel-spacer (px &rest props)
+  ;;   (apply #'propertize " " 'display `(space :width (,px)) props))
+  ;; (defun my/tab-bar-tab-name-format-spaces (name tab number)
+  ;;   (concat (propertize " "
+  ;;                       'face '(:box nil)
+  ;;                       'display '(space :width (8)))
+  ;;           name
+  ;;           (propertize " "
+  ;;                       'face '(:box nil)
+  ;;                       'display '(space :width (8)))))
+  (defun my/tab-bar-tab-name-format-spaces
+      (name tab number) (concat (propertize " " 'display '(space :width (16)))
+                                name
+                                (propertize " " 'display '(space :width (16)))))
   (setopt tab-bar-tab-name-format-functions '(tab-bar-tab-name-format-hints
                                               tab-bar-tab-name-format-close-button
                                               my/tab-bar-tab-name-format-spaces
                                               tab-bar-tab-name-format-face))
-  (setq tab-bar-separator (my/make-pixel-spacer 1 'face '(:inherit shadow)))
+  ;; (setq tab-bar-separator (propertize " "
+  ;;                                     'face '((:underline nil) tab-bar)
+  ;;                                     'display '(space :width (4))))
   (tab-bar-mode t))
 
 (use-package tab-line :ensure nil
   :init
   (defun my/tab-line-tab-name (buf &optional _)
-    (my/tab-bar-tab-name-format-spaces (buffer-name buf) nil nil))
+    (concat "  " (buffer-name buf) "  "))
+  ;; (defun my/tab-line-format (tab tabs)
+  ;;   (let ((result (tab-line-tab-name-format-default tab tabs)))
+  ;;     (concat (propertize " "
+  ;;                         'face '(:box nil :inherit (tabs-tab-line-divider child-frame-border))
+  ;;                         'display '(space :width (1)))
+  ;;             result
+  ;;             (propertize " "
+  ;;                         'face '(:box nil :inherit (tabs-tab-line-divider child-frame-border))
+  ;;                         'display '(space :width (1))))))
   :custom
   (tab-line-close-button-show nil)
   (tab-line-new-button-show nil)
   (tab-line-tab-face-functions nil)
+  (tab-line-separator "")
   (tab-line-tab-name-function 'my/tab-line-tab-name)
+  ;; (tab-line-tab-name-format-function 'my/tab-line-format)
   :custom-face
-  (tab-line ((t :height 120 :weight normal)))
-  (tab-line-tab-current ((t :weight normal)))
-  (tab-line-tab ((t :inherit tab-line-tab-current)))
-  ;; :custom-face
-  ;; (tab-line ((t (:background unspecified :foreground unspecified
-  ;;                :underline unspecified :box unspecified
-  ;;                :inherit tabs-bar-overline :height 100))))
-  ;; (tab-line-tab ((t (:background unspecified :foreground unspecified
-  ;;                    :underline unspecified :box unspecified
-  ;;                    :inherit tabs-active :height 100))))
-  ;; (tab-line-tab-current ((t (:background unspecified :foreground unspecified
-  ;;                            :underline unspecified :box unspecified
-  ;;                            :inherit tabs-active :height 100))))
-  ;; (tab-line-tab-inactive ((t (:background unspecified :foreground unspecified
-  ;;                             :underline unspecified :box unspecified
-  ;;                             :inherit tabs-inactive :height 100))))
-  ;; (tab-line-highlight ((t (:background unspecified :foreground unspecified
-  ;;                          :underline unspecified :box unspecified
-  ;;                          :overline nil :inherit unspecified))))
-  :config
-  (setq tab-line-separator
-        (my/make-pixel-spacer
-         1 'face '(:inherit ((:height 100) shadow)))))
+  (tab-line-tab ((t (:box unspecified :inherit tab-line-tab-current))))
+  (tab-line-tab-current ((t (:weight medium))))
+  (tab-line-tab-inactive ((t (:weight light :foreground "#888"))))
+  ;; (tab-line ((t (:height 100 :box nil
+  ;;                :inherit (tabs-bar normal modus-themes-ui-variable-pitch)))))
+  ;; (tab-line-tab-current ((t (:inherit (tabs-tab-line-active tab-line)))))
+  ;; (tab-line-tab-inactive ((t (:inherit (tabs-tab-line-inactive tabs-inactive tab-line)))))
+  ;; (tab-line-highlight ((t (:inherit unspecified))))
+  ;; :config
+  ;; (setq tab-line-separator
+  ;;       (propertize " " 'face 'tab-line 'display '(space :width (1))))
+  )
 
 (use-package dabbrev :ensure nil
   :config (add-to-list* 'dabbrev-ignored-buffer-modes
@@ -1571,8 +1606,9 @@ apart in languages that only use whitespace to separate list elements."
 
 (defun my/vim-state ()
   (if (mode-line-window-selected-p)
-      (let ((mode-text (concat " " (upcase (symbol-name evil-state)) " "))
-            (col (face-attribute 'mode-line :box)))
+      (let* ((mode-text (concat " " (upcase (symbol-name evil-state)) " "))
+             (col (face-attribute 'mode-line :box))
+             (col (if (stringp col) col (plist-get col :color))))
         `(,(propertize mode-text 'face (my/vim-color))
           (:propertize " "
            face (:background ,col)
@@ -1663,7 +1699,8 @@ apart in languages that only use whitespace to separate list elements."
     text))
 
 (defun my/propertize-position (pos)
-  (let ((col (face-attribute 'mode-line :box)))
+  (let* ((col (face-attribute 'mode-line :box))
+         (col (if (stringp col) col (plist-get col :color))))
     `((:propertize " "
        face (:background ,col)
        display (space :width (1)))
@@ -1731,9 +1768,7 @@ visiting a file."
              (modified-str (if modified "∙ " "")))
         (propertize (concat (or view-str read-only-str)
                             (if (or modified (not buffer-read-only)) modified-str ""))
-                    'face `(:inherit ,(if modified 'error 'shadow))
-                    'display '(raise 0.05)
-                    ))
+                    'face `(:inherit ,(if modified 'error 'shadow))))
     ""))
 
 (defun my/mode-line-height-hack ()
@@ -1776,7 +1811,7 @@ invisible copy of the character causing the resizing so it's always present."
 (general-define-key
  "C-x k" 'kill-current-buffer
  "<mode-line> <mouse-2>" 'mouse-delete-window
- "<mode-line> <mouse-3>" 'mouse-appearance-menu) ;; TODO: Something more useful than this
+ "<mode-line> <mouse-3>" 'menu-bar-open) ;; TODO: Something more useful than this
 
 (general-def '(normal motion)
   "C-j" 'my/switch-to-next-buffer
