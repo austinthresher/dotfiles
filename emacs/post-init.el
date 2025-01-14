@@ -54,33 +54,55 @@ multiple times."
   (modus-themes-bold-constructs t)
   (modus-themes-variable-pitch-ui t)
   (modus-themes-to-rotate '(modus-operandi modus-vivendi))
+  (modus-themes-common-palette-user
+   '((bg-normal bg-cyan-intense)
+     (bg-insert bg-green-intense)
+     (bg-visual bg-yellow-intense)
+     (bg-replace bg-red-intense)
+     (bg-operator bg-blue-intense)
+     (bg-emacs bg-magenta-intense)
+     (fg-normal fg-main)
+     (fg-insert fg-main)
+     (fg-visual fg-main)
+     (fg-replace fg-main)
+     (fg-operator fg-main)
+     (fg-emacs fg-main)))
   (modus-themes-common-palette-overrides
    '((fringe unspecified)
      (cursor blue-cooler)
-     ;(bg-tab-current bg-main)
-     (bg-tab-current bg-dim)
-     (bg-tab-other bg-inactive)
      (bg-tab-bar bg-main)
+     (bg-tab-other bg-inactive)
      (bg-region bg-cyan-subtle)
-     (bg-mode-line-active bg-sage)
-     ))
+     (bg-mode-line-active bg-sage)))
   (modus-operandi-palette-overrides
-   '((accent-2 "#0AA")
+   '((bg-tab-current bg-hl-line)
+     (accent-2 "#0AA")
+     (bg-normal bg-paren-match)
+     (bg-insert bg-graph-green-0)
      (fg-completion-match-0 blue-intense)
      (fg-completion-match-1 magenta-intense)
      (fg-completion-match-2 green-intense)
-     (fg-completion-match-3 yellow-intense)
+     (fg-completion-match-3 yellow-intense)))
+  (modus-vivendi-palette-overrides
+   '((bg-tab-current bg-active)
+     (bg-normal blue-intense)
+     (bg-visual green-intense)
+     (bg-emacs magenta-intense)
      ))
-  ;; (modus-vivendi-palette-overrides
-  ;;  '((bg-main "#292e3b")
-  ;;    (bg-mode-line-active "#244060")
-  ;;    (border-mode-line-active "#6b8699")
-  ;;    (bg-tab-bar "#151824")
-  ;;    (bg-tab-other "#595e6b")
-  ;;    ))
   :config
   (load-theme 'modus-vivendi t))
 
+(use-package spacious-padding :ensure t :demand t
+  :custom (spacious-padding-widths
+           '(:internal-border-width 8
+             :header-line-width 3
+             :mode-line-width 6
+             :tab-line-width 2
+             :tab-bar-width 6
+             :right-divider-width 8
+             :scroll-bar-width 0
+             :fringe-width 0))
+  :config (spacious-padding-mode))
 
 ;;;; Font and Faces
 ;;;; ======================================================================
@@ -94,6 +116,8 @@ multiple times."
 (defvar my/variable-font-family "Noto Sans")
 (defvar my/fixed-font-family "Iosevka Slab")
 (defvar my/mode-line-font-family "Roboto")
+;; This has to be in points
+(defvar my/which-key-font-pts 14)
 
 (set-face-attribute 'default nil
                     :family my/default-font-family
@@ -109,70 +133,52 @@ multiple times."
 (defface light '((t (:weight light))) "Light weight")
 (defface medium '((t (:weight medium))) "Medium weight")
 
-;; Custom faces for evil-state in the mode line
-(dolist (state-colors '((state-normal . modus-themes-intense-cyan)
-                        (state-insert . modus-themes-intense-green)
-                        (state-visual . modus-themes-intense-yellow)
-                        (state-replace . modus-themes-intense-red)
-                        (state-operator . modus-themes-intense-blue)
-                        (state-emacs . modus-themes-intense-magenta)
-                        (state-other . modus-themes-prominent-error)))
-  (face-spec-set (car state-colors)
-                 `((t :inherit ,(cdr state-colors)
-                      :foreground reset
-                      :family ,my/fixed-font-family))))
-
-;; Faces that are defined here instead of in :custom-face blocks are ones that
-;; would otherwise not follow theme changes correctly (they'd keep dark colors
-;; when switching to the light theme and vice versa). Instead, other faces can
-;; inherit from these and then only the source faces need to be updated when
-;; changing themes.
-
 (defun my/update-faces-for-theme (&rest _)
   (modus-themes-with-colors
     (custom-set-faces
-     `(tab-bar ((t (:family ,my/mode-line-font-family :overline ,bg-tab-bar))) t)
-     `(tab-line ((t (:family ,my/mode-line-font-family :overline ,bg-tab-bar))) t)
-     ;; May or may not use these. Leaving them here for now.
-     `(tabs-bar ((t (:overline ,bg-inactive :box ,border))) t)
-     `(tabs-active ((t (:overline ,accent-2))) t)
-     `(tabs-divider ((t (:background ,border :overline ,bg-tab-bar))) t)
-     `(tabs-inactive ((t (:overline ,bg-tab-bar))) t)
-     `(tabs-tab-bar-active ((t (:underline (:position 24 :color ,accent-2)
-                                :height 130)))
-                           t)
-     `(tabs-tab-bar-inactive ((t (:underline (:position 24 :color ,border)
-                                  :height 130)))
-                             t)
-     `(tabs-tab-line-active ((t (:underline (:position 18 :color ,accent-2)
-                                 :height 100)))
-                            t)
-     `(tabs-tab-line-inactive ((t (:underline (:position 18 :color ,border)
-                                   :height 100)))
-                              t)
-     `(tabs-tab-line-divider ((t (:underline (:position 18 :color ,bg-tab-bar)
-                                  :height 100)))
-                             t)
-     ;; `(header-line ((t (:box (:color ,bg-main :line-width (2 . 2))
-     ;;                    :background ,bg-hl-line
-     ;;                    :family ,my/mode-line-font-family
-     ;;                    :height 125)))
-     ;;               t)
-     )))
+     ;; Custom faces for evil-state in the mode line
+     `(state-normal ((t (:inherit fixed-pitch
+                         :background ,bg-normal
+                         :foreground ,fg-normal)))
+                    t)
+     `(state-insert ((t (:inherit fixed-pitch
+                         :background ,bg-insert
+                         :foreground ,fg-insert)))
+                    t)
+     `(state-visual ((t (:inherit fixed-pitch
+                         :background ,bg-visual
+                         :foreground ,fg-visual)))
+                    t)
+     `(state-replace ((t (:inherit fixed-pitch
+                          :background ,bg-replace
+                          :foreground ,fg-replace)))
+                     t)
+     `(state-operator ((t (:inherit fixed-pitch
+                           :background ,bg-operator
+                           :foreground ,fg-operator)))
+                      t)
+     `(state-emacs ((t (:inherit fixed-pitch
+                        :background ,bg-emacs
+                        :foreground ,fg-emacs)))
+                   t)
+     `(state-other ((t (:inherit (fixed-pitch error)))) t)
+     `(tab-bar ((t (:family ,my/mode-line-font-family :overline ,bg-main
+                    :background ,(apply #'color-rgb-to-hex
+                                        (color-blend (color-name-to-rgb bg-dim)
+                                                     (color-name-to-rgb bg-main)
+                                                     0.5))
+                    :underline (:position 0 :color ,bg-main))))
+               t)
+     `(tab-line ((t (:family ,my/mode-line-font-family :overline ,bg-main
+                     :background ,(apply #'color-rgb-to-hex
+                                         (color-blend (color-name-to-rgb bg-dim)
+                                                      (color-name-to-rgb bg-main)
+                                                      0.5))
+                     :underline (:position 0 :color ,bg-main))))
+                t))))
 (my/update-faces-for-theme)
 
 (add-hook 'enable-theme-functions 'my/update-faces-for-theme)
-
-(use-package spacious-padding :ensure t :demand t
-  :custom (spacious-padding-widths
-           '(:internal-border-width 8
-             :header-line-width 3
-             :mode-line-width 6
-             :tab-width 4
-             :right-divider-width 8
-             :scroll-bar-width 8
-             :fringe-width 8))
-  :config (spacious-padding-mode))
 
 
 
@@ -189,9 +195,9 @@ multiple times."
 (setq idle-update-delay 0.1)
 (setq mouse-1-click-follows-link t)
 (setq mouse-wheel-tilt-scroll t)
-(setq mouse-wheel-progressive-speed nil)
+(setq mouse-wheel-progressive-speed t)
 (setq pixel-scroll-precision-interpolation-factor 1.0)
-(setq mouse-wheel-scroll-amount '(0.1
+(setq mouse-wheel-scroll-amount '(0.05
                                   ((shift) . 0.9)
                                   ((control meta) . global-text-scale)
                                   ((control) . text-scale)
@@ -465,15 +471,15 @@ apart in languages that only use whitespace to separate list elements."
   (face-remap-add-relative 'font-lock-string-face
                            '(:inherit string-underline)))
 
-;; FIXME: This is breaking describe-variable sometimes? Maybe it's not this,
-;; but pp--region is giving me random 'End of file during parsing' errors.
-;; (defun my/temp-buffer-view-mode (&rest args)
-;;   "Make pretty-printed buffers use view-mode, be read-only, and easily
-;; closable. I don't know what else uses with-output-to-temp-buffer so I'm
-;; matching against the buffer name for now."
-;;   (when (string-prefix-p "*Pp" (buffer-name))
-;;     (view-mode-enter nil 'kill-buffer-if-not-modified)))
-;; (add-hook 'temp-buffer-show-hook 'my/temp-buffer-view-mode)
+;; FIXME: I thought that this was breaking `describe-variable' sometimes,
+;; but I think it was something else. Remove this comment if it's fixed.
+(defun my/temp-buffer-view-mode (&rest args)
+  "Make pretty-printed buffers use view-mode, be read-only, and easily
+closable. I don't know what else uses with-output-to-temp-buffer so I'm
+matching against the buffer name for now."
+  (when (string-prefix-p "*Pp" (buffer-name))
+    (view-mode-enter nil 'kill-buffer-if-not-modified)))
+(add-hook 'temp-buffer-show-hook 'my/temp-buffer-view-mode)
 
 ;;;; Other commands and functions that need early definitions
 ;;;; ======================================================================
@@ -577,7 +583,13 @@ apart in languages that only use whitespace to separate list elements."
    "C-w" 'evil-window-map
    "C-S-w" 'evil-delete-backward-word)
   ('(normal visual) 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
-  ('evil-window-map "o" 'evil-window-mru)
+  ('evil-window-map
+   "o" 'evil-window-mru
+   ;; Sometimes evil-quit closes a frame when I expect it to close a side
+   ;; window. Remapping this to try and avoid that.
+   "q" 'evil-window-delete
+   "C-q" 'evil-window-delete
+   "O" 'other-window-prefix)
   ('insert 'prog-mode-map "<tab>" 'indent-for-tab-command)
   ('visual "<tab>" 'evil-shift-right
            "<backtab>" 'evil-shift-left)
@@ -664,8 +676,10 @@ apart in languages that only use whitespace to separate list elements."
   :hook ((eshell-load . eat-eshell-mode)
          (eshell-load . eat-eshell-visual-command-mode))
   :general-config
-  ('(normal insert emacs) eat-mode-map "C-c P" 'eat-send-password)
-  ('(normal insert emacs) eshell-mode-map "C-c P" 'eat-send-password))
+  ('(normal insert emacs) '(eat-mode-map eshell-mode-map)
+   "C-c P" 'eat-send-password
+   "C-j" 'my/switch-to-next-buffer
+   "C-k" 'my/switch-to-prev-buffer))
 
 
 (use-package vertico :ensure t :defer t
@@ -1202,7 +1216,7 @@ apart in languages that only use whitespace to separate list elements."
   (use-package which-key-posframe :ensure t
     :commands which-key-posframe-mode
     :custom
-    (which-key-posframe-font (concat my/fixed-font-family " 12"))
+    (which-key-posframe-font (format "%s %s" my/fixed-font-family my/which-key-font-pts))
     (which-key-posframe-border-width 1)
     (which-key-posframe-parameters '((left-fringe . 0)
                                      (right-fringe . 0)))
@@ -1227,14 +1241,11 @@ apart in languages that only use whitespace to separate list elements."
    "C-n" 'eshell-next-matching-input-from-input))
 
 (use-package winner-mode :ensure nil
-  :config (winner-mode)
-  :general (:keymaps 'evil-window-map            ; C-w prefix
+  :custom (winner-dont-bind-my-keys t)
+  :hook (after-init . winner-mode)
+  :general ('evil-window-map ; C-w prefix
             "u" 'winner-undo
-            "C-r" 'winner-redo)
-  :custom (winner-dont-bind-my-keys t))
-
-(use-package pp :ensure nil
-  :custom (pp-default-function 'pp-emacs-lisp-code))
+            "C-r" 'winner-redo))
 
 (use-package custom :ensure nil
   :custom
@@ -1257,10 +1268,13 @@ apart in languages that only use whitespace to separate list elements."
     (setq which-key-idle-delay 0.5)
     (which-key-mode)
     (which-key-posframe-mode)
-    ;; The default doesn't take font size into account, scale appropriately
     (defun which-key-posframe--max-dimensions (_)
-      (cons (- (truncate (frame-pixel-height) 12) 2)
-            (truncate (frame-pixel-width) 9)))))
+      ;; The default doesn't take font size into account, scale appropriately.
+      ;; These values are total guesses but seem to work ok.
+      (let ((approx-char-w (* my/which-key-font-pts 0.8))
+            (approx-char-h (* my/which-key-font-pts 1.2)))
+        (cons (- (truncate (frame-pixel-height) approx-char-h) 2)
+              (truncate (frame-pixel-width) approx-char-w))))))
 
 (use-package flymake :ensure nil
   :config
@@ -1423,72 +1437,45 @@ apart in languages that only use whitespace to separate list elements."
   (tab-bar-select-restore-windows nil)
   (tab-bar-show 1)
   (tab-bar-auto-width nil)
-  (tab-bar-separator "")
   :custom-face
   (tab-bar ((t (:weight normal))))
   (tab-bar-tab ((t (:weight medium))))
   (tab-bar-tab-inactive ((t (:weight light :foreground "#888"))))
-  ;; (tab-bar ((t (:height 120
-  ;;               :inherit (tabs-bar modus-themes-ui-variable-pitch)))))
-  ;; (tab-bar-tab ((t (:inherit (tabs-tab-bar-active tabs-active tab-bar)))))
-  ;; (tab-bar-tab-inactive ((t (:inherit (tabs-tab-bar-inactive tabs-inactive tab-bar)))))
   :config
-  ;; (defun my/make-pixel-spacer (px &rest props)
-  ;;   (apply #'propertize " " 'display `(space :width (,px)) props))
-  ;; (defun my/tab-bar-tab-name-format-spaces (name tab number)
-  ;;   (concat (propertize " "
-  ;;                       'face '(:box nil)
-  ;;                       'display '(space :width (8)))
-  ;;           name
-  ;;           (propertize " "
-  ;;                       'face '(:box nil)
-  ;;                       'display '(space :width (8)))))
-  (defun my/tab-bar-tab-name-format-spaces
-      (name tab number) (concat (propertize " " 'display '(space :width (16)))
-                                name
-                                (propertize " " 'display '(space :width (16)))))
+  (defun my/tab-bar-tab-name-format-spaces (name tab number)
+    (let ((face (funcall tab-bar-tab-face-function tab)))
+      (add-face-text-property 0 (length name) face t name)
+      (with-work-buffer
+        (setq-local face-remapping-alist
+                    (list (cons 'default (list :inherit (list face 'tab-bar)))))
+        (let* ((w (string-pixel-width name (current-buffer)))
+               (remaining (- 200 w))
+               (side (max 8 (truncate remaining 2))))
+          (concat (propertize " " 'face face 'display `(space :width (,side)))
+                  name
+                  (propertize " " 'face face 'display `(space :width (,side))))))))
   (setopt tab-bar-tab-name-format-functions '(tab-bar-tab-name-format-hints
                                               tab-bar-tab-name-format-close-button
-                                              my/tab-bar-tab-name-format-spaces
-                                              tab-bar-tab-name-format-face))
-  ;; (setq tab-bar-separator (propertize " "
-  ;;                                     'face '((:underline nil) tab-bar)
-  ;;                                     'display '(space :width (4))))
+                                              my/tab-bar-tab-name-format-spaces))
+  (setq tab-bar-separator (propertize " " 'face 'default 'display '(space :width (1))))
   (tab-bar-mode t))
 
 (use-package tab-line :ensure nil
   :init
   (defun my/tab-line-tab-name (buf &optional _)
     (concat "  " (buffer-name buf) "  "))
-  ;; (defun my/tab-line-format (tab tabs)
-  ;;   (let ((result (tab-line-tab-name-format-default tab tabs)))
-  ;;     (concat (propertize " "
-  ;;                         'face '(:box nil :inherit (tabs-tab-line-divider child-frame-border))
-  ;;                         'display '(space :width (1)))
-  ;;             result
-  ;;             (propertize " "
-  ;;                         'face '(:box nil :inherit (tabs-tab-line-divider child-frame-border))
-  ;;                         'display '(space :width (1))))))
   :custom
   (tab-line-close-button-show nil)
   (tab-line-new-button-show nil)
   (tab-line-tab-face-functions nil)
-  (tab-line-separator "")
   (tab-line-tab-name-function 'my/tab-line-tab-name)
-  ;; (tab-line-tab-name-format-function 'my/tab-line-format)
   :custom-face
   (tab-line-tab ((t (:box unspecified :inherit tab-line-tab-current))))
   (tab-line-tab-current ((t (:weight medium))))
   (tab-line-tab-inactive ((t (:weight light :foreground "#888"))))
-  ;; (tab-line ((t (:height 100 :box nil
-  ;;                :inherit (tabs-bar normal modus-themes-ui-variable-pitch)))))
-  ;; (tab-line-tab-current ((t (:inherit (tabs-tab-line-active tab-line)))))
-  ;; (tab-line-tab-inactive ((t (:inherit (tabs-tab-line-inactive tabs-inactive tab-line)))))
-  ;; (tab-line-highlight ((t (:inherit unspecified))))
-  ;; :config
-  ;; (setq tab-line-separator
-  ;;       (propertize " " 'face 'tab-line 'display '(space :width (1))))
-  )
+  :config
+  (setq tab-line-separator
+        (propertize " " 'face 'default 'display '(space :width (1)))))
 
 (use-package dabbrev :ensure nil
   :config (add-to-list* 'dabbrev-ignored-buffer-modes
@@ -1862,9 +1849,9 @@ interaction. Tracks the compile command used on a per-project basis."
   (compile command t))
 
 (general-def
-  "<f12>" 'modus-themes-rotate
-  "<f5>" 'compile-interactively
-  "C-x C-m" 'pp-macroexpand-last-sexp)
+  "<f12>" 'window-toggle-side-windows
+  "C-<f12>" 'modus-themes-rotate
+  "<f5>" 'compile-interactively)
 
 ;; I don't want the tutorial, license, hello, or any of the other junk that can
 ;; accidentally be fatfingered when using the otherwise useful C-h commands.
@@ -1958,24 +1945,33 @@ pressed twice in a row."
                          (funcall fn)))))
     (ignore-errors (add-hook hook one-shot t))))
 
+(defun my/main-window-body-fn (win)
+  (set-window-parameter win 'tab-line-format nil))
+
 (defun my/side-window-body-fn (win)
+  (with-selected-window win (tab-line-mode t)))
+
+(defun my/window-body-fn (win)
+  "Sometimes (`other-window-prefix', for example) the display rule chosen will
+not match the actual location a buffer is about to be displayed. Decide which
+kind of window we're setting up after that decision is made instead of basing
+it on the buffer itself."
   ;; Some modes clear all local variables after body-function runs.
   ;; Deferring the customization until the end of the current command
   ;; ensures that all modes get the tab line.
   (my/one-time-hook 'post-command-hook
-                    (lambda () (with-selected-window win
-                                 (tab-line-mode t)))))
-
-(defun my/main-window-body-fn (win)
-  ;; Leaving this in just in case it turns out I need to run something here
-  t)
+                    (lambda ()
+                      (if (and (window-at-side-p win 'bottom)
+                               (not (window-at-side-p win 'top)))
+                          (my/side-window-body-fn win)
+                        (my/main-window-body-fn win)))))
 
 
 ;; TODO: Advise customize functions so they stop hijacking the current window
 (setq display-buffer-alist
       (let* ((bot-common '(display-buffer-in-side-window
                            (side . bottom) (preserve-size . (nil . t))
-                           (body-function . my/side-window-body-fn)))
+                           (body-function . my/window-body-fn)))
              (bot-left-window `(,@bot-common (slot . -1)))
              (bot-right-window `(,@bot-common (slot . 1)))
              (bot-left-rx (rx bos
@@ -1992,24 +1988,28 @@ pressed twice in a row."
              (derived-rule (lambda (x) (cons 'derived-mode x)))
              )
         `(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
-          display-buffer-in-direction
-          (direction . rightmost)
-          (window-parameters (mode-line-format . none)))
-         ((or ,bot-left-rx
-              ,@(mapcar derived-rule bot-left-modes))
-          ,@bot-left-window)
-         ((or ,bot-right-rx
-              ,@(mapcar derived-rule bot-right-modes))
-          ,@bot-right-window)
-         ;; Catch anything that fell through
-         (my/match-non-special-buffers
-          nil
-          (body-function . my/main-window-body-fn))
-         (my/match-special-buffers
-          (display-buffer-in-side-window display-buffer-no-window)
-          (body-function . my/side-window-body-fn)
-          (side . bottom))
-         )))
+           display-buffer-in-direction
+           (direction . rightmost)
+           (window-parameters (mode-line-format . none)))
+          ((or ,bot-left-rx
+               ,@(mapcar derived-rule bot-left-modes))
+           ,@bot-left-window)
+          ((or ,bot-right-rx
+               ,@(mapcar derived-rule bot-right-modes))
+           ,@bot-right-window)
+          ;; Catch anything that fell through
+          (my/match-non-special-buffers
+           nil
+           (window-parameters
+            ;; Don't show the tab line for main windows, even when the buffer
+            ;; has it enabled.
+            (tab-line-format . nil))
+           (body-function . my/window-body-fn))
+          (my/match-special-buffers
+           (display-buffer-in-side-window display-buffer-no-window)
+           (body-function . my/window-body-fn)
+           (side . bottom))
+          )))
 
 (when custom-file
   (load custom-file))
