@@ -2,10 +2,12 @@
 
 ;; TODO: Pick a single key binding for buffer swapping, probably a function key
 
-;; TODOs that probably require writing elisp:
+;;;; TODOs that probably require writing elisp:
+;;;; ======================================================================
 ;; - Make keybinds for the mouse back/forward buttons that call appropriate
 ;;   functions in the window under the mouse, based on the major mode of that
 ;;   window's buffer. pdf-history-backward, help-go-back, etc.
+
 ;; - Try to figure out triggering sp-comment when the comment string is typed
 ;;   for the current language's mode.
 
@@ -73,7 +75,28 @@ multiple times."
      (bg-tab-bar bg-main)
      (bg-tab-other bg-inactive)
      (bg-region bg-cyan-subtle)
-     (bg-mode-line-active bg-sage)))
+     (bg-mode-line-active bg-sage)
+     (fg-heading-0 fg-main)
+     (fg-heading-1 cyan-cooler)
+     (overline-heading-0 fg-dim)
+     (overline-heading-1 bg-cyan-intense)
+     (overline-heading-2 bg-yellow-intense)
+     (overline-heading-3 bg-blue-intense)
+     (overline-heading-4 bg-magenta-intense)
+     (overline-heading-5 bg-green-intense)
+     (overline-heading-6 bg-red-intense)
+     (overline-heading-7 bg-cyan-intense)
+     (overline-heading-8 fg-dim)
+     (bg-heading-0 bg-dim)
+     (bg-heading-1 bg-cyan-nuanced)
+     (bg-heading-2 bg-yellow-nuanced)
+     (bg-heading-3 bg-blue-nuanced)
+     (bg-heading-4 bg-magenta-nuanced)
+     (bg-heading-5 bg-green-nuanced)
+     (bg-heading-6 bg-red-nuanced)
+     (bg-heading-7 bg-cyan-nuanced)
+     (bg-heading-8 bg-dim)
+     ))
   (modus-operandi-palette-overrides
    '((bg-tab-current bg-hl-line)
      (accent-2 "#0AA")
@@ -89,6 +112,14 @@ multiple times."
      (bg-visual green-intense)
      (bg-emacs magenta-intense)
      ))
+  (modus-themes-headings '((1 . (1.30 black))
+                           (2 . (1.25 extrabold))
+                           (3 . (1.20 bold))
+                           (4 . (1.15 semibold))
+                           (5 . (1.10 medium))
+                           (6 . (1.05 regular))
+                           (7 . (1.00 regular))
+                           (8 . (0.95 regular))))
   :config
   (load-theme 'modus-vivendi t))
 
@@ -128,38 +159,34 @@ multiple times."
 (set-face-attribute 'variable-pitch-text nil :family my/variable-font-family)
 (set-face-attribute 'mode-line nil :family my/mode-line-font-family)
 
+
 ;; Useful for including in inherit lists
 (defface normal '((t (:weight normal))) "Normal weight")
 (defface light '((t (:weight light))) "Light weight")
 (defface medium '((t (:weight medium))) "Medium weight")
 
+
 (defun my/update-faces-for-theme (&rest _)
   (modus-themes-with-colors
     (custom-set-faces
      ;; Custom faces for evil-state in the mode line
-     `(state-normal ((t (:inherit fixed-pitch
-                         :background ,bg-normal
-                         :foreground ,fg-normal)))
+     `(state-normal ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+                         :background ,bg-normal :foreground ,fg-normal)))
                     t)
-     `(state-insert ((t (:inherit fixed-pitch
-                         :background ,bg-insert
-                         :foreground ,fg-insert)))
+     `(state-insert ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+                         :background ,bg-insert :foreground ,fg-insert)))
                     t)
-     `(state-visual ((t (:inherit fixed-pitch
-                         :background ,bg-visual
-                         :foreground ,fg-visual)))
+     `(state-visual ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+                         :background ,bg-visual :foreground ,fg-visual)))
                     t)
-     `(state-replace ((t (:inherit fixed-pitch
-                          :background ,bg-replace
-                          :foreground ,fg-replace)))
+     `(state-replace ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+                          :background ,bg-replace :foreground ,fg-replace)))
                      t)
-     `(state-operator ((t (:inherit fixed-pitch
-                           :background ,bg-operator
-                           :foreground ,fg-operator)))
+     `(state-operator ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+                           :background ,bg-operator :foreground ,fg-operator)))
                       t)
-     `(state-emacs ((t (:inherit fixed-pitch
-                        :background ,bg-emacs
-                        :foreground ,fg-emacs)))
+     `(state-emacs ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+                        :background ,bg-emacs :foreground ,fg-emacs)))
                    t)
      `(state-other ((t (:inherit (fixed-pitch error)))) t)
      `(tab-bar ((t (:family ,my/mode-line-font-family :overline ,bg-main
@@ -488,11 +515,15 @@ matching against the buffer name for now."
 ;; functions I decide to use.
 (defun my/switch-to-next-buffer ()
   (interactive)
-  (switch-to-next-buffer))
+  (if tab-line-mode
+      (tab-line-switch-to-next-tab)
+    (switch-to-next-buffer)))
 
 (defun my/switch-to-prev-buffer ()
   (interactive)
-  (switch-to-prev-buffer))
+  (if tab-line-mode
+      (tab-line-switch-to-prev-tab)
+    (switch-to-prev-buffer)))
 
 ;;;; External Packages
 ;;;; ======================================================================
@@ -584,12 +615,16 @@ matching against the buffer name for now."
    "C-S-w" 'evil-delete-backward-word)
   ('(normal visual) 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
   ('evil-window-map
+   ;; It's too easy to get "only" "other" and "previous" mixed up. "Other"
+   ;; seems to be the one I default to.
    "o" 'evil-window-mru
    ;; Sometimes evil-quit closes a frame when I expect it to close a side
    ;; window. Remapping this to try and avoid that.
    "q" 'evil-window-delete
    "C-q" 'evil-window-delete
-   "O" 'other-window-prefix)
+   ;; Force opening stuff in the MRU window
+   "O" 'other-window-prefix
+   )
   ('insert 'prog-mode-map "<tab>" 'indent-for-tab-command)
   ('visual "<tab>" 'evil-shift-right
            "<backtab>" 'evil-shift-left)
@@ -713,13 +748,29 @@ matching against the buffer name for now."
                   (car args))
           (cdr args)))
   (advice-add 'completing-read-multiple :filter-args 'my/crm-indicator)
+  ;; Versions that wrap around the end of the list, assuming `vertico-cycle'
+  (defun my/vertico-scroll-down (&optional n)
+    (interactive "p")
+    (let ((idx vertico--index))
+      (vertico-scroll-down n)
+      (when (eq idx vertico--index) (vertico-previous))))
+  (defun my/vertico-scroll-up (&optional n)
+    (interactive "p")
+    (let ((idx vertico--index))
+      (vertico-scroll-up n)
+      (when (eq idx vertico--index) (vertico-next))))
   :general-config
   ('minibuffer-mode-map
    "<tab>" 'completion-at-point
    "TAB" 'completion-at-point)
   ('vertico-map
-   "<next>" 'vertico-scroll-up
-   "<prior>" 'vertico-scroll-down
+   "<next>" 'my/vertico-scroll-up
+   "<prior>" 'my/vertico-scroll-down
+   ;; Not sure which of these I'll use more, putting both for now
+   "C-S-n" 'my/vertico-scroll-up
+   "C-S-p" 'my/vertico-scroll-down
+   "C-S-f" 'my/vertico-scroll-up
+   "C-S-b" 'my/vertico-scroll-down
    ;; Complete up to prefix
    "<tab>" 'minibuffer-complete
    "TAB" 'minibuffer-complete
@@ -749,9 +800,9 @@ matching against the buffer name for now."
   :hook (vertico-mode . marginalia-mode))
 
 (use-package embark :ensure t :defer t
-  :general ("<f7>" 'embark-select
+  :general ("S-<f8>" 'embark-select
             "<f8>" 'embark-act
-            "S-<f8>" 'embark-dwim
+            "C-<f8>" 'embark-dwim
             "C-h B" 'embark-bindings)
   :init (setq prefix-help-command #'embark-prefix-help-command))
 
@@ -873,7 +924,7 @@ matching against the buffer name for now."
    "C-S-SPC" 'set-mark-command)
   ('(insert emacs)
    "C-SPC" 'completion-at-point)        ; for when tab isn't usable
-  ('(emacs insert) 'corfu-map
+  ('corfu-map
    "<prior>" 'corfu-scroll-down
    "<next>" 'corfu-scroll-up
    "<tab>" 'corfu-expand
@@ -1014,6 +1065,7 @@ matching against the buffer name for now."
   :hook (org-mode . org-superstar-mode)
   :custom
   (org-superstar-special-todo-items nil)
+  (org-superstar-cycle-headline-bullets nil)
   ;; Keeping bullet options here for quick reference:
   ;; Diamonds: ◆⬗⬥⬩🞘🞗
   ;; Triangles: ▶▷⯈▸▹🞂►▻ 🢒‣
@@ -1037,6 +1089,9 @@ matching against the buffer name for now."
 
 (use-package org-autolist :ensure t
   :hook (org-mode . org-autolist-mode))
+
+
+;; TODO: Also try paredit + enhanced-evil-paredit
 
 ;; NOTE: Remember you can "fix" pairs with replace without toggling strict mode
 (use-package smartparens :ensure t
@@ -1386,6 +1441,7 @@ matching against the buffer name for now."
   :commands org-capture
   :bind (("C-c C-o c" . org-capture))
   :custom
+  (org-cycle-level-faces nil)
   (org-pretty-entitites t)
   (org-hide-emphasis-markers t)
   (org-hide-leading-stars t)
@@ -1469,6 +1525,7 @@ matching against the buffer name for now."
   (tab-line-new-button-show nil)
   (tab-line-tab-face-functions nil)
   (tab-line-tab-name-function 'my/tab-line-tab-name)
+  (tab-line-close-tab-function 'kill-buffer)
   :custom-face
   (tab-line-tab ((t (:box unspecified :inherit tab-line-tab-current))))
   (tab-line-tab-current ((t (:weight medium))))
@@ -1501,6 +1558,37 @@ matching against the buffer name for now."
   (general-add-hook 'dired-mode-hook '( dired-hide-details-mode
                                         dired-omit-mode)))
 
+(use-package help-mode :ensure nil
+  :init
+  ;; These changes give *Help* buffers descriptive names, and allow opening
+  ;; a new help buffer by using a prefix before following a link
+  (defun my/help-name ()
+    "Returns a descriptive name for the current help buffer or the current name
+if one couldn't be determined."
+    (or (when (derived-mode-p 'help-mode)
+          (let ((name (plist-get help-mode--current-data :symbol)))
+            (and name (format "*Help* <%s>" name))))
+        (buffer-name)))
+  (defun my/rename-help-buffer (&rest _)
+    (when (derived-mode-p 'help-mode)
+      (let ((new-name (my/help-name)))
+        (unless (string= new-name (buffer-name))
+          (rename-buffer (my/help-name) t)))))
+  (defun my/help-buffer-advice (fn)
+    (cond (current-prefix-arg (buffer-name (get-buffer-create "*Help*")))
+          ((derived-mode-p 'help-mode) (buffer-name))
+          (t (funcall fn))))
+  (defun my/help-window-setup-advice (window &rest _)
+    (with-selected-window window
+      (my/rename-help-buffer)))
+  ;; Close, but disabling for now because it creates endless buffers
+  ;; with corfu popupinfo. Once I figure out a way to handle that this
+  ;; can be re-enabled.
+  ;; (advice-add 'help-window-setup :after 'my/help-window-setup-advice)
+  ;; (advice-add 'help-buffer :around 'my/help-buffer-advice)
+  ;; (advice-add 'help-xref-go-forward :after 'my/rename-help-buffer)
+  ;; (advice-add 'help-xref-go-back :after 'my/rename-help-buffer)
+  )
 
 (defvar my/lisp-mode-hooks
   '(lisp-mode-hook lisp-data-mode-hook fennel-mode-hook))
@@ -1946,7 +2034,7 @@ pressed twice in a row."
     (ignore-errors (add-hook hook one-shot t))))
 
 (defun my/main-window-body-fn (win)
-  (set-window-parameter win 'tab-line-format nil))
+  (set-window-parameter win 'tab-line-format 'none))
 
 (defun my/side-window-body-fn (win)
   (with-selected-window win (tab-line-mode t)))
