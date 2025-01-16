@@ -615,6 +615,7 @@ matching against the buffer name for now."
    "C-S-w" 'evil-delete-backward-word)
   ('(normal visual) 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
   ('evil-window-map
+   "C-=" 'fit-window-to-buffer
    ;; It's too easy to get "only" "other" and "previous" mixed up. "Other"
    ;; seems to be the one I default to.
    "o" 'evil-window-mru
@@ -1581,14 +1582,23 @@ if one couldn't be determined."
   (defun my/help-window-setup-advice (window &rest _)
     (with-selected-window window
       (my/rename-help-buffer)))
-  ;; Close, but disabling for now because it creates endless buffers
-  ;; with corfu popupinfo. Once I figure out a way to handle that this
-  ;; can be re-enabled.
-  ;; (advice-add 'help-window-setup :after 'my/help-window-setup-advice)
-  ;; (advice-add 'help-buffer :around 'my/help-buffer-advice)
-  ;; (advice-add 'help-xref-go-forward :after 'my/rename-help-buffer)
-  ;; (advice-add 'help-xref-go-back :after 'my/rename-help-buffer)
-  )
+  (defun my/elisp-doc-buffer-advice (fn &rest args)
+    ;; elisp--company-doc-buffer displays the help buffer and then hides it
+    ;; to get documentation. This redirects it to its own hidden buffer that
+    ;; won't interfere with existing help buffers.
+    (cl-letf (((symbol-function 'help-buffer)
+               (lambda (&rest _)
+                 (buffer-name (get-buffer-create " *Help company-doc-buffer*"))))
+              ;; Disable my advice so it doesn't interfere
+              ((symbol-function 'my/help-buffer-advice) #'funcall)
+              ((symbol-function 'my/rename-help-buffer) #'ignore))
+      (apply fn args)))
+  (advice-add 'elisp--company-doc-buffer :around 'my/elisp-doc-buffer-advice)
+  (advice-add 'help-window-setup :after 'my/help-window-setup-advice)
+  (advice-add 'help-buffer :around 'my/help-buffer-advice)
+  (advice-add 'help-xref-go-forward :after 'my/rename-help-buffer)
+  (advice-add 'help-xref-go-back :after 'my/rename-help-buffer))
+
 
 (defvar my/lisp-mode-hooks
   '(lisp-mode-hook lisp-data-mode-hook fennel-mode-hook))
@@ -2034,10 +2044,14 @@ pressed twice in a row."
     (ignore-errors (add-hook hook one-shot t))))
 
 (defun my/main-window-body-fn (win)
-  (set-window-parameter win 'tab-line-format 'none))
+  ;; (set-window-parameter win 'tab-line-format 'none)
+  t
+  )
 
 (defun my/side-window-body-fn (win)
-  (with-selected-window win (tab-line-mode t)))
+  ;; (with-selected-window win (tab-line-mode t))
+  t
+  )
 
 (defun my/window-body-fn (win)
   "Sometimes (`other-window-prefix', for example) the display rule chosen will
@@ -2045,14 +2059,14 @@ not match the actual location a buffer is about to be displayed. Decide which
 kind of window we're setting up after that decision is made instead of basing
 it on the buffer itself."
   ;; Some modes clear all local variables after body-function runs.
-  ;; Deferring the customization until the end of the current command
-  ;; ensures that all modes get the tab line.
+  ;; Deferring the body functions until the end of the current command
+  ;; ensures that their changes aren't undone by the major mode.
   (my/one-time-hook 'post-command-hook
                     (lambda ()
-                      (if (and (window-at-side-p win 'bottom)
-                               (not (window-at-side-p win 'top)))
-                          (my/side-window-body-fn win)
-                        (my/main-window-body-fn win)))))
+                      (when (window-valid-p win)
+                        (if (window-parameter win 'window-side)
+                            (my/side-window-body-fn win)
+                          (my/main-window-body-fn win))))))
 
 
 ;; TODO: Advise customize functions so they stop hijacking the current window
@@ -2088,10 +2102,6 @@ it on the buffer itself."
           ;; Catch anything that fell through
           (my/match-non-special-buffers
            nil
-           (window-parameters
-            ;; Don't show the tab line for main windows, even when the buffer
-            ;; has it enabled.
-            (tab-line-format . nil))
            (body-function . my/window-body-fn))
           (my/match-special-buffers
            (display-buffer-in-side-window display-buffer-no-window)
