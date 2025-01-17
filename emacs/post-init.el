@@ -11,6 +11,9 @@
 ;; - Try to figure out triggering sp-comment when the comment string is typed
 ;;   for the current language's mode.
 
+;; - Make "C-x b" show file buffers in file windows and special buffers in
+;;   special windows
+
 
 ;;;; Utility macros and functions
 ;;;; ======================================================================
@@ -76,6 +79,8 @@ multiple times."
      (bg-tab-other bg-inactive)
      (bg-region bg-cyan-subtle)
      (bg-mode-line-active bg-sage)
+     (fg-mode-line-inactive fg-dim)
+     (bg-mode-line-inactive bg-dim)
      (fg-heading-0 fg-main)
      (fg-heading-1 cyan-cooler)
      (overline-heading-0 fg-dim)
@@ -109,7 +114,7 @@ multiple times."
   (modus-vivendi-palette-overrides
    '((bg-tab-current bg-active)
      (bg-normal blue-intense)
-     (bg-visual green-intense)
+     (bg-visual bg-green-intense)
      (bg-emacs magenta-intense)
      ))
   (modus-themes-headings '((1 . (1.30 black))
@@ -126,14 +131,31 @@ multiple times."
 (use-package spacious-padding :ensure t :demand t
   :custom (spacious-padding-widths
            '(:internal-border-width 8
-             :header-line-width 3
+             :header-line-width 4
              :mode-line-width 6
-             :tab-line-width 2
+             :tab-line-width 5
              :tab-bar-width 6
              :right-divider-width 8
              :scroll-bar-width 0
              :fringe-width 0))
-  :config (spacious-padding-mode))
+  :config
+  ;; I'm not sure why this isn't already an option. Quick hack to add
+  ;; bottom-divider-width too. It'd probably be better to use override advice
+  ;; but I'm not sure I want to keep this in the first place.
+  (defvar spacious-padding--bottom-divider-width nil)
+  (spacious-padding--define-get-frame-param "bottom-divider-width" 8)
+  ;; Copied from spacious-padding.el, just added bottom-divider-width
+  (defun spacious-padding-modify-frame-parameters (&optional reset)
+    (modify-all-frames-parameters
+     `((internal-border-width . ,(spacious-padding--get-internal-border-width reset))
+       (right-divider-width . ,(spacious-padding--get-right-divider-width reset))
+       (bottom-divider-width . ,(spacious-padding--get-bottom-divider-width reset))
+       (left-fringe . ,(or (spacious-padding--get-left-fringe-width reset)
+                           (spacious-padding--get-fringe-width reset)))
+       (right-fringe . ,(or (spacious-padding--get-right-fringe-width reset)
+                            (spacious-padding--get-fringe-width reset)))
+       (scroll-bar-width  . ,(spacious-padding--get-scroll-bar-width reset)))))
+  (spacious-padding-mode))
 
 ;;;; Font and Faces
 ;;;; ======================================================================
@@ -143,66 +165,97 @@ multiple times."
 (defvar my/font-height 135)
 (defvar my/smaller-font-height 120)
 (defvar my/mode-line-font-height 140)
-(defvar my/default-font-family "Iosevka")
-(defvar my/variable-font-family "Noto Sans")
-(defvar my/fixed-font-family "Iosevka Slab")
-(defvar my/mode-line-font-family "Roboto")
+(defvar my/tab-bar-font-height 125)
+(defvar my/tab-line-font-height 110)
+(defvar my/default-font "Iosevka")
+(defvar my/variable-font "Noto Sans")
+(defvar my/fixed-font "Iosevka Slab")
+(defvar my/buffer-name-font "Roboto")
 ;; This has to be in points
 (defvar my/which-key-font-pts 14)
 
-(set-face-attribute 'default nil
-                    :family my/default-font-family
-                    :height my/font-height)
-(set-face-attribute 'fixed-pitch nil :family my/fixed-font-family)
-(set-face-attribute 'fixed-pitch-serif nil :family my/fixed-font-family)
-(set-face-attribute 'variable-pitch nil :family my/variable-font-family)
-(set-face-attribute 'variable-pitch-text nil :family my/variable-font-family)
-(set-face-attribute 'mode-line nil :family my/mode-line-font-family)
-
+;; (set-face-attribute 'default nil :family my/default-font :height my/font-height)
 
 ;; Useful for including in inherit lists
 (defface normal '((t (:weight normal))) "Normal weight")
 (defface light '((t (:weight light))) "Light weight")
 (defface medium '((t (:weight medium))) "Medium weight")
 
+(defun my/blend-color (from to delta)
+  (apply #'color-rgb-to-hex
+         (color-blend (color-name-to-rgb to)
+                      (color-name-to-rgb from)
+                      delta)))
 
 (defun my/update-faces-for-theme (&rest _)
   (modus-themes-with-colors
     (custom-set-faces
+     `(default ((t (:family ,my/default-font :height ,my/font-height))) t)
+     `(fixed-pitch ((t (:family ,my/fixed-font))) t)
+     `(fixed-pitch-serif ((t (:family ,my/fixed-font))) t)
+     `(variable-pitch ((t (:family ,my/variable-font))) t)
+     `(mode-line ((t (:family ,my/variable-font
+                      :height ,my/mode-line-font-height)))
+                 t)
+     ;; Emulate spacious-padding's subtle-mode-line feature, but only for
+     ;; inactive windows
+     `(mode-line-active ((t (:family ,my/variable-font
+                             :height ,my/mode-line-font-height
+                             ;; :box (:line-width 6 :color ,bg-mode-line-active)
+                             )))
+                        t)
+     `(mode-line-inactive ((t (:family ,my/variable-font
+                               :height ,my/mode-line-font-height
+                               :background ,(my/blend-color bg-dim bg-main 0.25)
+                               ;; :box (:line-width 5 :color ,bg-main)
+                               ;; :overline ,(my/blend-color bg-main fg-alt 0.5)
+                               )))
+                          t)
+     `(mode-line-buffer-id ((t (:family ,my/buffer-name-font
+                                :height ,my/mode-line-font-height))))
      ;; Custom faces for evil-state in the mode line
-     `(state-normal ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+     `(state-normal ((t (:inherit (medium fixed-pitch)
+                         :height ,(- my/mode-line-font-height 5)
                          :background ,bg-normal :foreground ,fg-normal)))
                     t)
-     `(state-insert ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+     `(state-insert ((t (:inherit (medium fixed-pitch)
+                         :height ,(- my/mode-line-font-height 5)
                          :background ,bg-insert :foreground ,fg-insert)))
                     t)
-     `(state-visual ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+     `(state-visual ((t (:inherit (medium fixed-pitch)
+                         :height ,(- my/mode-line-font-height 5)
                          :background ,bg-visual :foreground ,fg-visual)))
                     t)
-     `(state-replace ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+     `(state-replace ((t (:inherit (medium fixed-pitch)
+                          :height ,(- my/mode-line-font-height 5)
                           :background ,bg-replace :foreground ,fg-replace)))
                      t)
-     `(state-operator ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+     `(state-operator ((t (:inherit (medium fixed-pitch)
+                           :height ,(- my/mode-line-font-height 5)
                            :background ,bg-operator :foreground ,fg-operator)))
                       t)
-     `(state-emacs ((t (:inherit fixed-pitch :height ,my/mode-line-font-height
+     `(state-emacs ((t (:inherit (medium fixed-pitch)
+                        :height ,(- my/mode-line-font-height 5)
                         :background ,bg-emacs :foreground ,fg-emacs)))
                    t)
      `(state-other ((t (:inherit (fixed-pitch error)))) t)
-     `(tab-bar ((t (:family ,my/mode-line-font-family :overline ,bg-main
-                    :background ,(apply #'color-rgb-to-hex
-                                        (color-blend (color-name-to-rgb bg-dim)
-                                                     (color-name-to-rgb bg-main)
-                                                     0.5))
-                    :underline (:position 0 :color ,bg-main))))
+     `(tab-bar ((t (:family ,my/buffer-name-font
+                    :overline ,bg-main
+                    :background ,(my/blend-color bg-main bg-dim 0.5)
+                    :underline (:position 0 :color ,bg-main)
+                    :height ,my/tab-bar-font-height)))
                t)
-     `(tab-line ((t (:family ,my/mode-line-font-family :overline ,bg-main
-                     :background ,(apply #'color-rgb-to-hex
-                                         (color-blend (color-name-to-rgb bg-dim)
-                                                      (color-name-to-rgb bg-main)
-                                                      0.5))
-                     :underline (:position 0 :color ,bg-main))))
-                t))))
+     `(tab-line ((t (:family ,my/buffer-name-font
+                     ;; :overline ,bg-main
+                     :background ,(my/blend-color bg-main bg-dim 0.5)
+                     :underline (:position 0 :color ,bg-main)
+                     :height ,my/tab-line-font-height)))
+                t)
+     `(header-line ((t (:underline (:position 0 :color ,bg-inactive)
+                        :height 0.9
+                        ))) t)
+     )))
+
 (my/update-faces-for-theme)
 
 (add-hook 'enable-theme-functions 'my/update-faces-for-theme)
@@ -229,6 +282,9 @@ multiple times."
                                   ((control meta) . global-text-scale)
                                   ((control) . text-scale)
                                   ((meta) . hscroll)))
+(setq scroll-bar-adjust-thumb-portion nil)
+(setq window-resize-pixelwise t)
+(setq frame-inhibit-implied-resize t)
 (setq next-screen-context-lines 1)
 (setq open-paren-in-column-0-is-defun-start nil)
 (setq jit-lock-chunk-size 4096)
@@ -247,6 +303,7 @@ multiple times."
                         (other . "k&r")))
 (setq-default tab-width 8)
 
+;; This is added by minimal-emacs.d
 (remove-hook 'after-init-hook 'window-divider-mode)
 
 
@@ -269,8 +326,8 @@ multiple times."
                            ((bar . 4) . (bar . 4))))
 (setq cursor-in-non-selected-windows nil)
 
-(defvar my/cursor-colors-normal '("#888"))
-(defvar my/cursor-colors-emacs '("#F0F"))
+(defvar my/cursor-colors-normal '("#7F7F7F"))
+(defvar my/cursor-colors-emacs '("#FF0FF"))
 (defvar my/cached-cursor-theme nil)
 
 (defun my/update-cursor-colors ()
@@ -392,7 +449,7 @@ multiple times."
 (add-hook 'after-init-hook 'context-menu-mode)
 ;; TODO: remove some of these symbols, like "or", and re-enable
 ;; (add-hook 'prog-mode-hook 'global-prettify-symbols-mode)
-
+(add-hook 'after-init-hook 'global-tab-line-mode)
 
 ;;;; File type associations
 ;;;; ======================================================================
@@ -511,19 +568,30 @@ matching against the buffer name for now."
 ;;;; Other commands and functions that need early definitions
 ;;;; ======================================================================
 
+(defun my/side-window? (&optional win)
+  (let ((win (or win (selected-window))))
+    (window-parameter win 'window-side)))
+
+(defun my/main-window? (&optional win)
+  (not (my/side-window? win)))
+
 ;; These are intended to be redefined to whatever actual buffer switching
 ;; functions I decide to use.
 (defun my/switch-to-next-buffer ()
   (interactive)
-  (if tab-line-mode
-      (tab-line-switch-to-next-tab)
-    (switch-to-next-buffer)))
+  ;; (if tab-line-mode
+  ;;     (tab-line-switch-to-next-tab)
+  ;;   (switch-to-next-buffer))
+  (switch-to-next-buffer)
+  )
 
 (defun my/switch-to-prev-buffer ()
   (interactive)
-  (if tab-line-mode
-      (tab-line-switch-to-prev-tab)
-    (switch-to-prev-buffer)))
+  ;; (if tab-line-mode
+  ;;     (tab-line-switch-to-prev-tab)
+  ;;   (switch-to-prev-buffer))
+  (switch-to-prev-buffer)
+  )
 
 ;;;; External Packages
 ;;;; ======================================================================
@@ -1198,7 +1266,7 @@ matching against the buffer name for now."
   (after-init . minions-mode)
   (server-after-make-frame . minions-mode)
   :custom
-  (minions-mode-line-face 'variable-pitch)
+  (minions-mode-line-face 'fixed-pitch)
   (minions-mode-line-lighter " = ")
   (minions-mode-line-delimiters '(" " . " ")))
 
@@ -1272,7 +1340,7 @@ matching against the buffer name for now."
   (use-package which-key-posframe :ensure t
     :commands which-key-posframe-mode
     :custom
-    (which-key-posframe-font (format "%s %s" my/fixed-font-family my/which-key-font-pts))
+    (which-key-posframe-font (format "%s %s" my/fixed-font my/which-key-font-pts))
     (which-key-posframe-border-width 1)
     (which-key-posframe-parameters '((left-fringe . 0)
                                      (right-fringe . 0)))
@@ -1497,7 +1565,7 @@ matching against the buffer name for now."
   :custom-face
   (tab-bar ((t (:weight normal))))
   (tab-bar-tab ((t (:weight medium))))
-  (tab-bar-tab-inactive ((t (:weight light :foreground "#888"))))
+  (tab-bar-tab-inactive ((t (:weight light :foreground "#7F7F7F"))))
   :config
   (defun my/tab-bar-tab-name-format-spaces (name tab number)
     (let ((face (funcall tab-bar-tab-face-function tab)))
@@ -1530,7 +1598,7 @@ matching against the buffer name for now."
   :custom-face
   (tab-line-tab ((t (:box unspecified :inherit tab-line-tab-current))))
   (tab-line-tab-current ((t (:weight medium))))
-  (tab-line-tab-inactive ((t (:weight light :foreground "#888"))))
+  (tab-line-tab-inactive ((t (:weight normal :foreground "#7F7F7F"))))
   :config
   (setq tab-line-separator
         (propertize " " 'face 'default 'display '(space :width (1)))))
@@ -1663,12 +1731,7 @@ if one couldn't be determined."
     display (space :width ,width)))
 
 (defun my/color-spacer (color width)
-  (my/spacer `(:background ,color :family ,my/default-font-family) width))
-
-(defun my/inactive-left ()
-  (if (mode-line-window-selected-p)
-      ""
-    `(,(my/spacer `((:family ,my/default-font-family) shadow) 0.2) " ")))
+  (my/spacer `(:background ,color :family ,my/default-font) width))
 
 ;; TODO: Memoize colors if it causes slowdown
 (defun my/gradient-spacer (from-col to-col width)
@@ -1695,9 +1758,8 @@ if one couldn't be determined."
              (col (face-attribute 'mode-line :box))
              (col (if (stringp col) col (plist-get col :color))))
         `(,(propertize mode-text 'face (my/vim-color))
-          (:propertize " "
-           face (:background ,col)
-           display (space :width (1)))))))
+          ;; (:propertize " " face (:background ,col) display (space :width (1)))
+          ))))
 
 (defun my/make-check-text (status errors warnings info map)
   (if (or (null status) (string= status ""))
@@ -1742,33 +1804,44 @@ if one couldn't be determined."
 (defun my/evil-state () '(:eval (my/vim-state)))
 
 (defun my/modeline-modes ()
-  (if (mode-line-window-selected-p)
-      `((:eval (butlast minions-mode-line-modes 3)) " ")
-     `(:eval (butlast minions-mode-line-modes 4))))
+  (let ((text (format-mode-line
+               (if (mode-line-window-selected-p)
+                   (butlast minions-mode-line-modes 3)
+                 (butlast minions-mode-line-modes 4))
+               t)))
+    (put-text-property 0 (length text)
+                       'face
+                       `((:height ,my/font-height)
+                         fixed-pitch) text)
+  text))
 
 (defun my/modeline-project ()
   (let ((home (concat (getenv "HOME") "/")))
     (unless (or (string= home (projectile-project-p))
                 (string= "-" (projectile-project-name)))
-      `(:propertize
-        (" " (:eval (projectile-project-name)) " ")
-        face ((:height 0.9) shadow)
-        mouse-face ((:box t) highlight)
-        help-echo ,(projectile-project-p)
-        pointer-shape arrow
-        keymap ,(make-mode-line-mouse-map 'mouse-1
-                                          #'projectile-mode-menu)
-        display (raise 0.04)))))
+      `(" " (:propertize
+             ,(projectile-project-name)
+             face ((:height 0.9) shadow)
+             mouse-face ((:box t) highlight)
+             help-echo ,(projectile-project-p)
+             pointer-shape arrow
+             keymap ,(make-mode-line-mouse-map 'mouse-1
+                                               #'projectile-mode-menu)
+             display (raise 0.04))
+        "  "))))
+
+(defun my/get-buffer-name ()
+  (let ((fname (buffer-file-name))
+        (proj (projectile-project-p)))
+    (cond ((and fname proj) (string-remove-prefix proj fname))
+          (t (buffer-name)))))
 
 (defun my/modeline-buffer-name ()
   (let* ((face-extra (when (and (buffer-file-name) (buffer-modified-p))
                        '(italic)))
-         (face `((:weight ,(if (mode-line-window-selected-p) 'normal 'light))
+         (face `((:weight ,(if (mode-line-window-selected-p) 'medium 'normal))
                  ,@face-extra mode-line-buffer-id))
-         (text (concat "  "
-                       (my/modeline-modified)
-                       (propertize (buffer-name) 'face face)
-                       "  ")))
+         (text (propertize (my/get-buffer-name) 'face face)))
     (put-text-property 0 (length text)
                        'mouse-face '((:box t) highlight)
                        text)
@@ -1781,18 +1854,17 @@ if one couldn't be determined."
                        'keymap
                        (make-mode-line-mouse-map 'mouse-1 #'mouse-buffer-menu)
                        text)
-    text))
+    `("  " ,(my/modeline-modified) ,text "  ")))
 
 (defun my/propertize-position (pos)
   (let* ((col (face-attribute 'mode-line :box))
          (col (if (stringp col) col (plist-get col :color))))
-    `((:propertize " "
-       face (:background ,col)
-       display (space :width (1)))
+    `("  "
+      ;; (:propertize " " face (:background ,col) display (space :width (1)))
       ,(propertize (format-mode-line pos t) 'face (my/vim-color)))))
 
 (defun my/modeline-position-default ()
-  (my/propertize-position '( " %3l : %2C  ")))
+  (my/propertize-position '( "  %3l:%2C  ")))
 
 (defun my/modeline-position-pdf ()
   (or (ignore-errors
@@ -1820,9 +1892,7 @@ if one couldn't be determined."
       (let ((search-info (anzu--update-mode-line)))
         (if (null search-info)
             ""
-          (propertize (concat " " search-info)
-                      'display '(raise 0.05)
-                      )))
+          (propertize (concat " " search-info))))
     ""))
 
 (defun my/modeline-eldoc ()
@@ -1853,7 +1923,10 @@ visiting a file."
              (modified-str (if modified "∙ " "")))
         (propertize (concat (or view-str read-only-str)
                             (if (or modified (not buffer-read-only)) modified-str ""))
-                    'face `(:inherit ,(if modified 'error 'shadow))))
+                    'face `(:inherit ,(if modified 'error 'shadow)
+                            :weight medium
+                            :family ,my/variable-font
+                            :height ,my/mode-line-font-height)))
     ""))
 
 (defun my/mode-line-height-hack ()
@@ -1863,12 +1936,14 @@ invisible copy of the character causing the resizing so it's always present."
                    'mode-line-active
                  'mode-line-inactive))
          (mode-line-color (face-attribute face :background nil 'mode-line)))
-    (propertize "∙" 'face `(:foreground ,mode-line-color))))
+    (propertize "∙" 'face `(:foreground ,mode-line-color
+                            :weight medium
+                            :family ,my/variable-font
+                            :height ,my/mode-line-font-height))))
 
 (setopt mode-line-right-align-edge 'window)
 (setq-default mode-line-format
-              `((:eval (my/inactive-left))
-                (:eval (my/evil-state))
+              `((:eval (my/evil-state))
                 (:eval (my/modeline-buffer-name))
                 (:eval (my/modeline-search))
                 (:eval (my/modeline-eldoc))
@@ -1878,8 +1953,7 @@ invisible copy of the character causing the resizing so it's always present."
                 (:eval (my/modeline-project))
                 (:eval (my/modeline-fly))
                 (:eval (my/modeline-modes))
-                (:eval (my/modeline-position))
-                (:eval (if (mode-line-window-selected-p) "" "    "))))
+                (:eval (my/modeline-position))))
 
 ;; In daemon mode, the messages buffer is created too early to get the
 ;; mode line changes.
@@ -1946,10 +2020,12 @@ interaction. Tracks the compile command used on a per-project basis."
         (or command compile-command)))))
   (compile command t))
 
+
 (general-def
   "<f12>" 'window-toggle-side-windows
   "C-<f12>" 'modus-themes-rotate
-  "<f5>" 'compile-interactively)
+  "<f5>" 'compile-interactively
+  "C-x C-b" 'ibuffer)
 
 ;; I don't want the tutorial, license, hello, or any of the other junk that can
 ;; accidentally be fatfingered when using the otherwise useful C-h commands.
@@ -2019,14 +2095,26 @@ pressed twice in a row."
 ;; check for *scratch* so that we treat it like a non-special buffer. Otherwise
 ;; switch-to-prev-buffer-skip-regexp could have done the job.
 (defun my/match-special-buffers (buf &rest _)
-  (let ((buf-name (buffer-name (get-buffer buf))))
-    (and (string-prefix-p "*" buf-name)
-         (not (string= "*scratch*" buf-name)))))
+  (let* ((buf (get-buffer buf)) ;; Ensure we have a buffer and not a name
+         (buf-name (buffer-name buf)))
+    ;; (and (string-prefix-p "*" buf-name)
+    ;;      (not (string= "*scratch*" buf-name)))
+    ;; FIXME: Seeing if this behaves better when closing buffers
+    (not (or (string= "*scratch*" buf-name)
+             (string-prefix-p " " buf-name)
+             (buffer-file-name buf)))
+    ))
 
+;; I can't just invert match-special-buffers because both exclude hidden
 (defun my/match-non-special-buffers (buf &rest _)
-  (let ((buf-name (buffer-name (get-buffer buf))))
-    (or (string-match-p "\\`[^* ]" buf-name)
-        (string= "*scratch*" buf-name))))
+  (let* ((buf (get-buffer buf)) ;; Ensure we have a buffer and not a name
+         (buf-name (buffer-name buf)))
+    ;; (or (string-match-p "\\`[^* ]" buf-name)
+    ;;     (string= "*scratch*" buf-name))
+    ;; FIXME: See above
+    (and (or (string= "*scratch*" buf-name) (buffer-file-name buf))
+         (not (string-prefix-p " " buf-name)))
+    ))
 
 (defun my/switch-to-prev-buffer-skip (win target-buf bury-or-kill)
   (let ((side? (window-parameter win 'window-side)))
@@ -2043,6 +2131,8 @@ pressed twice in a row."
                          (funcall fn)))))
     (ignore-errors (add-hook hook one-shot t))))
 
+;; NOTE: Trying out global-tab-line-mode. I don't need anything in these right
+;; now, but I'm leaving them here in case I do in the future.
 (defun my/main-window-body-fn (win)
   ;; (set-window-parameter win 'tab-line-format 'none)
   t
@@ -2072,21 +2162,23 @@ it on the buffer itself."
 ;; TODO: Advise customize functions so they stop hijacking the current window
 (setq display-buffer-alist
       (let* ((bot-common '(display-buffer-in-side-window
-                           (side . bottom) (preserve-size . (nil . t))
+                           (side . bottom) (preserve-size . t)
                            (body-function . my/window-body-fn)))
              (bot-left-window `(,@bot-common (slot . -1)))
              (bot-right-window `(,@bot-common (slot . 1)))
              (bot-left-rx (rx bos
                               (| " " "*" " *")
                               (| "Help" "Custom" "info" "eldoc" "Occur" "grep"
-                                 "Warnings" "devdocs" "Pp" "eww")))
+                                 "devdocs" "Pp" "eww")))
              (bot-right-rx (rx bos
                                (| " " "*" " *")
                                (| (regex "[e]?shell") (regex "[v]?term")
                                   (regex ".*[Rr][Ee][Pp][Ll].*")
-                                  "compilation" "lua" "Python" "inferior")))
-             (bot-left-modes '(dired-mode eww-mode magit-mode))
-             (bot-right-modes '(comint-mode))
+                                  "compilation" "lua" "Python" "inferior"
+                                  "Warnings" "Messages" "Ibuffer" "eat")))
+             (bot-left-modes '( dired-mode eww-mode magit-mode))
+             (bot-right-modes '( comint-mode special-mode messages-buffer-mode
+                                 ibuffer-mode))
              (derived-rule (lambda (x) (cons 'derived-mode x)))
              )
         `(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
@@ -2109,6 +2201,8 @@ it on the buffer itself."
            (side . bottom))
           )))
 
-(when custom-file
-  (load custom-file))
+(defvar my/custom-loaded nil)
+(when (and custom-file (not my/custom-loaded))
+  (load custom-file)
+  (setq my/custom-loaded t))
 
