@@ -11,9 +11,6 @@
 ;; - Try to figure out triggering sp-comment when the comment string is typed
 ;;   for the current language's mode.
 
-;; - Make "C-x b" show file buffers in file windows and special buffers in
-;;   special windows
-
 
 ;;;; Utility macros and functions
 ;;;; ======================================================================
@@ -77,10 +74,11 @@ multiple times."
      (cursor blue-cooler)
      (bg-tab-bar bg-main)
      (bg-tab-other bg-inactive)
+     (bg-tab-current bg-paren-expression)
      (bg-region bg-cyan-subtle)
      (bg-mode-line-active bg-sage)
      (fg-mode-line-inactive fg-dim)
-     (bg-mode-line-inactive bg-dim)
+     (bg-mode-line-inactive bg-main)
      (fg-heading-0 fg-main)
      (fg-heading-1 cyan-cooler)
      (overline-heading-0 fg-dim)
@@ -103,8 +101,7 @@ multiple times."
      (bg-heading-8 bg-dim)
      ))
   (modus-operandi-palette-overrides
-   '((bg-tab-current bg-hl-line)
-     (accent-2 "#0AA")
+   '((accent-2 "#0AA")
      (bg-normal bg-paren-match)
      (bg-insert bg-graph-green-0)
      (fg-completion-match-0 blue-intense)
@@ -112,8 +109,7 @@ multiple times."
      (fg-completion-match-2 green-intense)
      (fg-completion-match-3 yellow-intense)))
   (modus-vivendi-palette-overrides
-   '((bg-tab-current bg-active)
-     (bg-normal blue-intense)
+   '((bg-normal blue-intense)
      (bg-visual bg-green-intense)
      (bg-emacs magenta-intense)
      ))
@@ -128,34 +124,6 @@ multiple times."
   :config
   (load-theme 'modus-vivendi t))
 
-(use-package spacious-padding :ensure t :demand t
-  :custom (spacious-padding-widths
-           '(:internal-border-width 8
-             :header-line-width 4
-             :mode-line-width 6
-             :tab-line-width 5
-             :tab-bar-width 6
-             :right-divider-width 8
-             :scroll-bar-width 0
-             :fringe-width 0))
-  :config
-  ;; I'm not sure why this isn't already an option. Quick hack to add
-  ;; bottom-divider-width too. It'd probably be better to use override advice
-  ;; but I'm not sure I want to keep this in the first place.
-  (defvar spacious-padding--bottom-divider-width nil)
-  (spacious-padding--define-get-frame-param "bottom-divider-width" 8)
-  ;; Copied from spacious-padding.el, just added bottom-divider-width
-  (defun spacious-padding-modify-frame-parameters (&optional reset)
-    (modify-all-frames-parameters
-     `((internal-border-width . ,(spacious-padding--get-internal-border-width reset))
-       (right-divider-width . ,(spacious-padding--get-right-divider-width reset))
-       (bottom-divider-width . ,(spacious-padding--get-bottom-divider-width reset))
-       (left-fringe . ,(or (spacious-padding--get-left-fringe-width reset)
-                           (spacious-padding--get-fringe-width reset)))
-       (right-fringe . ,(or (spacious-padding--get-right-fringe-width reset)
-                            (spacious-padding--get-fringe-width reset)))
-       (scroll-bar-width  . ,(spacious-padding--get-scroll-bar-width reset)))))
-  (spacious-padding-mode))
 
 ;;;; Font and Faces
 ;;;; ======================================================================
@@ -165,7 +133,7 @@ multiple times."
 (defvar my/font-height 135)
 (defvar my/smaller-font-height 120)
 (defvar my/mode-line-font-height 140)
-(defvar my/tab-bar-font-height 125)
+(defvar my/tab-bar-font-height 110)
 (defvar my/tab-line-font-height 110)
 (defvar my/default-font "Iosevka")
 (defvar my/variable-font "Noto Sans")
@@ -173,8 +141,6 @@ multiple times."
 (defvar my/buffer-name-font "Roboto")
 ;; This has to be in points
 (defvar my/which-key-font-pts 14)
-
-;; (set-face-attribute 'default nil :family my/default-font :height my/font-height)
 
 ;; Useful for including in inherit lists
 (defface normal '((t (:weight normal))) "Normal weight")
@@ -197,19 +163,12 @@ multiple times."
      `(mode-line ((t (:family ,my/variable-font
                       :height ,my/mode-line-font-height)))
                  t)
-     ;; Emulate spacious-padding's subtle-mode-line feature, but only for
-     ;; inactive windows
      `(mode-line-active ((t (:family ,my/variable-font
-                             :height ,my/mode-line-font-height
-                             ;; :box (:line-width 6 :color ,bg-mode-line-active)
-                             )))
+                             :height ,my/mode-line-font-height)))
                         t)
      `(mode-line-inactive ((t (:family ,my/variable-font
                                :height ,my/mode-line-font-height
-                               :background ,(my/blend-color bg-dim bg-main 0.25)
-                               ;; :box (:line-width 5 :color ,bg-main)
-                               ;; :overline ,(my/blend-color bg-main fg-alt 0.5)
-                               )))
+                               :background ,(my/blend-color bg-dim bg-main 0.25))))
                           t)
      `(mode-line-buffer-id ((t (:family ,my/buffer-name-font
                                 :height ,my/mode-line-font-height))))
@@ -241,25 +200,55 @@ multiple times."
      `(state-other ((t (:inherit (fixed-pitch error)))) t)
      `(tab-bar ((t (:family ,my/buffer-name-font
                     :overline ,bg-main
-                    :background ,(my/blend-color bg-main bg-dim 0.5)
-                    :underline (:position 0 :color ,bg-main)
                     :height ,my/tab-bar-font-height)))
                t)
+     `(tab-bar-tab ((t (:background ,bg-hl-line))) t)
+     `(tab-bar-tab-inactive ((t (:foreground ,bg-active
+                                 :underline (:position 0 :color ,bg-dim))))
+                            t)
      `(tab-line ((t (:family ,my/buffer-name-font
-                     ;; :overline ,bg-main
                      :background ,(my/blend-color bg-main bg-dim 0.5)
                      :underline (:position 0 :color ,bg-main)
                      :height ,my/tab-line-font-height)))
                 t)
      `(header-line ((t (:underline (:position 0 :color ,bg-inactive)
-                        :height 0.9
-                        ))) t)
+                        :height 0.9)))
+                   t)
      )))
 
 (my/update-faces-for-theme)
 
 (add-hook 'enable-theme-functions 'my/update-faces-for-theme)
+(add-hook 'server-after-make-frame-hook 'my/update-faces-for-theme)
 
+(use-package spacious-padding :ensure t :demand t
+  :custom (spacious-padding-widths
+           '(:internal-border-width 8
+             :header-line-width 4
+             :mode-line-width 6
+             :tab-line-width 5
+             :tab-bar-width 0
+             :right-divider-width 8
+             :scroll-bar-width 0
+             :fringe-width 0))
+  :config
+  ;; I'm not sure why this isn't already an option. Quick hack to add
+  ;; bottom-divider-width too. It'd probably be better to use override advice
+  ;; but I'm not sure I want to keep this in the first place.
+  (defvar spacious-padding--bottom-divider-width nil)
+  (spacious-padding--define-get-frame-param "bottom-divider-width" 8)
+  ;; Copied from spacious-padding.el, just added bottom-divider-width
+  (defun spacious-padding-modify-frame-parameters (&optional reset)
+    (modify-all-frames-parameters
+     `((internal-border-width . ,(spacious-padding--get-internal-border-width reset))
+       (right-divider-width . ,(spacious-padding--get-right-divider-width reset))
+       (bottom-divider-width . ,(spacious-padding--get-bottom-divider-width reset))
+       (left-fringe . ,(or (spacious-padding--get-left-fringe-width reset)
+                           (spacious-padding--get-fringe-width reset)))
+       (right-fringe . ,(or (spacious-padding--get-right-fringe-width reset)
+                            (spacious-padding--get-fringe-width reset)))
+       (scroll-bar-width  . ,(spacious-padding--get-scroll-bar-width reset)))))
+  (spacious-padding-mode))
 
 
 ;;;; General settings
@@ -575,23 +564,45 @@ matching against the buffer name for now."
 (defun my/main-window? (&optional win)
   (not (my/side-window? win)))
 
+;; It's hard to exclude matches with a regexp, so these include an explicit
+;; check for *scratch* so that we treat it like a non-special buffer. Otherwise
+;; switch-to-prev-buffer-skip-regexp could have done the job.
+(defun my/match-special-buffers (buf &rest _)
+  (let* ((buf (get-buffer buf)) ;; Ensure we have a buffer and not a name
+         (buf-name (buffer-name buf)))
+    (not (or (string= "*scratch*" buf-name)
+             (string-prefix-p " " buf-name)
+             (buffer-file-name buf)))))
+
+;; I can't just invert match-special-buffers because both exclude hidden
+(defun my/match-non-special-buffers (buf &rest _)
+  (let* ((buf (get-buffer buf)) ;; Ensure we have a buffer and not a name
+         (buf-name (buffer-name buf)))
+    (and (or (string= "*scratch*" buf-name) (buffer-file-name buf))
+         (not (string-prefix-p " " buf-name)))))
+
+(defun my/switch-to-prev-buffer-skip (win target-buf bury-or-kill)
+  (let ((side? (window-parameter win 'window-side)))
+    (if side?
+        (my/match-non-special-buffers target-buf)
+      (my/match-special-buffers target-buf))))
+
+(setq switch-to-prev-buffer-skip #'my/switch-to-prev-buffer-skip)
+
+
 ;; These are intended to be redefined to whatever actual buffer switching
 ;; functions I decide to use.
 (defun my/switch-to-next-buffer ()
   (interactive)
-  ;; (if tab-line-mode
-  ;;     (tab-line-switch-to-next-tab)
-  ;;   (switch-to-next-buffer))
-  (switch-to-next-buffer)
-  )
+  (if tab-line-mode
+      (tab-line-switch-to-next-tab)
+    (switch-to-next-buffer)))
 
 (defun my/switch-to-prev-buffer ()
   (interactive)
-  ;; (if tab-line-mode
-  ;;     (tab-line-switch-to-prev-tab)
-  ;;   (switch-to-prev-buffer))
-  (switch-to-prev-buffer)
-  )
+  (if tab-line-mode
+      (tab-line-switch-to-prev-tab)
+    (switch-to-prev-buffer)))
 
 ;;;; External Packages
 ;;;; ======================================================================
@@ -779,8 +790,11 @@ matching against the buffer name for now."
   :custom (eat-kill-buffer-on-exit t)
   :hook ((eshell-load . eat-eshell-mode)
          (eshell-load . eat-eshell-visual-command-mode))
+  :config
+  (defun my/eat-C-w () (interactive) (eat-self-input 1 23)) ; ASCII code for C-w
   :general-config
   ('(normal insert emacs) '(eat-mode-map eshell-mode-map)
+   "C-S-w" 'my/eat-C-w
    "C-c P" 'eat-send-password
    "C-j" 'my/switch-to-next-buffer
    "C-k" 'my/switch-to-prev-buffer))
@@ -888,7 +902,8 @@ matching against the buffer name for now."
    [remap Info-search] 'consult-info
    ;; C-x bindings in `ctl-x-map'
    "C-x M-:" 'consult-complex-command
-   "C-x b" 'consult-buffer
+   "C-x b" 'consult-buffer-similar
+   "C-x B" 'consult-buffer
    "C-x 4 b" 'consult-buffer-other-window
    "C-x 5 b" 'consult-buffer-other-frame
    "C-x t b" 'consult-buffer-other-tab
@@ -948,8 +963,8 @@ matching against the buffer name for now."
   (add-to-list* 'consult-buffer-filter
                 "\\`\\*Compile-Log\\*\\'"
                 "\\`\\*Async-native-compile-log\\*\\'")
-  (defvar my/consult--source-buffer-no-star
-    `(:name "Buffer"
+  (defvar my/consult--source-buffer-side-window
+    `(:name "Side Window Buffer"
       :narrow ?b
       :category buffer
       :face consult-buffer
@@ -958,21 +973,36 @@ matching against the buffer name for now."
       :default t
       :items
       ,(lambda ()
-         (consult--buffer-query :sort 'visibility
-                                :as #'consult--buffer-pair
-                                :exclude
-                                `("\\`\\*" ,@consult-buffer-filter)))))
-  (defun consult-buffer-only (&optional arg)
-    "`consult-buffer` that only shows buffers. With prefix, show * buffers."
+         (consult--buffer-query
+          :sort 'visibility
+          :as #'consult--buffer-pair
+          :predicate 'my/match-special-buffers))))
+  (defvar my/consult--source-buffer-main-window
+    `(:name "Main Window Buffer"
+      :narrow ?b
+      :category buffer
+      :face consult-buffer
+      :history buffer-name-history
+      :state ,#'consult--buffer-state
+      :default t
+      :items
+      ,(lambda ()
+         (consult--buffer-query
+          :sort 'visibility
+          :as #'consult--buffer-pair
+          :predicate 'my/match-non-special-buffers))))
+  (defun consult-buffer-similar (&optional arg)
+    "`consult-buffer' that only shows main window buffers when called from a
+main window, side window buffers when called from a side window. With prefix,
+show all buffers."
     (interactive "P")
     (if arg
-        (progn
-          (message "prefix")
-          (consult-buffer '(consult--source-buffer)))
-      (message "no prefix")
-      (consult-buffer '(my/consult--source-buffer-no-star))))
+        (consult-buffer '(consult--source-buffer))
+      (if (my/main-window?)
+          (consult-buffer '(my/consult--source-buffer-main-window))
+        (consult-buffer '(my/consult--source-buffer-side-window)))))
 
-  (keymap-global-set "C-x B" 'consult-buffer-only)
+  (keymap-global-set "C-x b" 'consult-buffer-similar)
 
   (consult-customize
    consult-theme :preview-key '(:debounce 0.2 any)
@@ -993,12 +1023,15 @@ matching against the buffer name for now."
    "C-S-SPC" 'set-mark-command)
   ('(insert emacs)
    "C-SPC" 'completion-at-point)        ; for when tab isn't usable
-  ('corfu-map
+  ('(insert emacs) 'corfu-map
    "<prior>" 'corfu-scroll-down
    "<next>" 'corfu-scroll-up
    "<tab>" 'corfu-expand
    "TAB" 'corfu-expand
-   "<return>" 'corfu-send)
+   "C-SPC" 'corfu-complete ;; Fill selected completion
+   "<return>" 'corfu-send
+   "C-n" 'corfu-next
+   "C-p" 'corfu-previous)
   :custom
   (corfu-cycle t)
   (corfu-preselect 'valid)
@@ -1012,13 +1045,7 @@ matching against the buffer name for now."
   ;; Hide commands in M-x which do not apply to the current mode.
   (read-extended-command-predicate #'command-completion-default-include-p)
   (text-mode-ispell-word-completion nil)
-  (tab-always-indent 'complete)
-  ;; :custom-face
-  ;; (corfu-default ((t (:inherit default-bg))))
-  ;; (corfu-current ((t (:inherit selected-item))))
-  ;; (corfu-border ((t (:inherit popup-border))))
-  ;; (corfu-popupinfo ((t (:inherit popup-bg))))
-  )
+  (tab-always-indent 'complete))
 
 ;; Note: this _might_ be conflicting with popupinfo in the GUI, needs testing
 (use-package corfu-terminal :ensure t
@@ -1351,6 +1378,7 @@ matching against the buffer name for now."
 ;;   :vc (:url "https://github.com/alphapapa/bufler.el")
 ;;   :custom (bufler-columns '("Name" "Path")))
 
+
 ;;;; Built-in Packages
 ;;;; ======================================================================
 
@@ -1361,8 +1389,15 @@ matching against the buffer name for now."
   :general-config
   ('(insert emacs) 'eshell-mode-map
    "<tab>" 'completion-at-point
+   "C-S-w" 'evil-delete-backward-word
    "C-p" 'eshell-previous-matching-input-from-input
    "C-n" 'eshell-next-matching-input-from-input))
+
+(use-package comint :ensure nil
+  :general-config
+  ('comint-mode-map
+   "C-j" 'my/switch-to-next-buffer
+   "C-k" 'my/switch-to-prev-buffer))
 
 (use-package winner-mode :ensure nil
   :custom (winner-dont-bind-my-keys t)
@@ -1496,13 +1531,6 @@ matching against the buffer name for now."
     (setq my/eldoc-help-message ""))
   (add-hook 'minibuffer-exit-hook 'my/clear-eldoc-help-message))
 
-(use-package compile :ensure nil
-  :bind (:map compilation-mode-map
-         ("C-j" . my/switch-to-next-buffer)
-         ("C-k" . my/switch-to-prev-buffer)
-         ("<normal-state> C-j" . my/switch-to-next-buffer)
-         ("<normal-state> C-k" . my/switch-to-prev-buffer)))
-
 (use-package eglot :ensure nil
   :custom (eglot-ignored-server-capabilities '(:inlayHintProvider)))
 
@@ -1555,17 +1583,15 @@ matching against the buffer name for now."
   :custom
   (tab-bar-format '(tab-bar-format-tabs
                     tab-bar-separator
-                    tab-bar-format-add-tab
-                    tab-bar-format-align-right
-                    tab-bar-format-global))
+                    tab-bar-format-add-tab))
   (tab-bar-close-button-show nil)
   (tab-bar-select-restore-windows nil)
   (tab-bar-show 1)
   (tab-bar-auto-width nil)
   :custom-face
   (tab-bar ((t (:weight normal))))
-  (tab-bar-tab ((t (:weight medium))))
-  (tab-bar-tab-inactive ((t (:weight light :foreground "#7F7F7F"))))
+  (tab-bar-tab ((t (:weight normal :box nil))))
+  (tab-bar-tab-inactive ((t (:weight normal :background unspecified :box nil))))
   :config
   (defun my/tab-bar-tab-name-format-spaces (name tab number)
     (let ((face (funcall tab-bar-tab-face-function tab)))
@@ -1582,24 +1608,60 @@ matching against the buffer name for now."
   (setopt tab-bar-tab-name-format-functions '(tab-bar-tab-name-format-hints
                                               tab-bar-tab-name-format-close-button
                                               my/tab-bar-tab-name-format-spaces))
-  (setq tab-bar-separator (propertize " " 'face 'default 'display '(space :width (1))))
+  (setq tab-bar-separator (propertize " "
+                                      'face 'default
+                                      'display '(space :width (1) :height (16))))
   (tab-bar-mode t))
 
 (use-package tab-line :ensure nil
   :init
   (defun my/tab-line-tab-name (buf &optional _)
     (concat "  " (buffer-name buf) "  "))
+  ;; Based on this blog post for "modern" tab behavior, where closing the last
+  ;; tab in a window will close the window and closing a tab will only kill a
+  ;; buffer if it isn't displayed anywhere else.
+  ;; https://andreyor.st/posts/2020-05-07-making-emacs-tabs-work-like-in-atom
+  ;; This uses advice instead of changing tab-line-close-tab-function because
+  ;; we already need to redo a lot of the work in tab-line-close-tab.
+  (defun my/collect-tab-line-buffers ()
+    (let ((fn (lambda (ls win)
+                (select-window win :norecord)
+                (cons (tab-line-tabs-window-buffers) ls))))
+      (flatten-list (seq-reduce fn (window-list) nil))))
+  ;; TODO: Make a version of this that can be bound to a key without having
+  ;; to use the mouse
+  (defun my/tab-line-close-tab (&optional e)
+    (interactive "e")
+    (let* ((pos (event-start e))
+           (win (posn-window pos))
+           (buf (get-pos-property 1 'tab (car (posn-string pos)))))
+      (with-selected-window win
+        (let ((tab-list (tab-line-tabs-window-buffers))
+              (buf-list (my/collect-tab-line-buffers)))
+          (select-window win)
+          (if (>= 1 (--count (eq it buf) buf-list))
+              (and (kill-buffer buf)
+                   (unless (cdr tab-list)
+                     (ignore-errors (delete-window win))))
+            (if (eq buf (current-buffer))
+                (bury-buffer)
+              (set-window-prev-buffers win (assq-delete-all buf (window-prev-buffers)))
+              (set-window-next-buffers win (delq buf (window-next-buffers))))
+            (unless (cdr tab-list)
+              (ignore-errors (delete-window win))))))
+      (force-mode-line-update)))
   :custom
   (tab-line-close-button-show nil)
   (tab-line-new-button-show nil)
   (tab-line-tab-face-functions nil)
   (tab-line-tab-name-function 'my/tab-line-tab-name)
-  (tab-line-close-tab-function 'kill-buffer)
+  ;; (tab-line-close-tab-function 'kill-buffer)
   :custom-face
   (tab-line-tab ((t (:box unspecified :inherit tab-line-tab-current))))
   (tab-line-tab-current ((t (:weight medium))))
   (tab-line-tab-inactive ((t (:weight normal :foreground "#7F7F7F"))))
   :config
+  (advice-add 'tab-line-close-tab :override 'my/tab-line-close-tab)
   (setq tab-line-separator
         (propertize " " 'face 'default 'display '(space :width (1)))))
 
@@ -1941,7 +2003,8 @@ invisible copy of the character causing the resizing so it's always present."
                             :family ,my/variable-font
                             :height ,my/mode-line-font-height))))
 
-(setopt mode-line-right-align-edge 'window)
+(setopt mode-line-right-align-edge 'right-margin ;'window
+        )
 (setq-default mode-line-format
               `((:eval (my/evil-state))
                 (:eval (my/modeline-buffer-name))
@@ -2091,39 +2154,6 @@ pressed twice in a row."
 (setq window-sides-slots '(1 0 0 2))
 (setq fit-window-to-buffer-horizontally t)
 
-;; It's hard to exclude matches with a regexp, so these include an explicit
-;; check for *scratch* so that we treat it like a non-special buffer. Otherwise
-;; switch-to-prev-buffer-skip-regexp could have done the job.
-(defun my/match-special-buffers (buf &rest _)
-  (let* ((buf (get-buffer buf)) ;; Ensure we have a buffer and not a name
-         (buf-name (buffer-name buf)))
-    ;; (and (string-prefix-p "*" buf-name)
-    ;;      (not (string= "*scratch*" buf-name)))
-    ;; FIXME: Seeing if this behaves better when closing buffers
-    (not (or (string= "*scratch*" buf-name)
-             (string-prefix-p " " buf-name)
-             (buffer-file-name buf)))
-    ))
-
-;; I can't just invert match-special-buffers because both exclude hidden
-(defun my/match-non-special-buffers (buf &rest _)
-  (let* ((buf (get-buffer buf)) ;; Ensure we have a buffer and not a name
-         (buf-name (buffer-name buf)))
-    ;; (or (string-match-p "\\`[^* ]" buf-name)
-    ;;     (string= "*scratch*" buf-name))
-    ;; FIXME: See above
-    (and (or (string= "*scratch*" buf-name) (buffer-file-name buf))
-         (not (string-prefix-p " " buf-name)))
-    ))
-
-(defun my/switch-to-prev-buffer-skip (win target-buf bury-or-kill)
-  (let ((side? (window-parameter win 'window-side)))
-    (if side?
-        (my/match-non-special-buffers target-buf)
-      (my/match-special-buffers target-buf))))
-
-(setq switch-to-prev-buffer-skip #'my/switch-to-prev-buffer-skip)
-
 (defun my/one-time-hook (hook fn)
   (letrec ((one-shot (lambda ()
                        (ignore-errors
@@ -2175,7 +2205,7 @@ it on the buffer itself."
                                (| (regex "[e]?shell") (regex "[v]?term")
                                   (regex ".*[Rr][Ee][Pp][Ll].*")
                                   "compilation" "lua" "Python" "inferior"
-                                  "Warnings" "Messages" "Ibuffer" "eat")))
+                                  "Warnings" "Messages" "Ibuffer" "eat*")))
              (bot-left-modes '( dired-mode eww-mode magit-mode))
              (bot-right-modes '( comint-mode special-mode messages-buffer-mode
                                  ibuffer-mode))
