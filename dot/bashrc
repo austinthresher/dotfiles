@@ -87,10 +87,17 @@ export VISUAL=edit
 
 # Use bat for man pages if it's installed
 if is_executable bat; then
-    export MANPAGER="sh -c 'col -bx | bat -l man -p'"
+    # Taken from bat's examples
+    SED_CMD="\"s/\\x1B\[[0-9;]*m//g; s/.\\x08//g\""
+    export MANPAGER="sh -c 'sed -u -e ${SED_CMD} | bat -p -lman'"
     bathelp() {
         bat --plain --language=help
     }
+    batman() {
+        # Not all themes highlight man pages properly, force one that does
+        BAT_THEME="Monokai Extended" man "$@"
+    }
+    alias man=batman
     help() {
       "$@" --help 2>&1 | bathelp
     }

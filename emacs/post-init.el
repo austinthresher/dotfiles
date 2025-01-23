@@ -81,8 +81,8 @@ multiple times."
      (bg-mode-line-inactive bg-main)
      (fg-heading-0 fg-main)
      (fg-heading-1 cyan-cooler)
-     (overline-heading-0 fg-dim)
-     (overline-heading-1 bg-cyan-intense)
+     ;; (overline-heading-0 fg-dim)
+     ;; (overline-heading-1 bg-cyan-intense)
      (overline-heading-2 bg-yellow-intense)
      (overline-heading-3 bg-blue-intense)
      (overline-heading-4 bg-magenta-intense)
@@ -90,15 +90,15 @@ multiple times."
      (overline-heading-6 bg-red-intense)
      (overline-heading-7 bg-cyan-intense)
      (overline-heading-8 fg-dim)
-     (bg-heading-0 bg-dim)
-     (bg-heading-1 bg-cyan-nuanced)
-     (bg-heading-2 bg-yellow-nuanced)
-     (bg-heading-3 bg-blue-nuanced)
-     (bg-heading-4 bg-magenta-nuanced)
-     (bg-heading-5 bg-green-nuanced)
-     (bg-heading-6 bg-red-nuanced)
-     (bg-heading-7 bg-cyan-nuanced)
-     (bg-heading-8 bg-dim)
+     ;; (bg-heading-0 bg-dim)
+     ;; (bg-heading-1 bg-cyan-nuanced)
+     ;; (bg-heading-2 bg-yellow-nuanced)
+     ;; (bg-heading-3 bg-blue-nuanced)
+     ;; (bg-heading-4 bg-magenta-nuanced)
+     ;; (bg-heading-5 bg-green-nuanced)
+     ;; (bg-heading-6 bg-red-nuanced)
+     ;; (bg-heading-7 bg-cyan-nuanced)
+     ;; (bg-heading-8 bg-dim)
      ))
   (modus-operandi-palette-overrides
    '((accent-2 "#0AA")
@@ -112,15 +112,45 @@ multiple times."
    '((bg-normal blue-intense)
      (bg-visual bg-green-intense)
      (bg-emacs magenta-intense)
+     (bg-term-red "#e53c3c")
+     (bg-term-green "#33bc33")
+     (bg-term-yellow "#fec43f")
+     (bg-term-blue "#2fafff")
+     (bg-term-magenta "#c055c0")
+     (bg-term-cyan "#00d3d0")
+     (bg-term-white "#a6a6a6")
+     (fg-term-red bg-term-red)
+     (fg-term-green bg-term-green)
+     (fg-term-yellow bg-term-yellow)
+     (fg-term-blue bg-term-blue)
+     (fg-term-magenta bg-term-magenta)
+     (fg-term-cyan bg-term-cyan)
+     (fg-term-white bg-term-white)
+     (bg-term-black-bright "#595959")
+     (bg-term-red-bright "#ff9095")
+     (bg-term-green-bright "#80e080")
+     (bg-term-yellow-bright "#ffef80")
+     (bg-term-blue-bright "#79a8ff")
+     (bg-term-magenta-bright "#ff88ff")
+     (bg-term-cyan-bright "#6ae4b9")
+     (bg-term-white-bright "#ffffff")
+     (fg-term-black-bright bg-term-black-bright)
+     (fg-term-red-bright bg-term-red-bright)
+     (fg-term-green-bright bg-term-green-bright)
+     (fg-term-yellow-bright bg-term-yellow-bright)
+     (fg-term-blue-bright bg-term-blue-bright)
+     (fg-term-magenta-bright bg-term-magenta-bright)
+     (fg-term-cyan-bright bg-term-cyan-bright)
+     (fg-term-white-bright bg-term-white-bright)
      ))
-  (modus-themes-headings '((1 . (1.30 black))
-                           (2 . (1.25 extrabold))
-                           (3 . (1.20 bold))
-                           (4 . (1.15 semibold))
-                           (5 . (1.10 medium))
-                           (6 . (1.05 regular))
-                           (7 . (1.00 regular))
-                           (8 . (0.95 regular))))
+  (modus-themes-headings '((1 . (variable-pitch 1.25 bold))
+                           (2 . (variable-pitch 1.25 semibold))
+                           (3 . (variable-pitch 1.20 semibold))
+                           (4 . (variable-pitch 1.20 medium))
+                           (5 . (variable-pitch 1.15 medium))
+                           (6 . (variable-pitch 1.15 regular))
+                           (7 . (variable-pitch 1.10 regular))
+                           (8 . (variable-pitch 1.05 regular))))
   :config
   (load-theme 'modus-vivendi t))
 
@@ -132,7 +162,7 @@ multiple times."
 
 (defvar my/font-height 135)
 (defvar my/smaller-font-height 120)
-(defvar my/mode-line-font-height 140)
+(defvar my/mode-line-font-height 135)
 (defvar my/tab-bar-font-height 110)
 (defvar my/tab-line-font-height 110)
 (defvar my/default-font "Iosevka")
@@ -157,6 +187,7 @@ multiple times."
   (modus-themes-with-colors
     (custom-set-faces
      `(default ((t (:family ,my/default-font :height ,my/font-height))) t)
+     `(fixed-pitch-sans ((t (:family ,my/default-font))) t)
      `(fixed-pitch ((t (:family ,my/fixed-font))) t)
      `(fixed-pitch-serif ((t (:family ,my/fixed-font))) t)
      `(variable-pitch ((t (:family ,my/variable-font))) t)
@@ -264,7 +295,7 @@ multiple times."
 (setq idle-update-delay 0.1)
 (setq mouse-1-click-follows-link t)
 (setq mouse-wheel-tilt-scroll t)
-(setq mouse-wheel-progressive-speed t)
+(setq mouse-wheel-progressive-speed nil)
 (setq pixel-scroll-precision-interpolation-factor 1.0)
 (setq mouse-wheel-scroll-amount '(0.05
                                   ((shift) . 0.9)
@@ -300,7 +331,7 @@ multiple times."
 ;;;; ======================================================================
 
 (setq blink-cursor-blinks 0)
-(setq blink-cursor-delay 0.1)
+(setq blink-cursor-delay 0.2)
 (setq blink-cursor-interval 0.1)
 (setq-default cursor-type 'box)
 (setq blink-cursor-alist '((box . box) (hollow . hollow) (bar . bar)
@@ -324,7 +355,7 @@ multiple times."
   (let ((bg (color-name-to-rgb (modus-themes-get-color-value 'bg-dim t)))
         (cursor (color-name-to-rgb (modus-themes-get-color-value 'cursor t)))
         (emacs-cursor '(1.0 0.0 1.0))
-        (steps '(1.0 1.0 0.75 0.5 0.25 0.0 0.25 0.5 0.75)))
+        (steps '(1.0 0.75 0.50 0.25 0.0 0.25 0.50 0.75 1.0)))
     (setq my/cursor-colors-normal
           (--map (apply #'color-rgb-to-hex
                         `(,@(color-blend cursor bg it) 2))
@@ -347,6 +378,11 @@ multiple times."
 
 (defvar my/underline-ov nil)
 
+(defun my/cursor-delete-overlay (&rest _)
+  (when (overlayp my/underline-ov)
+    (delete-overlay my/underline-ov)
+    (setq my/underline-ov nil)))
+
 (defun my/update-underline-color ()
   (when (overlayp my/underline-ov)
     (overlay-put my/underline-ov 'face
@@ -354,8 +390,9 @@ multiple times."
     (overlay-put my/underline-ov 'window (selected-window))))
 
 (defun my/cursor-over-image? ()
-  (let ((prop (get-text-property (point) 'display)))
-    (eq 'image (car-safe prop))))
+  (or (eq 'image (car-safe (get-text-property (point) 'display)))
+      (--any? (eq 'image (car-safe (overlay-get it 'display)))
+              (overlays-at (point)))))
 
 (defun my/cursor-should-underline? ()
   (and (not (my/cursor-over-image?))
@@ -369,7 +406,7 @@ multiple times."
   (or (ignore-errors
         (if (or (not (eq evil-state 'normal))
                 (not (my/cursor-should-underline?)))
-            (when (overlayp my/underline-ov) (delete-overlay my/underline-ov))
+            (my/cursor-delete-overlay)
           (unless (overlayp my/underline-ov)
             (setq my/underline-ov (make-overlay (point) (point))))
           (let ((start (point)))
@@ -378,10 +415,9 @@ multiple times."
               (move-overlay my/underline-ov start (point) (current-buffer))
               (my/update-underline-color))))
         t)
-      ;; If we had any errors, just delete the overlay ;entirely to try again
+      ;; If we had any errors, just delete the overlay entirely to try again
       ;; next time.
-      (progn (when (overlayp my/underline-ov) (delete-overlay my/underline-ov))
-             (setq my/underline-ov nil))))
+      (my/cursor-delete-overlay)))
 
 (add-hook 'post-command-hook 'my/update-cursor-overlay)
 
@@ -394,8 +430,7 @@ multiple times."
 (defun my/cursor-start-blink (&rest _)
   ;; The animation looks really weird when the cursor is on an image
   (if (my/cursor-over-image?)
-       (progn (when (overlayp my/underline-ov)
-                (delete-overlay my/underline-ov))
+       (progn (my/cursor-delete-overlay)
               (setq blink-cursor-blinks 1)
               (when blink-cursor-timer (cancel-timer blink-cursor-timer))
               (setq blink-cursor-timer nil)
@@ -403,14 +438,17 @@ multiple times."
      (my/cursor-color-reset)))
 
 (defun my/cursor-color-advance (&rest _)
-  (setq my/cursor-color-idx (% (1+ my/cursor-color-idx)
-                               (length (my/get-cursor-colors))))
+  (when (> blink-cursor-blinks-done 1) ; fixes flickering issue
+   (setq my/cursor-color-idx (% (1+ my/cursor-color-idx)
+                                (length (my/get-cursor-colors)))))
   (set-face-attribute 'cursor nil :background (my/get-cursor-color))
   (my/update-underline-color))
 
 (advice-add 'blink-cursor-start :after 'my/cursor-start-blink)
 (advice-add 'blink-cursor-end :before 'my/cursor-color-reset)
 (advice-add 'blink-cursor-timer-function :before 'my/cursor-color-advance)
+(advice-add 'what-cursor-position :before 'my/cursor-delete-overlay)
+(advice-add 'describe-char :before 'my/cursor-delete-overlay)
 (blink-cursor-mode t)
 
 ;;;; Less noisy minibuffer
@@ -1102,14 +1140,17 @@ show all buffers."
                          :foreground "orange red"
                          :background unspecified))))
   (rainbow-delimiters-depth-1-face ((t (:foreground unspecified
+                                        :background unspecified
                                         :weight medium
-                                        :inherit modus-themes-reset-soft))))
+                                        :inherit nil))))
   (rainbow-delimiters-depth-2-face ((t (:foreground unspecified
+                                        :background unspecified
                                         :weight light
-                                        :inherit modus-themes-reset-soft))))
+                                        :inherit nil))))
   (rainbow-delimiters-depth-3-face ((t (:foreground unspecified
+                                        :background unspecified
                                         :weight extralight
-                                        :inherit modus-themes-reset-soft)))))
+                                        :inherit nil)))))
 
 (use-package yasnippet :ensure t
   :custom (yas-alias-to-yas/prefix-p nil)
@@ -1145,7 +1186,7 @@ show all buffers."
   ('visual "v" 'er/expand-region))
 
 (use-package lua-mode :ensure t :mode "\\.lua\\'")
-(use-package vimrc-mode :ensure t :mode "[._]?g?vim\\(rc\\)?")
+(use-package vimrc-mode :ensure t :mode "[._]?g?vim\\(rc\\)?\\'")
 (use-package fennel-mode :ensure t :mode "\\.fnl\\'")
 
 (use-package slime :ensure t
@@ -1294,7 +1335,7 @@ show all buffers."
   (server-after-make-frame . minions-mode)
   :custom
   (minions-mode-line-face 'fixed-pitch)
-  (minions-mode-line-lighter " = ")
+  (minions-mode-line-lighter "=")
   (minions-mode-line-delimiters '(" " . " ")))
 
 (use-package list-unicode-display :ensure t)
@@ -1316,6 +1357,17 @@ show all buffers."
 
 (use-package devdocs :ensure t
   :commands devdocs-lookup
+  :config
+  (defun devdocs-install-all ()
+    "Doesn't actually install _everything_, just the stuff I care about"
+    (interactive)
+    (mapc 'devdocs-install
+          '("bash" "c" "cpp" "clojure~1.11" "cmake" "css" "docker" "dom"
+            "elisp" "gcc~13" "gcc~13_cpp" "gnu_make" "godot~4.2" "haskell~9"
+            "html" "http" "javascript" "jq" "man" "markdown" "lua~5.3" "love"
+            "numpy" "ocaml" "octave~9" "opengl~4" "opengl~2.1" "pygame"
+            "python~3.12" "pytorch~22" "qt" "qt~5.15" "rust" "sqlite" "svg"
+            "tcl_tk" "zig")))
   :bind ("C-h D" . devdocs-lookup))
 
 (use-package treesit-auto :ensure t
@@ -1511,7 +1563,6 @@ show all buffers."
             (dom-remove-node (dom-parent document child) child))))))
   (advice-add 'eww-display-document :before 'my/clean-github))
 
-
 (use-package eldoc :ensure nil
   :init (defvar my/eldoc-help-message "")
   :custom
@@ -1549,6 +1600,15 @@ show all buffers."
   (org-blank-before-new-entry '((heading . auto) (plain-list-item . nil)))
   (org-archive-default-command 'org-archive-to-archive-sibling)
   (org-archive-location "::* Archive")
+  (org-todo-keywords '((sequence "TODO" "|" "DONE" "NOTE" "IDEA")))
+  (org-todo-keyword-faces '(("TODO" . org-todo)
+                            ("DONE" . org-done)
+                            ("NOTE" . (fixed-pitch-sans shadow))
+                            ("IDEA" . (fixed-pitch-sans
+                                       modus-themes-fg-blue-faint))))
+  :custom-face
+  (org-done ((t (:))))
+  (org-headline-done ((t (:inherit (normal shadow)))))
   :config
   (add-to-list 'org-modules 'org-mouse)
   (unless (file-exists-p org-directory) (make-directory org-directory t))
@@ -1688,6 +1748,21 @@ show all buffers."
               'my/dired-mouse-find-file-smart)
   (general-add-hook 'dired-mode-hook '( dired-hide-details-mode
                                         dired-omit-mode)))
+
+(use-package which-func :ensure nil
+  :custom-face
+  (which-func ((t (:height 120 :inherit (shadow medium fixed-pitch)))))
+  :custom
+  (which-func-unknown "")
+  (which-func-format `(-24 (:propertize which-func-current
+                            local-map ,which-func-keymap
+                            face which-func
+                            mouse-face mode-line-highlight
+                            help-echo ,(concat
+                                        "Current function\n"
+                                        "mouse-1: go to beginning\n"
+                                        "mouse-2: toggle rest visibility\n"
+                                        "mouse-3: go to end")))))
 
 (use-package help-mode :ensure nil
   :init
@@ -1881,7 +1956,7 @@ if one couldn't be determined."
   (let ((home (concat (getenv "HOME") "/")))
     (unless (or (string= home (projectile-project-p))
                 (string= "-" (projectile-project-name)))
-      `(" " (:propertize
+      `("" (:propertize
              ,(projectile-project-name)
              face ((:height 0.9) shadow)
              mouse-face ((:box t) highlight)
@@ -1890,12 +1965,21 @@ if one couldn't be determined."
              keymap ,(make-mode-line-mouse-map 'mouse-1
                                                #'projectile-mode-menu)
              display (raise 0.04))
-        "  "))))
+        " "))))
 
 (defun my/get-buffer-name ()
   (let ((fname (buffer-file-name))
         (proj (projectile-project-p)))
-    (cond ((and fname proj) (string-remove-prefix proj fname))
+    (cond ((and fname proj)
+           (let ((path (string-remove-prefix proj fname)))
+             (if (length< path 32)
+                 path
+               (require 'rng-uri)
+               (let ((parts (rng-split-path path))
+                     (limit (lambda (x)
+                              (string-limit x (if (string-prefix-p "." x) 2 1)))))
+                 (rng-join-path (append (mapcar limit (butlast parts))
+                                        (last parts)))))))
           (t (buffer-name)))))
 
 (defun my/modeline-buffer-name ()
@@ -1926,7 +2010,7 @@ if one couldn't be determined."
       ,(propertize (format-mode-line pos t) 'face (my/vim-color)))))
 
 (defun my/modeline-position-default ()
-  (my/propertize-position '( "  %3l:%2C  ")))
+  (my/propertize-position '( " %3l:%2C ")))
 
 (defun my/modeline-position-pdf ()
   (or (ignore-errors
