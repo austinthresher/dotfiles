@@ -2,6 +2,8 @@
 
 ;; TODO: Pick a single key binding for buffer swapping, probably a function key
 
+;; TODO: See if paredit is better behaved than smartparens
+
 ;;;; TODOs that probably require writing elisp:
 ;;;; ======================================================================
 ;; - Make keybinds for the mouse back/forward buttons that call appropriate
@@ -10,6 +12,11 @@
 
 ;; - Try to figure out triggering sp-comment when the comment string is typed
 ;;   for the current language's mode.
+
+;; - Write a function for fennel-mode to update `fennel-indent-function' for
+;;   the current symbol (or current function definition, if possible). Also
+;;   look at the `fennel-doc-string-elt' symbol property to add docstring
+;;   support to function-defining macros.
 
 
 ;;;; Utility macros and functions
@@ -72,6 +79,7 @@ multiple times."
   (modus-themes-common-palette-overrides
    '((fringe unspecified)
      (cursor blue-cooler)
+     (prose-done bg-added-fringe)
      (bg-tab-bar bg-main)
      (bg-tab-other bg-inactive)
      (bg-tab-current bg-paren-expression)
@@ -81,25 +89,14 @@ multiple times."
      (bg-mode-line-inactive bg-main)
      (fg-heading-0 fg-main)
      (fg-heading-1 cyan-cooler)
-     ;; (overline-heading-0 fg-dim)
-     ;; (overline-heading-1 bg-cyan-intense)
-     (overline-heading-2 bg-yellow-intense)
-     (overline-heading-3 bg-blue-intense)
-     (overline-heading-4 bg-magenta-intense)
-     (overline-heading-5 bg-green-intense)
-     (overline-heading-6 bg-red-intense)
-     (overline-heading-7 bg-cyan-intense)
-     (overline-heading-8 fg-dim)
-     ;; (bg-heading-0 bg-dim)
-     ;; (bg-heading-1 bg-cyan-nuanced)
-     ;; (bg-heading-2 bg-yellow-nuanced)
-     ;; (bg-heading-3 bg-blue-nuanced)
-     ;; (bg-heading-4 bg-magenta-nuanced)
-     ;; (bg-heading-5 bg-green-nuanced)
-     ;; (bg-heading-6 bg-red-nuanced)
-     ;; (bg-heading-7 bg-cyan-nuanced)
-     ;; (bg-heading-8 bg-dim)
-     ))
+     ;; (overline-heading-1 bg-cyan-subtle)
+     (overline-heading-2 bg-yellow-subtle)
+     (overline-heading-3 bg-blue-subtle)
+     (overline-heading-4 bg-magenta-subtle)
+     (overline-heading-5 bg-green-subtle)
+     (overline-heading-6 bg-red-subtle)
+     (overline-heading-7 bg-cyan-subtle)
+     (overline-heading-8 fg-dim)))
   (modus-operandi-palette-overrides
    '((accent-2 "#0AA")
      (bg-normal bg-paren-match)
@@ -107,7 +104,13 @@ multiple times."
      (fg-completion-match-0 blue-intense)
      (fg-completion-match-1 magenta-intense)
      (fg-completion-match-2 green-intense)
-     (fg-completion-match-3 yellow-intense)))
+     (fg-completion-match-3 yellow-intense)
+     (overline-heading-2 bg-yellow-intense)
+     (overline-heading-3 bg-blue-intense)
+     (overline-heading-4 bg-magenta-intense)
+     (overline-heading-5 bg-green-intense)
+     (overline-heading-6 bg-red-intense)
+     (overline-heading-7 bg-cyan-intense)))
   (modus-vivendi-palette-overrides
    '((bg-normal blue-intense)
      (bg-visual bg-green-intense)
@@ -141,8 +144,7 @@ multiple times."
      (fg-term-blue-bright bg-term-blue-bright)
      (fg-term-magenta-bright bg-term-magenta-bright)
      (fg-term-cyan-bright bg-term-cyan-bright)
-     (fg-term-white-bright bg-term-white-bright)
-     ))
+     (fg-term-white-bright bg-term-white-bright)))
   (modus-themes-headings '((1 . (variable-pitch 1.25 bold))
                            (2 . (variable-pitch 1.25 semibold))
                            (3 . (variable-pitch 1.20 semibold))
@@ -158,7 +160,7 @@ multiple times."
 ;;;; Font and Faces
 ;;;; ======================================================================
 
-;; TODO: Look at fontaine and spacious-padding
+;; TODO: Look at fontaine
 
 (defvar my/font-height 135)
 (defvar my/smaller-font-height 120)
@@ -176,6 +178,7 @@ multiple times."
 (defface normal '((t (:weight normal))) "Normal weight")
 (defface light '((t (:weight light))) "Light weight")
 (defface medium '((t (:weight medium))) "Medium weight")
+(defface smaller '((t (:height 0.8))) "Smaller height")
 
 (defun my/blend-color (from to delta)
   (apply #'color-rgb-to-hex
@@ -245,6 +248,18 @@ multiple times."
      `(header-line ((t (:underline (:position 0 :color ,bg-inactive)
                         :height 0.9)))
                    t)
+     `(org-dim-face ((t (:foreground ,(my/blend-color fg-main bg-main 0.2)))) t)
+     `(org-note-face ((t (:family ,my/default-font
+                          :foreground ,fg-dim
+                          :weight normal
+                          :height 0.9)))
+                     t)
+     `(org-idea-face ((t (:family ,my/default-font
+                          :foreground ,blue-faint
+                          :weight normal
+                          :height 0.9
+                          )))
+                     t)
      )))
 
 (my/update-faces-for-theme)
@@ -1603,12 +1618,12 @@ show all buffers."
   (org-todo-keywords '((sequence "TODO" "|" "DONE" "NOTE" "IDEA")))
   (org-todo-keyword-faces '(("TODO" . org-todo)
                             ("DONE" . org-done)
-                            ("NOTE" . (fixed-pitch-sans shadow))
-                            ("IDEA" . (fixed-pitch-sans
-                                       modus-themes-fg-blue-faint))))
+                            ("NOTE" . org-note-face)
+                            ("IDEA" . org-idea-face)))
   :custom-face
-  (org-done ((t (:))))
-  (org-headline-done ((t (:inherit (normal shadow)))))
+  (org-done ((t (:height 0.9 :weight normal))))
+  (org-headline-done ((t (:height 0.9 :inherit (normal org-dim-face)))))
+  (org-archived ((t (:background unspecified))))
   :config
   (add-to-list 'org-modules 'org-mouse)
   (unless (file-exists-p org-directory) (make-directory org-directory t))
@@ -1616,9 +1631,15 @@ show all buffers."
         (concat (file-name-as-directory org-directory) "notes"))
   (defun my/org-update () (org-update-checkbox-count t))
   (defun my/org-mode-local-hooks ()
-    (general-add-hook 'after-save-hook '( my/org-update) nil :local))
+    (face-remap-add-relative 'variable-pitch :family my/buffer-name-font)
+    (general-add-hook 'before-save-hook '( my/org-update) nil :local))
   (general-add-hook 'org-mode-hook '( auto-fill-mode
                                       my/org-mode-local-hooks))
+  (defun my/org-extra-keywords ()
+    (add-to-list 'org-font-lock-extra-keywords
+                 `("^[ ]+\\([-+*][ ]\\|[0-9][.)][ ]\\)?\\(.*\\)"
+                   (2 '(face org-dim-face)))))
+  (add-hook 'org-font-lock-set-keywords-hook 'my/org-extra-keywords)
   :general-config
   ('(normal insert) 'org-mode-map
    "<backtab>" 'org-shifttab)

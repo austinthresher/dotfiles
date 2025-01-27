@@ -2,7 +2,6 @@ if [[ $- == *i* ]]; then echo "Running $(uname -s -r)"; fi
 
 # The first part of this file runs both interactively and non-interactively
 # =========================================================================
-[ -e "$HOME/.bashrc_local" ] && source "$HOME/.bashrc_local"
 unset -f command_not_found_handle
 export HISTCONTROL=ignoreboth:erasedups
 
@@ -14,10 +13,10 @@ if [ ! -z "$WSL_DISTRO_NAME" ] \
     if [ -z "$DISPLAY" ]; then
         export DISPLAY=0:0
     fi
-    # Fix ugly dircolors because every Windows directory shows up as 777
-    export LS_COLORS='ow=01;36;40'
 fi
 
+# Fix ugly dircolors, the default blue on green is impossible to read.
+export LS_COLORS+=':ow=01;92;100'
 export EDITOR=vi
 export VISUAL=vi
 export PAGER='less -R'
@@ -29,7 +28,10 @@ export SCREENDIR="$HOME/.screen"
 
 case $- in
     *i*) ;; # Interactive session
-    *) return ;; # Non interactive
+    *)
+    # Execute .bashrc_local here if we're about to exit
+    [ -e "$HOME/.bashrc_local" ] && source "$HOME/.bashrc_local"
+    return ;; # Non interactive
 esac
 
 
@@ -109,3 +111,6 @@ is_executable rlwrap && is_executable sbcl && alias sbcl='rlwrap sbcl'
 is_executable fdfind && alias fd='fdfind'
 
 source promptcolor
+
+# Let .bashrc_local take precedence over anything here
+[ -e "$HOME/.bashrc_local" ] && source "$HOME/.bashrc_local"
