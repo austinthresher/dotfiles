@@ -1,7 +1,6 @@
 ;;; -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; TODO: Pick a single key binding for buffer swapping, probably a function key
-
 ;; TODO: See if paredit is better behaved than smartparens
 
 ;;;; TODOs that probably require writing elisp:
@@ -17,6 +16,8 @@
 ;;   the current symbol (or current function definition, if possible). Also
 ;;   look at the `fennel-doc-string-elt' symbol property to add docstring
 ;;   support to function-defining macros.
+
+;; - Figure out a way to have orderless-style search
 
 
 ;;;; Utility macros and functions
@@ -716,6 +717,22 @@ matching against the buffer name for now."
     (if (string-prefix-p "evil-ex-search" (symbol-name this-command))
         `(,(car args) "" ,@(cddr args))
       args))
+  (defun my/ensure-normal-or-emacs-state (buf)
+    (let ((state (buffer-local-value 'evil-state buf)))
+      (unless (member state '(normal emacs))
+        (with-current-buffer buf (evil-normal-state)))))
+  (defun my/normal-state-on-focus-change (&rest _)
+    (let* ((old-win (old-selected-window))
+           (old-buffer (and old-win (window-buffer old-win))))
+      (when (buffer-live-p old-buffer)
+        (my/ensure-normal-or-emacs-state old-buffer))))
+  ;; TODO: Figure out a way to handle tab-line changes
+  (defun my/normal-state-on-tab-change (prev-tab &rest _)
+    ;; Instead of trying to parse the window state ourselves, just ensure
+    ;; normal or emacs state on every buffer that was in the previous tab
+    (let* ((ws (and prev-tab (alist-get 'ws prev-tab)))
+           (bufs (and ws (mapcar 'get-buffer (window-state-buffers ws)))))
+      (mapc 'my/ensure-normal-or-emacs-state (seq-filter 'buffer-live-p bufs))))
   (advice-add 'read-string :filter-args 'my/hide-prev-search)
   (defun my/auto-clear-anzu (&rest _) (anzu--reset-status))
   (advice-add 'evil-force-normal-state :after 'evil-ex-nohighlight)
@@ -726,6 +743,10 @@ matching against the buffer name for now."
   (advice-add 'evil-backward-char :after 'my/auto-clear-anzu)
   (advice-add 'windmove-do-window-select :after 'my/auto-clear-anzu)
   (advice-add 'switch-to-buffer :after 'my/auto-clear-anzu)
+  (add-hook 'window-selection-change-functions
+            'my/normal-state-on-focus-change)
+  (add-hook 'tab-bar-tab-post-select-functions
+            'my/normal-state-on-tab-change)
   (evil-mode t)
   ;; Fix mouse clicks in Customize buffers
   (with-eval-after-load "custom"
@@ -1245,11 +1266,9 @@ show all buffers."
 
 ;; TODO: Also try paredit + enhanced-evil-paredit
 
-;; NOTE: Remember you can "fix" pairs with replace without toggling strict mode
 (use-package smartparens :ensure t
   :hook
   (prog-mode . smartparens-mode)
-  (smartparens-mode . smartparens-strict-mode)
   :custom
   (sp-highlight-pair-overlay nil)
   (sp-delete-blank-sexps t)
@@ -2259,6 +2278,18 @@ pressed twice in a row."
 (setq window-sides-slots '(1 0 0 2))
 (setq fit-window-to-buffer-horizontally t)
 
+;; When balancing windows, preserve the height of the bottom side windows.
+;; I'm assuming the windows will never have `window-size-fixed' set beforehand.
+(defun my/balance-windows-advice (fn &rest args)
+  (if (not (called-interactively-p 'any))
+      (funcall fn args)
+    (mapc (lambda (w) (window-preserve-size w nil t))
+          (seq-filter 'my/side-window? (window-list)))
+    (funcall-interactively fn args)
+    (mapc (lambda (w) (window-preserve-size w nil nil))
+          (seq-filter 'my/side-window? (window-list)))))
+(advice-add 'balance-windows :around 'my/balance-windows-advice)
+
 (defun my/one-time-hook (hook fn)
   (letrec ((one-shot (lambda ()
                        (ignore-errors
@@ -2266,17 +2297,13 @@ pressed twice in a row."
                          (funcall fn)))))
     (ignore-errors (add-hook hook one-shot t))))
 
-;; NOTE: Trying out global-tab-line-mode. I don't need anything in these right
-;; now, but I'm leaving them here in case I do in the future.
-(defun my/main-window-body-fn (win)
-  ;; (set-window-parameter win 'tab-line-format 'none)
-  t
-  )
+;; I don't need anything here right now, but I'm leaving it in case I do later
+(defun my/main-window-body-fn (win) t)
 
 (defun my/side-window-body-fn (win)
-  ;; (with-selected-window win (tab-line-mode t))
-  t
-  )
+  (with-selected-window win
+    (when (string= (buffer-name) "*Warnings*")
+      (my/smaller-fonts))))
 
 (defun my/window-body-fn (win)
   "Sometimes (`other-window-prefix', for example) the display rule chosen will
