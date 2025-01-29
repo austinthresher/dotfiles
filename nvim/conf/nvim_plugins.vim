@@ -1,7 +1,6 @@
 " Neovim-specific plugins
 
 Plug 'nvim-lualine/lualine.nvim'
-Plug 'CodeGradox/onehalf-lush'
 Plug 'https://gitlab.com/HiPhish/repl.nvim'
 
 if !exists('g:repl')

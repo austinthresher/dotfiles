@@ -83,10 +83,10 @@ let s:gui_light_default = s:gui_light
 let s:cterm_dark_default = [ 255, 193, 223, 189, 225, 183, 152, 138 ]
 let s:gui_dark_default = [ '#EEEEEE', '#BAFFAA', '#ECE1C8', '#9FD3E5',
                          \ '#DEB3DF', '#B8BCD6', '#85B2AA', '#E67E80' ]
-let s:c = s:cterm_light "s:cterm_dark
-let s:g = s:gui_light "s:gui_dark
-let s:cterm_default = s:cterm_light_default "s:cterm_dark_default
-let s:gui_default = s:gui_light_default "s:gui_dark_default
+let s:c = s:cterm_dark "s:cterm_light 
+let s:g = s:gui_dark "s:gui_light 
+let s:cterm_default = s:cterm_dark_default "s:cterm_light_default
+let s:gui_default = s:gui_dark_default "s:gui_light_default
 let s:p = ['start=/(/ end=/)/ fold', 'start=/\[/ end=/\]/ fold', 'start=/{/ end=/}/ fold']
 let g:rainbow_conf = {
             \   'ctermfgs': s:cterm_default,

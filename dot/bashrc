@@ -69,11 +69,34 @@ is_executable lsb_release && alias ubuntu='lsb_release -d'
 
 # Use neovim for vim commands when vim isn't available.
 if is_executable nvim; then
+    # Use nvim as a manpager. Not the most elegant configuration.
+    # Neovim uses tagfunc for man pages, so we don't have to call the
+    # Man plugin functions directly.
+    # See TODO below about scrolloff.
+    NVIM_ARGS='--cmd "set showtabline=0 nohidden" +Man! +"norm M" '
+    NVIM_ARGS+='+"set scrolloff=10 noshowcmd" +"nnoremap <CR> <C-]>" '
+    NVIM_ARGS+='+"nnoremap <Backspace> <C-T>" '
+    NVIM_ARGS+='+"nnoremap <MiddleMouse> <C-T>" '
+    export MANPAGER="nvim ${NVIM_ARGS}"
     if ! is_executable vim; then
         alias vim=nvim
         alias view='nvim -R'
         alias vimdiff='nvim -d -R'
     fi
+elif is_executable vim; then
+    # Use vim as a backup manpager. It's cumbersome to get all the mappings
+    # set here, but I don't want these when using vim normally.
+    # TODO: Include this so that mouse scrolling isn't jumpy with scrolloff
+    # https://vi.stackexchange.com/questions/19459/dont-use-scrolloff-5-for-mouse-clicks
+    # Increase scrolloff once that's been added
+    VIM_ARGS='--not-a-term --cmd "runtime ftplugin/man.vim" '
+    VIM_ARGS+='+"set scrolloff=10" +MANPAGER +"norm M" '
+    VIM_ARGS+='+"nnoremap <CR> :call dist#man#PreGetPage(0)<cr>" '
+    VIM_ARGS+='+"nnoremap <Backspace> :call dist#man#PopPage()<cr>" '
+    VIM_ARGS+='+"nnoremap <2-LeftMouse> :call dist#man#PreGetPage(0)<cr>" '
+    VIM_ARGS+='+"nnoremap <MiddleMouse> :call dist#man#PopPage()<cr>" '
+    # VIM_ARGS+=' -'
+    export MANPAGER="vim ${VIM_ARGS} -"
 fi
 
 # Allow launching emacsclient directly without having to start a daemon first
@@ -87,22 +110,15 @@ fi
 export EDITOR=edit-tty
 export VISUAL=edit
 
-# Use bat for man pages if it's installed
+# Use bat as a cat replacement
 if is_executable bat; then
-    # Taken from bat's examples
-    SED_CMD="\"s/\\x1B\[[0-9;]*m//g; s/.\\x08//g\""
-    export MANPAGER="sh -c 'sed -u -e ${SED_CMD} | bat -p -lman'"
     bathelp() {
         bat --plain --language=help
     }
-    batman() {
-        # Not all themes highlight man pages properly, force one that does
-        BAT_THEME="Monokai Extended" man "$@"
-    }
-    alias man=batman
     help() {
       "$@" --help 2>&1 | bathelp
     }
+    alias cat='bat' # bat says it's smart enough to not break this
 fi
 
 # I'll probably type "md" to try and find a Markdown viewer

@@ -50,23 +50,12 @@ call Include('quickfix.vim')
 call Include('nvim_build.vim', has('nvim'))
 call Include('plugin_config.lua', has('nvim'))
 
-function! FixColors() abort
-    hi Normal guibg=#ffffff
-endfunc
-
-augroup FixTheme
-    autocmd!
-    autocmd ColorScheme * call FixColors()
-augroup END
-
-" Set a colorscheme, falling back to the next if it isn't available
-try
-    "colorscheme lyra
-    colorscheme onehalf-lush
-catch
-    colorscheme quiet
-    set background=light
-endtry
+"colorscheme lyra
+colorscheme wildcharm
+"set background=light " wildcharm supports a light version too
+" Get rid of the default bold and inverse
+hi StatusLine gui=NONE cterm=NONE
+hi StatusLineNC gui=NONE cterm=NONE
 
 " This autocommand is a hook for .vimrc.local to override any previous config
 doautocmd <nomodeline> User PostConfig

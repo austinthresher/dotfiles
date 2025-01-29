@@ -25,6 +25,7 @@ set shortmess=filmnrxOTI
 set sidescroll=1
 set sidescrolloff=1
 set ttyfast
+set ttymouse=sgr " Fixes mouse issues in Alacritty
 
 " This is overwritten with a trailing space after the +eval check below
 set showbreak=>>>
@@ -66,6 +67,19 @@ if 1 " BEGIN NO VIM-TINY
 
 let &showbreak = '>>> '
 
+" runtime ftplugin/man.vim
+
+" function! CustomizeMan()
+"     nnoremap <buffer> <nowait> q ZQ 
+"     setlocal scrolloff=99
+" endfunction
+" 
+" augroup RunCustomizeMan
+"     autocmd!
+"     autocmd filetype man call CustomizeMan()
+" augroup END
+
+
 " Netrw settings
 let g:netrw_sizestyle='H'
 let g:netrw_banner=0
@@ -84,6 +98,11 @@ augroup RunCustomizeNetrw
     autocmd filetype netrw call CustomizeNetrw()
 augroup END
 
-color desert
+try
+    colorscheme wildcharm " Only on newer versions of vim
+    set background=dark
+catch
+    colorscheme torte
+endtry
 
 endif " END NO VIM-TINY

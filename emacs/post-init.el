@@ -565,14 +565,30 @@ folding elements, etc.)"
   (setq-local truncate-lines nil)
   (word-wrap-whitespace-mode t))
 
+(defvar-local my/small-font-cookies nil)
+(defun my/normal-fonts (&rest _)
+  (while my/small-font-cookies
+    (face-remap-remove-relative (pop my/small-font-cookies))))
 (defun my/smaller-fonts (&rest _)
   "Add this as a hook to have smaller fonts in a buffer"
+  (my/normal-fonts)
   (setq-local line-spacing nil)
-  (face-remap-add-relative 'default `(:height ,my/smaller-font-height :weight normal))
-  (face-remap-add-relative 'variable-pitch `(:height ,my/smaller-font-height))
-  (face-remap-add-relative 'fixed-pitch `(:height ,my/smaller-font-height))
-  (face-remap-add-relative 'fixed-pitch-serif `(:height ,my/smaller-font-height))
-  (face-remap-add-relative 'header-line `(:height ,(- my/smaller-font-height 10))))
+  (push (face-remap-add-relative 'default
+                                 `(:height ,my/smaller-font-height
+                                   :weight normal))
+        my/small-font-cookies)
+  (push (face-remap-add-relative 'variable-pitch
+                                 `(:height ,my/smaller-font-height))
+        my/small-font-cookies)
+  (push (face-remap-add-relative 'fixed-pitch
+                                 `(:height ,my/smaller-font-height))
+        my/small-font-cookies)
+  (push (face-remap-add-relative 'fixed-pitch-serif
+                                 `(:height ,my/smaller-font-height))
+        my/small-font-cookies)
+  (push (face-remap-add-relative 'header-line
+                                 `(:height ,(- my/smaller-font-height 10)))
+        my/small-font-cookies))
 
 (defun my/font-weight (&rest _)
   "Add this as a hook to buffers that should have slightly heavier default
