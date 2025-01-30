@@ -38,13 +38,30 @@ multiple times."
     `(let ((,val-sym (list ,@vals)))
        (setq ,ls (seq-remove (lambda (x) (memq x ,val-sym)) ,ls)))))
 
+(defun find-single-window-tabs ()
+  "Returns the indices of tabs with only one window. Used as candidates for
+opening new files."
+  (cl-labels ((count-tab-windows
+               (tab) (seq-count (apply-partially #'eq 'leaf)
+                                (flatten-tree tab))))
+    (let* ((tabs (copy-tree (tab-bar-tabs)))
+           (window-counts (mapcar #'count-tab-windows tabs)))
+      (setf (nth (tab-bar--current-tab-index) window-counts)
+            (length (window-list)))
+      (seq-positions window-counts 1 #'=))))
+
 (defun find-file-new-tab (filename &optional wildcards)
-  "Like find-file-other-tab, but behaves when no frame yet exists."
+  "Used from external scripts to open files in a new tab. Attempts to reuse
+tabs that only have a single window."
   (let* ((buffer-names (mapcar 'buffer-name (buffer-list)))
          (is-initial-frame? (member " *server-dummy*" buffer-names)))
     (if is-initial-frame?
         (find-file filename wildcards)
-      (find-file-other-tab filename wildcards)))
+      (let ((indices (find-single-window-tabs)))
+        (if (null indices)
+            (find-file-other-tab filename wildcards)
+          (tab-bar-select-tab (+ 1 (seq-max indices))) ;; tabs are 1-indexed
+          (find-file filename wildcards)))))
   (raise-frame))
 
 ;;;; Early dependencies
@@ -163,10 +180,10 @@ multiple times."
 
 ;; TODO: Look at fontaine
 
-(defvar my/font-height 135)
+(defvar my/font-height 140)
 (defvar my/smaller-font-height 120)
-(defvar my/mode-line-font-height 135)
-(defvar my/tab-bar-font-height 110)
+(defvar my/tab-bar-font-height 125)
+(defvar my/mode-line-font-height 140)
 (defvar my/tab-line-font-height 110)
 (defvar my/default-font "Iosevka")
 (defvar my/variable-font "Noto Sans")
@@ -566,12 +583,17 @@ folding elements, etc.)"
   (word-wrap-whitespace-mode t))
 
 (defvar-local my/small-font-cookies nil)
-(defun my/normal-fonts (&rest _)
+
+(defun normal-fonts (&rest _)
+  "Undoes the change made by `small-fonts'"
+  (interactive)
   (while my/small-font-cookies
     (face-remap-remove-relative (pop my/small-font-cookies))))
-(defun my/smaller-fonts (&rest _)
+
+(defun small-fonts (&rest _)
   "Add this as a hook to have smaller fonts in a buffer"
-  (my/normal-fonts)
+  (interactive)
+  (normal-fonts)
   (setq-local line-spacing nil)
   (push (face-remap-add-relative 'default
                                  `(:height ,my/smaller-font-height
@@ -589,6 +611,7 @@ folding elements, etc.)"
   (push (face-remap-add-relative 'header-line
                                  `(:height ,(- my/smaller-font-height 10)))
         my/small-font-cookies))
+
 
 (defun my/font-weight (&rest _)
   "Add this as a hook to buffers that should have slightly heavier default
@@ -634,6 +657,9 @@ matching against the buffer name for now."
 (defun my/main-window? (&optional win)
   (not (my/side-window? win)))
 
+;; Force these modes to be treated like file-visiting buffers
+(defvar my/non-special-modes '(pdf-view-mode doc-view-mode))
+
 ;; It's hard to exclude matches with a regexp, so these include an explicit
 ;; check for *scratch* so that we treat it like a non-special buffer. Otherwise
 ;; switch-to-prev-buffer-skip-regexp could have done the job.
@@ -642,14 +668,17 @@ matching against the buffer name for now."
          (buf-name (buffer-name buf)))
     (not (or (string= "*scratch*" buf-name)
              (string-prefix-p " " buf-name)
-             (buffer-file-name buf)))))
+             (buffer-file-name buf)
+             (member (buffer-local-value 'major-mode buf)
+                     my/non-special-modes)))))
 
 ;; I can't just invert match-special-buffers because both exclude hidden
 (defun my/match-non-special-buffers (buf &rest _)
   (let* ((buf (get-buffer buf)) ;; Ensure we have a buffer and not a name
          (buf-name (buffer-name buf)))
-    (and (or (string= "*scratch*" buf-name) (buffer-file-name buf))
-         (not (string-prefix-p " " buf-name)))))
+    (or (and (or (string= "*scratch*" buf-name) (buffer-file-name buf))
+             (not (string-prefix-p " " buf-name)))
+        (member (buffer-local-value 'major-mode buf) my/non-special-modes))))
 
 (defun my/switch-to-prev-buffer-skip (win target-buf bury-or-kill)
   (let ((side? (window-parameter win 'window-side)))
@@ -1237,6 +1266,7 @@ show all buffers."
   :general-config
   ('visual "v" 'er/expand-region))
 
+(use-package rust-mode :ensure t)
 (use-package lua-mode :ensure t :mode "\\.lua\\'")
 (use-package vimrc-mode :ensure t :mode "[._]?g?vim\\(rc\\)?\\'")
 (use-package fennel-mode :ensure t :mode "\\.fnl\\'")
@@ -1900,7 +1930,7 @@ if one couldn't be determined."
                      package-menu-mode-hook eat-mode-hook proced-mode-hook
                      shortdoc-mode-hook vterm-mode-hook Custom-mode-hook
                      bufler-list-mode-hook devdocs-mode-hook debugger-mode)
-                  'my/smaller-fonts)
+                  'small-fonts)
 
 
 ;;;; Customized Mode Line
@@ -2072,13 +2102,13 @@ if one couldn't be determined."
   (or (ignore-errors
         (require 'pdf-view)
         (require 'pdf-info)
-        (my/propertize-position (format " Page %d/%d  "
+        (my/propertize-position (format " Page %d/%d "
                                         (pdf-view-current-page)
                                         (pdf-info-number-of-pages))))
       (my/propertize-position "  ")))
 
 (defun my/modeline-position-doc-view ()
-  (my/propertize-position (format " Page %d/%d  "
+  (my/propertize-position (format " Page %d/%d "
                                   (doc-view-current-page)
                                   (doc-view-last-page-number))))
 
@@ -2160,11 +2190,11 @@ invisible copy of the character causing the resizing so it's always present."
 
 ;; In daemon mode, the messages buffer is created too early to get the
 ;; mode line changes.
-(add-hook 'messages-buffer-mode-hook 'my/smaller-fonts)
+(add-hook 'messages-buffer-mode-hook 'small-fonts)
 (with-current-buffer (messages-buffer)
   (setq mode-line-format (default-value 'mode-line-format))
   ;; (my/no-mode-line)
-  (my/smaller-fonts))
+  (small-fonts))
 
 
 ;;;; Other keybinds
@@ -2319,7 +2349,7 @@ pressed twice in a row."
 (defun my/side-window-body-fn (win)
   (with-selected-window win
     (when (string= (buffer-name) "*Warnings*")
-      (my/smaller-fonts))))
+      (small-fonts))))
 
 (defun my/window-body-fn (win)
   "Sometimes (`other-window-prefix', for example) the display rule chosen will
@@ -2363,6 +2393,9 @@ it on the buffer itself."
            display-buffer-in-direction
            (direction . rightmost)
            (window-parameters (mode-line-format . none)))
+          (my/match-non-special-buffers
+           nil
+           (body-function . my/window-body-fn))
           ((or ,bot-left-rx
                ,@(mapcar derived-rule bot-left-modes))
            ,@bot-left-window)
@@ -2370,9 +2403,6 @@ it on the buffer itself."
                ,@(mapcar derived-rule bot-right-modes))
            ,@bot-right-window)
           ;; Catch anything that fell through
-          (my/match-non-special-buffers
-           nil
-           (body-function . my/window-body-fn))
           (my/match-special-buffers
            (display-buffer-in-side-window display-buffer-no-window)
            (body-function . my/window-body-fn)
