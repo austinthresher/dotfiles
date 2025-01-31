@@ -4,16 +4,27 @@
 # will usually be called by the desktop environment.
 for fname in "$@"
 do
+    # Resolve relative / absolute file path, otherwise emacs might open a
+    # relative path from a different starting point
+    absolute_fname=$(realpath "${fname}")
     # Note that find-file-new-tab is a custom function in post-init.el
     emacsclient --no-wait --alternate-editor="" --reuse-frame \
-        --eval "(find-file-new-tab \"$fname\")"
+        --eval "(find-file-new-tab \"${absolute_fname}\")"
 done
 
-# raise-frame doesn't activate the window on Wayland.
-# This is called from within Emacs because unescaping the name was a pain
+# NOTE: raise-frame may have been broken by KDE's "Focus stealing prevention"
+# setting under Window Management -> Window Behavior. Needs testing on both
+# X11 and Wayland to determine if this block is still necessary.
+
+# raise-frame doesn't activate the window on Wayland, so we use kdotool
+# as a stand-in for xdotool on KDE:
+# https://github.com/jinliu/kdotool
+# This is called from within Emacs because unescaping the name of the frame
+# was a pain.
+# FIXME: If it's also broken on X11, do the same thing with xdotool
 if command -v kdotool &> /dev/null; then
     LISPCMD='call-process "kdotool" nil nil nil "search" "--name" '
     LISPCMD+="(frame-parameter nil 'name) "
     LISPCMD+='"windowactivate"'
-    emacsclient --no-wait --eval -q -u "($LISPCMD)"
+    emacsclient --no-wait --eval -q -u "(${LISPCMD})"
 fi

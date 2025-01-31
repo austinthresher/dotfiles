@@ -32,11 +32,21 @@
 
 (defmacro remove-from-list (ls &rest vals)
   "Remove multiple items from a list. Comparisons are made with eq. ls must be
-an unquoted variable name containing the list, as it will be evaluated
-multiple times."
-  (let ((val-sym (gensym)))
+a quoted symbol naming the variable containing the list."
+  (pcase ls
+    (`(quote ,(pred symbolp)) t) ;; good, no error
+    (_ (error (concat "The first argument to `remove-from-list' must be "
+                      "a quoted symbol"))))
+  (let ((val-sym (gensym)) (list-name (cadr ls)))
     `(let ((,val-sym (list ,@vals)))
-       (setq ,ls (seq-remove (lambda (x) (memq x ,val-sym)) ,ls)))))
+       (setq ,list-name
+             (seq-remove (lambda (x) (memq x ,val-sym)) ,list-name)))))
+
+;; Thanks to https://kisaragi-hiu.com/emacs-detect-daemon-before-frame/
+(defun frame-exists-yet? ()
+  "Will only return true before an actual frame has been created. Useful
+for deferring things that depend on a real frame existing."
+  (string= "initial_terminal" (terminal-name)))
 
 (defun find-single-window-tabs ()
   "Returns the indices of tabs with only one window. Used as candidates for
@@ -95,7 +105,7 @@ tabs that only have a single window."
      (fg-operator fg-main)
      (fg-emacs fg-main)))
   (modus-themes-common-palette-overrides
-   '((fringe unspecified)
+   '((fringe bg-main)
      (cursor blue-cooler)
      (prose-done bg-added-fringe)
      (bg-tab-bar bg-main)
@@ -278,6 +288,9 @@ tabs that only have a single window."
                           :height 0.9
                           )))
                      t)
+     `(org-done ((t (:family ,my/default-font))) t)
+     `(org-todo ((t (:family ,my/default-font))) t)
+     `(org-archived ((t (:foreground ,fg-dim :weight medium))))
      )))
 
 (my/update-faces-for-theme)
@@ -355,6 +368,15 @@ tabs that only have a single window."
                         (awk-mode . "awk")
                         (other . "k&r")))
 (setq-default tab-width 8)
+
+;; Set up file backups, always back up org files. Some of this is redundant
+;; with minimal-emacs.d but I'd like to keep all the info together.
+(let ((backup-dir (expand-file-name "backup" user-emacs-directory)))
+  (make-directory backup-dir t)
+  (setq backup-directory-alist `(("." . ,backup-dir)))
+  (setq make-backup-files t)
+  )
+
 
 ;; This is added by minimal-emacs.d
 (remove-hook 'after-init-hook 'window-divider-mode)
@@ -729,6 +751,7 @@ matching against the buffer name for now."
   (evil-respect-visual-line-mode t)
   (evil-move-cursor-back nil)
   (evil-split-window-below t)
+  (evil-vsplit-window-right t)
   (evil-want-C-w-delete nil)
   (evil-cross-lines t)
   (evil-want-abbrev-expand-on-insert-exit nil)
@@ -838,8 +861,9 @@ matching against the buffer name for now."
   (evil-collection-magit-section-use-z-for-folds t)
   (evil-collection-magit-want-horizontal-movement t)
   :config
-  (remove-from-list evil-collection-mode-list
-                    'eat)
+  (remove-from-list 'evil-collection-mode-list 'eat
+                    'org ;; not sure about this yet
+                    )
   (evil-collection-init)
   ;; Make '==' execute 'vip='. I couldn't figure this out as a keybind.
   (defun my/indent-paragraph-or-evil-indent (fn beg end)
@@ -1303,11 +1327,19 @@ show all buffers."
 
 (use-package org-variable-pitch :ensure t
   :config
+  (remove-from-list 'org-variable-pitch-fixed-faces 'org-indent)
+  (add-to-list* 'org-variable-pitch-fixed-faces
+                'header-line 'org-column 'org-column-title 'org-note-face
+                'org-idea-face 'org-tag)
   (general-add-hook '(after-init-hook server-after-make-frame-hook)
                     'org-variable-pitch-setup))
 
 (use-package org-autolist :ensure t
-  :hook (org-mode . org-autolist-mode))
+  ;; Trying to get used to "normal" org behavior first, making this a toggle
+  ;; :hook (org-mode . org-autolist-mode)
+  ;; Not sure I like this keybind, need to revisit later. I just picked
+  ;; something that wasn't in use.
+  :general ('org-mode-map "C-c l" 'org-autolist-mode))
 
 
 ;; TODO: Also try paredit + enhanced-evil-paredit
@@ -1850,6 +1882,14 @@ show all buffers."
                                         "mouse-2: toggle rest visibility\n"
                                         "mouse-3: go to end")))))
 
+(use-package elisp-mode :ensure nil
+  :config
+  (defun my/elisp-read-only (&rest _)
+    (when (string-suffix-p ".el.gz" (buffer-file-name))
+      (read-only-mode)))
+  (general-add-hook 'emacs-lisp-mode-hook 'my/elisp-read-only)
+  )
+
 (use-package help-mode :ensure nil
   :init
   ;; These changes give *Help* buffers descriptive names, and allow opening
@@ -2168,7 +2208,7 @@ invisible copy of the character causing the resizing so it's always present."
                    'mode-line-active
                  'mode-line-inactive))
          (mode-line-color (face-attribute face :background nil 'mode-line)))
-    (propertize "∙" 'face `(:foreground ,mode-line-color
+    (propertize "🔒" 'face `(:foreground ,mode-line-color
                             :weight medium
                             :family ,my/variable-font
                             :height ,my/mode-line-font-height))))
@@ -2328,10 +2368,10 @@ pressed twice in a row."
 ;; I'm assuming the windows will never have `window-size-fixed' set beforehand.
 (defun my/balance-windows-advice (fn &rest args)
   (if (not (called-interactively-p 'any))
-      (funcall fn args)
+      (apply fn args)
     (mapc (lambda (w) (window-preserve-size w nil t))
           (seq-filter 'my/side-window? (window-list)))
-    (funcall-interactively fn args)
+    (apply #'funcall-interactively fn args)
     (mapc (lambda (w) (window-preserve-size w nil nil))
           (seq-filter 'my/side-window? (window-list)))))
 (advice-add 'balance-windows :around 'my/balance-windows-advice)
@@ -2361,7 +2401,7 @@ it on the buffer itself."
   ;; ensures that their changes aren't undone by the major mode.
   (my/one-time-hook 'post-command-hook
                     (lambda ()
-                      (when (window-valid-p win)
+                      (when (and (windowp win) (window-valid-p win))
                         (if (window-parameter win 'window-side)
                             (my/side-window-body-fn win)
                           (my/main-window-body-fn win))))))
@@ -2410,7 +2450,12 @@ it on the buffer itself."
           )))
 
 (defvar my/custom-loaded nil)
-(when (and custom-file (not my/custom-loaded))
+(when (and custom-file (not my/custom-loaded)
+           (file-exists-p custom-file))
   (load custom-file)
   (setq my/custom-loaded t))
 
+;; Include any configuration that is specific to this computer
+(let ((local-init (expand-file-name "local-init.el"
+                                    user-emacs-directory)))
+  (when (file-exists-p local-init) (load local-init)))
