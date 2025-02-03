@@ -649,8 +649,12 @@ font weight"
   (modify-syntax-entry ?_ "w"))
 
 (defun my/lisp-word-syntax (&rest _)
-  "Make - behave as part of a word, not punctuation."
-  (modify-syntax-entry ?- "w"))
+  "Make these characters behave as part of a word, not punctuation."
+  (modify-syntax-entry ?- "w")
+  (modify-syntax-entry ?/ "w")
+  (modify-syntax-entry ?? "w")
+  (modify-syntax-entry ?* "w")
+  (modify-syntax-entry ?: "w"))
 
 ;; This helps with cases like (list "*" " " " *")
 (defun my/string-underline (&rest _)
@@ -772,7 +776,7 @@ matching against the buffer name for now."
   (setq evil-operator-state-cursor 'hollow)
   (add-to-list* 'evil-emacs-state-modes
                 'comint-mode 'eat-mode 'eshell-mode 'shell-mode 'term-mode
-                'inferior-python-mode 'vterm-mode)
+                'inferior-python-mode 'vterm-mode 'minibuffer-mode)
   (setq evil-insert-state-modes
         (seq-remove (lambda (x) (memq x evil-emacs-state-modes))
                     evil-insert-state-modes))
@@ -846,6 +850,8 @@ matching against the buffer name for now."
    "C-q" 'evil-window-delete
    ;; Force opening stuff in the MRU window
    "O" 'other-window-prefix
+   ;; Force opening stuff in the current window
+   "S" 'same-window-prefix
    )
   ('insert 'prog-mode-map "<tab>" 'indent-for-tab-command)
   ('visual "<tab>" 'evil-shift-right
@@ -2293,9 +2299,121 @@ interaction. Tracks the compile command used on a per-project basis."
         (or command compile-command)))))
   (compile command t))
 
+(defun my/set-window-height (win height &optional ignore pixelwise)
+  "Set a window's total height. Arguments are forwarded to `window-resize'."
+  (let ((cur-h (if pixelwise
+                   (window-pixel-height win)
+                 (window-total-height win))))
+    (window-resize win (- height cur-h) nil ignore pixelwise)))
+
+;; Stuff for toggling between 1 and 2 bottom windows
+
+(defvar my/bottom-buffers nil)
+(defun my/buffers-for-window (win)
+  "Returns all buffers visited in this window and guarantees the current buffer
+is first in the list."
+  (with-selected-window win
+    (let ((buf (current-buffer)))
+      (cons buf (seq-remove (lambda (x) (eq buf x))
+                            (tab-line-tabs-window-buffers))))))
+
+(defun my/make-bottom-window-alist ()
+  "Returns an alist where the key is the `window-slot' window parameter and the
+value is a list of the buffers that have been visited in that window. If
+`window-slot' is somehow missing but a side window still exists, it's
+arbitrarily saved as a bottom left window. "
+  (--map (cons (or (window-parameter it 'window-slot) -1)
+               (my/buffers-for-window it))
+         (my/side-windows)))
+
+(defun my/all-bottom-buffers ()
+  (->> (my/make-bottom-window-alist)
+       flatten-list
+       (-filter #'bufferp)))
+
+(defun my/live-buffers (buf-list)
+  "Filters `buf-list' to only include elements that are live buffers."
+  (-filter #'buffer-live-p buf-list))
+
+;; FIXME: How to handle tab-bar tabs and/or multiple frames
+;; TODO: Save and restore window properties as well
+(defun my/combine-bottom-windows ()
+  (setf (nth 3 window-sides-slots) 1)
+  (setq my/bottom-buffers (my/make-bottom-window-alist))
+  ;; If the selected window isn't already a bottom window, this arbitrarily
+  ;; prioritizes putting the right window in front. Combining visiting order
+  ;; from both windows is too much work for too little benefit.
+  ;; Preserves the selected window when it isn't a bottom window.
+  (when my/bottom-buffers
+    (let* ((cur-win (selected-window))
+           (cur-buf (current-buffer))
+           (bot-selected? (my/side-window? cur-win))
+           (prio (list (car-safe (alist-get 1 my/bottom-buffers))
+                       (car-safe (alist-get -1 my/bottom-buffers))))
+           (height (window-total-height (car (my/side-windows)))))
+      (mapc #'delete-window (my/side-windows))
+      (let ((display-buffer-overriding-action
+             '(display-buffer-in-side-window
+               (side . bottom) (preserve-size . t))))
+        (mapc #'display-buffer
+              (reverse (my/live-buffers (-flatten my/bottom-buffers)))))
+      (when-let* ((new-window (car-safe (my/side-windows))))
+        (my/set-window-height new-window height)
+        (let ((switch-to-buffer-obey-display-actions nil)
+              (top (if bot-selected?
+                       cur-buf
+                     (car-safe (my/live-buffers prio)))))
+          (when (buffer-live-p top)
+            (with-selected-window new-window
+              (switch-to-buffer top nil :force-same-window)))))
+      (unless bot-selected?
+        (select-window cur-win)))))
+
+(defun my/restore-bottom-windows ()
+  (setf (nth 3 window-sides-slots) 2)
+  (let* ((current-buffers (my/all-bottom-buffers))
+         (cur-bot-buf (car-safe current-buffers))
+         (saved-buffers (my/live-buffers (-flatten my/bottom-buffers)))
+         (new-buffers (seq-difference current-buffers saved-buffers))
+         (left-buffers (my/live-buffers (alist-get -1 my/bottom-buffers)))
+         (right-buffers (my/live-buffers (alist-get 1 my/bottom-buffers)))
+         (height (window-total-height (car (my/side-windows)))))
+    (mapc #'delete-window (my/side-windows))
+    ;; Don't try to restore if deleting windows invalidated the buffer
+    (unless (buffer-live-p cur-bot-buf) (setq cur-bot-buf nil))
+    (let ((display-buffer-overriding-action
+           '(display-buffer-in-side-window
+             (side . bottom) (slot . -1) (preserve-size . t))))
+      (mapc #'display-buffer (reverse left-buffers))
+      (when (member cur-bot-buf left-buffers)
+        (display-buffer cur-bot-buf)))
+    (let ((display-buffer-overriding-action
+           '(display-buffer-in-side-window
+             (side . bottom) (slot . 1) (preserve-size . t))))
+      (mapc #'display-buffer (reverse right-buffers))
+      (when (member cur-bot-buf right-buffers)
+        (display-buffer cur-bot-buf)))
+    ;; FIXME: This might give bad results, but for now I'm going to just let
+    ;; display-buffer-alist sort out where to put any buffers that don't have
+    ;; an associated side already.
+    (mapc #'display-buffer new-buffers)
+    ;; if the old current buffer isn't displayed, bring it to the front
+    (when cur-bot-buf
+      (let ((cur-bot-buf-wins (get-buffer-window-list cur-bot-buf)))
+        (unless cur-bot-buf-wins
+          (display-buffer cur-bot-buf))))))
+
+(defun cycle-bottom-windows ()
+  "Toggles between 1 and 2 bottom window slots"
+  (interactive)
+  (pcase (nth 3 window-sides-slots)
+    (1 (message "Using 2 bottom windows")
+       (my/restore-bottom-windows))
+    (_ (message "Using 1 bottom window")
+       (my/combine-bottom-windows))))
 
 (general-def
-  "<f12>" 'window-toggle-side-windows
+  "<f12>" 'cycle-bottom-windows
   "C-<f12>" 'modus-themes-rotate
   "<f5>" 'compile-interactively
   "C-x C-b" 'ibuffer)
@@ -2341,7 +2459,8 @@ default.")
 pressed twice in a row."
   (if (and (or my/entered-emacs-state-manually
                (eq last-command 'keyboard-escape-quit))
-           (evil-emacs-state-p))
+           (evil-emacs-state-p)
+           (not (minibuffer-window-active-p (selected-window))))
       (evil-normal-state nil)
     (let ((buffer-quit-function (or buffer-quit-function #'keyboard-quit)))
       (funcall fn))))
@@ -2364,16 +2483,20 @@ pressed twice in a row."
 (setq window-sides-slots '(1 0 0 2))
 (setq fit-window-to-buffer-horizontally t)
 
+(defun my/side-windows ()
+  "Return a list of all side windows. This is different from
+`window-at-side-list' because this only includes windows that have
+`window-side' set explicitly."
+  (seq-filter 'my/side-window? (window-list)))
+
 ;; When balancing windows, preserve the height of the bottom side windows.
 ;; I'm assuming the windows will never have `window-size-fixed' set beforehand.
 (defun my/balance-windows-advice (fn &rest args)
   (if (not (called-interactively-p 'any))
       (apply fn args)
-    (mapc (lambda (w) (window-preserve-size w nil t))
-          (seq-filter 'my/side-window? (window-list)))
+    (mapc (lambda (w) (window-preserve-size w nil t)) (my/side-windows))
     (apply #'funcall-interactively fn args)
-    (mapc (lambda (w) (window-preserve-size w nil nil))
-          (seq-filter 'my/side-window? (window-list)))))
+    (mapc (lambda (w) (window-preserve-size w nil nil)) (my/side-windows))))
 (advice-add 'balance-windows :around 'my/balance-windows-advice)
 
 (defun my/one-time-hook (hook fn)
