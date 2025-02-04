@@ -2,6 +2,7 @@
 
 ;; TODO: Pick a single key binding for buffer swapping, probably a function key
 ;; TODO: See if paredit is better behaved than smartparens
+;; TODO: Add keybind for find file at point
 
 ;;;; TODOs that probably require writing elisp:
 ;;;; ======================================================================
@@ -776,7 +777,9 @@ matching against the buffer name for now."
   (setq evil-operator-state-cursor 'hollow)
   (add-to-list* 'evil-emacs-state-modes
                 'comint-mode 'eat-mode 'eshell-mode 'shell-mode 'term-mode
-                'inferior-python-mode 'vterm-mode 'minibuffer-mode)
+                'inferior-python-mode 'vterm-mode 'minibuffer-mode
+                'org-mode ; trying this out
+                )
   (setq evil-insert-state-modes
         (seq-remove (lambda (x) (memq x evil-emacs-state-modes))
                     evil-insert-state-modes))
@@ -791,7 +794,8 @@ matching against the buffer name for now."
       args))
   (defun my/ensure-normal-or-emacs-state (buf)
     (let ((state (buffer-local-value 'evil-state buf)))
-      (unless (member state '(normal emacs))
+      (unless (or (member state '(normal emacs))
+                  (minibufferp buf))
         (with-current-buffer buf (evil-normal-state)))))
   (defun my/normal-state-on-focus-change (&rest _)
     (let* ((old-win (old-selected-window))
@@ -940,13 +944,25 @@ matching against the buffer name for now."
   :hook ((eshell-load . eat-eshell-mode)
          (eshell-load . eat-eshell-visual-command-mode))
   :config
-  (defun my/eat-C-w () (interactive) (eat-self-input 1 23)) ; ASCII code for C-w
+  (defun my/eat-C-w () (interactive) (eat-self-input 1 23)) ; ASCII for C-w
+  (defun my/eat-C-k () (interactive) (eat-self-input 1 11)) ; ASCII for C-k
+  (defun my/eat-prev-word ()
+    (interactive) ; M-b (ESC b)
+    (eat-self-input 1 27)
+    (eat-self-input 1 98))
+  (defun my/eat-next-word ()
+    (interactive) ; M-f (ESC f)
+    (eat-self-input 1 27)
+    (eat-self-input 1 102))
   :general-config
   ('(normal insert emacs) '(eat-mode-map eshell-mode-map)
    "C-S-w" 'my/eat-C-w
    "C-c P" 'eat-send-password
    "C-j" 'my/switch-to-next-buffer
-   "C-k" 'my/switch-to-prev-buffer))
+   "C-k" 'my/switch-to-prev-buffer
+   "C-S-k" 'my/eat-C-k
+   "C-<left>" 'my/eat-prev-word
+   "C-<right>" 'my/eat-next-word))
 
 
 (use-package vertico :ensure t :defer t
@@ -1351,8 +1367,7 @@ show all buffers."
 ;; TODO: Also try paredit + enhanced-evil-paredit
 
 (use-package smartparens :ensure t
-  :hook
-  (prog-mode . smartparens-mode)
+  ;; :hook (prog-mode . smartparens-mode) ; Making this manual for now
   :custom
   (sp-highlight-pair-overlay nil)
   (sp-delete-blank-sexps t)
@@ -1807,11 +1822,38 @@ show all buffers."
   ;; https://andreyor.st/posts/2020-05-07-making-emacs-tabs-work-like-in-atom
   ;; This uses advice instead of changing tab-line-close-tab-function because
   ;; we already need to redo a lot of the work in tab-line-close-tab.
+  ;; I modified it quite a bit to take into account buffers that are still live
+  ;; in other tab bar tabs, not just the current frame/tab bar tab.
+  (defun my/window-state-all-buffers (state)
+    "Includes buffers saved in next-buffers/prev-buffers. Based on
+`window-state-buffers' in window.el. Note that this returns buffer names, not
+buffer objects."
+    (let* ((buffer (cadr (assq 'buffer state)))
+           (next-buffers (cadr (assq 'next-buffers state)))
+           (prev-buffers (cadr (assq 'prev-buffers state)))
+           (sub-buffers
+            (--mapcat (when (memq (car it) '(leaf vc hc))
+                        (my/window-state-all-buffers it))
+                      (if (consp (car state)) (list (cdr state)) (cdr state))))
+           (most-buffers (append sub-buffers next-buffers prev-buffers))
+           (all-buffers (if buffer (cons buffer most-buffers) most-buffers)))
+      (-filter 'stringp all-buffers)))
   (defun my/collect-tab-line-buffers ()
-    (let ((fn (lambda (ls win)
-                (select-window win :norecord)
-                (cons (tab-line-tabs-window-buffers) ls))))
-      (flatten-list (seq-reduce fn (window-list) nil))))
+    ;; Collect all buffers from all tab-line tabs in all tab-bar tabs.
+    ;; Not a confusing way to name things at all.
+    ;; Note that all-tab-bar-bufs will not contain the buffers for the current
+    ;; tab bar tab, because this only looks at saved windows for tab bar tabs.
+    (let* ((all-tab-bar-tabs (-mapcat 'tab-bar-tabs (frame-list)))
+           (all-tab-bar-ws (--keep (alist-get 'ws it) all-tab-bar-tabs))
+           (all-tab-bar-buf-names (-mapcat 'my/window-state-all-buffers
+                                           all-tab-bar-ws))
+           (all-tab-bar-bufs (-filter 'buffer-live-p
+                                      (-map 'get-buffer all-tab-bar-buf-names)))
+           (fn (lambda (ls win)
+                 (select-window win :norecord)
+                 (cons (tab-line-tabs-window-buffers) ls)))
+           (all-tab-line-bufs (flatten-list (seq-reduce fn (window-list) nil))))
+      (append all-tab-line-bufs all-tab-bar-bufs)))
   ;; TODO: Make a version of this that can be bound to a key without having
   ;; to use the mouse
   (defun my/tab-line-close-tab (&optional e)

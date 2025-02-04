@@ -46,6 +46,9 @@ alias preview='feh --scale -d . &'
 # Pipe into this to prevent really long lines from taking over shell output.
 alias trunc="cut -b 1-120"
 
+# View terminal escape sequences for keystrokes
+alias keys='echo "Ctrl-D on a new line to end input" ; od -t x1 -t u1'
+
 # I never remember xxd
 alias hex='xxd -g 1'
 
