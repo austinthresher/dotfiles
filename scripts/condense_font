@@ -1,0 +1,137 @@
+#!/usr/bin/env -S fontforge -script
+import sys
+from pathlib import Path
+import re
+
+def usage():
+    print(f"Usage: fontforge -script {sys.argv[0]} [SCALE 1-99] [FILE]")
+
+try:
+    import fontforge
+    import psMat
+except ImportError:
+    print("This script must be run from fontforge:")
+    usage()
+
+# Modify spacing between letters this much more/less than the glyphs.
+# 0.0 preserves the original spacing, 1.0 fully scales the spacing.
+SPACING_MULT = 0.5
+
+WEIGHTS = ["Black", "ExtraBold", "Bold", "SemiBold", "Medium", "Regular",
+           "SemiLight", "Light", "ExtraLight", "Thin"]
+STYLES = ["Italic", "Oblique"]
+
+def weight_from_name(name):
+    weight = ""
+    for w in WEIGHTS:
+        if w in name and len(w) > len(weight):
+            weight = w
+    return weight
+
+def style_from_name(name):
+    style = ""
+    for s in STYLES:
+        if s in name and len(s) > len(style):
+            style = s
+    return style
+
+def make_font_name(name, label):
+    suffix = ""
+    for s in SUFFIXES:
+        if name.endswith(s):
+            suffix = s
+            break
+    if suffix:
+        prefix = name[:name.index(suffix)]
+        return f"{prefix}Condensed{label}{suffix}"
+    return f"{name}Condensed{label}"
+
+def lerp(start, end, amt):
+    return start*(1.0-amt) + end*amt
+
+def main():
+    if len(sys.argv) < 3:
+        usage()
+        sys.exit(1)
+    x_scale = float(sys.argv[1]) * 0.01
+    files = sys.argv[2:]
+    for f in files:
+        # Most of this is just parsing the font name so that it displays
+        # correctly in font selection dialogs
+        inpath = Path(f)
+        label = f"{int(x_scale*100)}"
+        weight = weight_from_name(inpath.stem)
+        style = style_from_name(inpath.stem)
+        variant = f"{weight}{style}" # e.g. "ExtraBoldItalic"
+        base_name = inpath.stem
+        if variant:
+            variant_idx = inpath.stem.index("-"+variant)
+            base_name = base_name[:variant_idx]
+        name = f"{base_name}Condensed{label}-{variant}"
+        outpath = f"{name}{inpath.suffix}"
+        font = fontforge.open(str(inpath))
+        # Add spaces before caps
+        nice_name = re.sub("([^A-Z])([A-Z])", r"\1 \2", base_name)
+        nice_name += f" Condensed {label}"
+        family = nice_name
+        if weight:
+            family += f" {weight}"
+        fullname = family
+        if style:
+            fullname += f" {style}"
+
+        sfnt_table = {}
+        for lang, strid, text in font.sfnt_names:
+            # A few samples I looked at all had "English (US)", might need
+            # to handle this better depending on the font
+            if lang != "English (US)": continue
+            sfnt_table[strid] = text
+        if "UniqueID" in sfnt_table and inpath.stem in sfnt_table["UniqueID"]:
+            old_id = sfnt_table["UniqueID"]
+            sfnt_table["UniqueID"] = re.sub(inpath.stem, name, old_id)
+        else:
+            del sfnt_table["UniqueID"] # Let FontForge handle this
+        sfnt_table["Fullname"] = fullname
+        sfnt_table["Family"] = family
+        sfnt_table["SubFamily"] = style or "Regular"
+        sfnt_table["PostScriptName"] = name
+        sfnt_table["Preferred Family"] = nice_name
+        preferred = " ".join([x for x in [weight, style] if x])
+        if preferred:
+            sfnt_table["Preferred Styles"] = preferred
+        sfnt_table["Preferred Family"] = nice_name
+        sfnt_table["Compatible Full"] = " ".join([x for x in
+                                                  [nice_name, weight, style]
+                                                  if x])
+
+        font.sfnt_names = tuple(("English (US)", k, v)
+                                for k, v in sfnt_table.items())
+        # This might be redundant with setting sfnt_names, but just in case
+        font.fontname, font.familyname, font.fullname = name, family, fullname
+
+        # Save old dimensions and then actually scale the font
+        old_dims = [(g.width, g.left_side_bearing, g.right_side_bearing)
+                    for g in font.glyphs()]
+        font.selection.all()
+        font.transform(psMat.scale(x_scale, 1),
+                       ["simplePos", "guide", "kernClasses"])
+        # Adjust width to help preserve character spacing
+        for g, old in zip(font.glyphs(), old_dims):
+            old_width, old_left, old_right = old
+            delta = g.width - old_width
+            if delta == 0: continue
+            target_width = lerp(old_width, g.width, SPACING_MULT)
+            target_left = lerp(old_left, g.left_side_bearing, SPACING_MULT)
+            target_right = lerp(old_right, g.right_side_bearing, SPACING_MULT)
+            g.left_side_bearing = int(target_left)
+            g.right_side_bearing = int(target_right)
+            g.width = int(target_width)
+
+            print(g.width)
+
+        font.generate(str(outpath))
+        print(f"wrote {outpath}")
+        font.close()
+
+if __name__ == "__main__":
+    main()

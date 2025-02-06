@@ -75,6 +75,7 @@ tabs that only have a single window."
           (find-file filename wildcards)))))
   (raise-frame))
 
+
 ;;;; Early dependencies
 ;;;; ======================================================================
 
@@ -88,7 +89,7 @@ tabs that only have a single window."
 (use-package modus-themes :ensure t :demand t
   :custom
   (modus-themes-mixed-fonts t)
-  (modus-themes-slanted-constructs t)
+  (modus-themes-slanted-constructs nil)
   (modus-themes-bold-constructs t)
   (modus-themes-variable-pitch-ui t)
   (modus-themes-to-rotate '(modus-operandi modus-vivendi))
@@ -128,6 +129,8 @@ tabs that only have a single window."
      (overline-heading-8 fg-dim)))
   (modus-operandi-palette-overrides
    '((accent-2 "#0AA")
+     (docstring cyan)
+     (comment green-warmer)
      (bg-normal bg-paren-match)
      (bg-insert bg-graph-green-0)
      (fg-completion-match-0 blue-intense)
@@ -141,7 +144,8 @@ tabs that only have a single window."
      (overline-heading-6 bg-red-intense)
      (overline-heading-7 bg-cyan-intense)))
   (modus-vivendi-palette-overrides
-   '((bg-normal blue-intense)
+   '((comment "#70b08f")
+     (bg-normal blue-intense)
      (bg-visual bg-green-intense)
      (bg-emacs magenta-intense)
      (bg-term-red "#e53c3c")
@@ -191,15 +195,25 @@ tabs that only have a single window."
 
 ;; TODO: Look at fontaine
 
-(defvar my/font-height 140)
-(defvar my/smaller-font-height 120)
+(defvar my/font-height 135)
+(defvar my/smaller-font-height 125)
 (defvar my/tab-bar-font-height 125)
 (defvar my/mode-line-font-height 140)
 (defvar my/tab-line-font-height 110)
-(defvar my/default-font "Iosevka")
+
+(defvar my/default-font "Monaspace Neon Condensed 80")
+;; Make comments and docstrings stand out with a serif font
+(defvar my/comment-font "Monaspace Xenon Condensed 80")
+;; This can be used for emphasis in code without breaking monospacing
+(defvar my/special-font "Monaspace Krypton Condensed 80")
+
+(defvar my/fixed-font "Monaspace Xenon Condensed 80")
+(defvar my/fixed-sans-font "Monaspace Argon Condensed 80")
+(defvar my/fixed-serif-font "Monaspace Xenon Condensed 80")
+
 (defvar my/variable-font "Noto Sans")
-(defvar my/fixed-font "Iosevka Slab")
 (defvar my/buffer-name-font "Roboto")
+
 ;; This has to be in points
 (defvar my/which-key-font-pts 14)
 
@@ -219,10 +233,13 @@ tabs that only have a single window."
   (modus-themes-with-colors
     (custom-set-faces
      `(default ((t (:family ,my/default-font :height ,my/font-height))) t)
-     `(fixed-pitch-sans ((t (:family ,my/default-font))) t)
+     `(fixed-pitch-sans ((t (:family ,my/fixed-sans-font))) t)
      `(fixed-pitch ((t (:family ,my/fixed-font))) t)
-     `(fixed-pitch-serif ((t (:family ,my/fixed-font))) t)
+     `(fixed-pitch-serif ((t (:family ,my/fixed-serif-font))) t)
      `(variable-pitch ((t (:family ,my/variable-font))) t)
+     `(font-lock-comment-face ((t (:family ,my/comment-font  :weight light))) t)
+     `(font-lock-doc-face ((t (:family ,my/comment-font))) t)
+     ;; `(font-lock-string-face ((t (:family ,my/fixed-sans-font))) t)
      `(mode-line ((t (:family ,my/variable-font
                       :height ,my/mode-line-font-height)))
                  t)
@@ -236,31 +253,31 @@ tabs that only have a single window."
      `(mode-line-buffer-id ((t (:family ,my/buffer-name-font
                                 :height ,my/mode-line-font-height))))
      ;; Custom faces for evil-state in the mode line
-     `(state-normal ((t (:inherit (medium fixed-pitch)
+     `(state-normal ((t (:inherit (medium fixed-pitch-serif)
                          :height ,(- my/mode-line-font-height 5)
                          :background ,bg-normal :foreground ,fg-normal)))
                     t)
-     `(state-insert ((t (:inherit (medium fixed-pitch)
+     `(state-insert ((t (:inherit (medium fixed-pitch-serif)
                          :height ,(- my/mode-line-font-height 5)
                          :background ,bg-insert :foreground ,fg-insert)))
                     t)
-     `(state-visual ((t (:inherit (medium fixed-pitch)
+     `(state-visual ((t (:inherit (medium fixed-pitch-serif)
                          :height ,(- my/mode-line-font-height 5)
                          :background ,bg-visual :foreground ,fg-visual)))
                     t)
-     `(state-replace ((t (:inherit (medium fixed-pitch)
+     `(state-replace ((t (:inherit (medium fixed-pitch-serif)
                           :height ,(- my/mode-line-font-height 5)
                           :background ,bg-replace :foreground ,fg-replace)))
                      t)
-     `(state-operator ((t (:inherit (medium fixed-pitch)
+     `(state-operator ((t (:inherit (medium fixed-pitch-serif)
                            :height ,(- my/mode-line-font-height 5)
                            :background ,bg-operator :foreground ,fg-operator)))
                       t)
-     `(state-emacs ((t (:inherit (medium fixed-pitch)
+     `(state-emacs ((t (:inherit (medium fixed-pitch-serif)
                         :height ,(- my/mode-line-font-height 5)
                         :background ,bg-emacs :foreground ,fg-emacs)))
                    t)
-     `(state-other ((t (:inherit (fixed-pitch error)))) t)
+     `(state-other ((t (:inherit (fixed-pitch-serif error)))) t)
      `(tab-bar ((t (:family ,my/buffer-name-font
                     :overline ,bg-main
                     :height ,my/tab-bar-font-height)))
@@ -1785,7 +1802,7 @@ show all buffers."
                     tab-bar-format-add-tab))
   (tab-bar-close-button-show nil)
   (tab-bar-select-restore-windows nil)
-  (tab-bar-show 1)
+  (tab-bar-show t)
   (tab-bar-auto-width nil)
   :custom-face
   (tab-bar ((t (:weight normal))))
@@ -1804,12 +1821,14 @@ show all buffers."
           (concat (propertize " " 'face face 'display `(space :width (,side)))
                   name
                   (propertize " " 'face face 'display `(space :width (,side))))))))
-  (setopt tab-bar-tab-name-format-functions '(tab-bar-tab-name-format-hints
-                                              tab-bar-tab-name-format-close-button
-                                              my/tab-bar-tab-name-format-spaces))
-  (setq tab-bar-separator (propertize " "
-                                      'face 'default
-                                      'display '(space :width (1) :height (16))))
+  (setopt tab-bar-tab-name-format-functions
+          '(tab-bar-tab-name-format-hints
+            tab-bar-tab-name-format-close-button
+            my/tab-bar-tab-name-format-spaces))
+  (setq tab-bar-separator
+        (propertize " "
+                    'face 'default
+                    'display '(space :width (1) :height (16))))
   (tab-bar-mode t))
 
 (use-package tab-line :ensure nil
@@ -2137,8 +2156,7 @@ if one couldn't be determined."
              help-echo ,(projectile-project-p)
              pointer-shape arrow
              keymap ,(make-mode-line-mouse-map 'mouse-1
-                                               #'projectile-mode-menu)
-             display (raise 0.04))
+                                               #'projectile-mode-menu))
         " "))))
 
 (defun my/get-buffer-name ()
@@ -2261,8 +2279,7 @@ invisible copy of the character causing the resizing so it's always present."
                             :family ,my/variable-font
                             :height ,my/mode-line-font-height))))
 
-(setopt mode-line-right-align-edge 'right-margin ;'window
-        )
+(setopt mode-line-right-align-edge 'right-margin) ;'window
 (setq-default mode-line-format
               `((:eval (my/evil-state))
                 (:eval (my/modeline-buffer-name))
