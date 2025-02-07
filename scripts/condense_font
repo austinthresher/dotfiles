@@ -127,8 +127,6 @@ def main():
             g.right_side_bearing = int(target_right)
             g.width = int(target_width)
 
-            print(g.width)
-
         font.generate(str(outpath))
         print(f"wrote {outpath}")
         font.close()
