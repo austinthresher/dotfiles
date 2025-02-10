@@ -3,22 +3,23 @@
 ;; TODO: Pick a single key binding for buffer swapping, probably a function key
 ;; TODO: See if paredit is better behaved than smartparens
 ;; TODO: Add keybind for find file at point
+;; TODO: Use monospacifier to scale symbol/noto fonts to match my defaults
 
 ;;;; TODOs that probably require writing elisp:
 ;;;; ======================================================================
-;; - Make keybinds for the mouse back/forward buttons that call appropriate
+;; * Make keybinds for the mouse back/forward buttons that call appropriate
 ;;   functions in the window under the mouse, based on the major mode of that
 ;;   window's buffer. pdf-history-backward, help-go-back, etc.
-
-;; - Try to figure out triggering sp-comment when the comment string is typed
+;; * Try to figure out triggering sp-comment when the comment string is typed
 ;;   for the current language's mode.
-
-;; - Write a function for fennel-mode to update `fennel-indent-function' for
+;; * Write a function for fennel-mode to update `fennel-indent-function' for
 ;;   the current symbol (or current function definition, if possible). Also
 ;;   look at the `fennel-doc-string-elt' symbol property to add docstring
 ;;   support to function-defining macros.
-
-;; - Figure out a way to have orderless-style search
+;; * Figure out a way to have orderless-style search
+;; * See if there's a way to advise `delete-window' to allow making side
+;;   windows be the only window in thier frame. Do something like detecting
+;;   when that would happen and "promote" the side window to a main window.
 
 
 ;;;; Utility macros and functions
@@ -195,7 +196,7 @@ tabs that only have a single window."
 
 ;; TODO: Look at fontaine
 
-(defvar my/font-height 135)
+(defvar my/font-height 140)
 (defvar my/smaller-font-height 125)
 (defvar my/tab-bar-font-height 125)
 (defvar my/mode-line-font-height 140)
@@ -237,7 +238,7 @@ tabs that only have a single window."
      `(fixed-pitch ((t (:family ,my/fixed-font))) t)
      `(fixed-pitch-serif ((t (:family ,my/fixed-serif-font))) t)
      `(variable-pitch ((t (:family ,my/variable-font))) t)
-     `(font-lock-comment-face ((t (:family ,my/comment-font  :weight light))) t)
+     `(font-lock-comment-face ((t (:family ,my/comment-font :weight light))) t)
      `(font-lock-doc-face ((t (:family ,my/comment-font))) t)
      ;; `(font-lock-string-face ((t (:family ,my/fixed-sans-font))) t)
      `(mode-line ((t (:family ,my/variable-font
@@ -311,10 +312,10 @@ tabs that only have a single window."
      `(org-archived ((t (:foreground ,fg-dim :weight medium))))
      )))
 
-(my/update-faces-for-theme)
-
-(add-hook 'enable-theme-functions 'my/update-faces-for-theme)
-(add-hook 'server-after-make-frame-hook 'my/update-faces-for-theme)
+(general-add-hook '(enable-theme-functions
+                    server-after-make-frame-hook
+                    after-init-hook)
+                  'my/update-faces-for-theme)
 
 (use-package spacious-padding :ensure t :demand t
   :custom (spacious-padding-widths
@@ -349,51 +350,52 @@ tabs that only have a single window."
 ;;;; General settings
 ;;;; ======================================================================
 
-(setq-default line-spacing nil)
+(setq-default line-spacing 2)
 (setq-default truncate-lines nil)
-(setq large-file-warning-threshold nil)
-(setq fast-but-imprecise-scrolling nil)
-(setq disabled-command-function nil)
-(setq display-raw-bytes-as-hex t)
-;; (setq scroll-conservatively 101)
-(setq idle-update-delay 0.1)
-(setq mouse-1-click-follows-link t)
-(setq mouse-wheel-tilt-scroll t)
-(setq mouse-wheel-progressive-speed nil)
-(setq pixel-scroll-precision-interpolation-factor 1.0)
-(setq mouse-wheel-scroll-amount '(0.05
-                                  ((shift) . 0.9)
-                                  ((control meta) . global-text-scale)
-                                  ((control) . text-scale)
-                                  ((meta) . hscroll)))
-(setq scroll-bar-adjust-thumb-portion nil)
-(setq window-resize-pixelwise t)
-(setq frame-inhibit-implied-resize t)
-(setq next-screen-context-lines 1)
-(setq open-paren-in-column-0-is-defun-start nil)
-(setq jit-lock-chunk-size 4096)
-(setq jit-lock-antiblink-grace 1)
-(setq shell-kill-buffer-on-exit t)
-(setq eshell-kill-on-exit t)
-(setq eshell-scroll-to-bottom-on-input 'this)
-(setq view-inhibit-help-message t)
-(setq compilation-scroll-output t)
-(setq c-ts-mode-indent-style 'k&r)
-(setq c-ts-mode-indent-offset 4)
-(setq c-default-style '((c-mode . "stroustrup")
-                        (c++-mode . "stroustrup")
-                        (java-mode . "java")
-                        (awk-mode . "awk")
-                        (other . "k&r")))
 (setq-default tab-width 8)
+
+(setq
+ large-file-warning-threshold nil
+ fast-but-imprecise-scrolling nil
+ disabled-command-function nil
+ display-raw-bytes-as-hex t
+ idle-update-delay 0.1
+ mouse-1-click-follows-link t
+ mouse-wheel-tilt-scroll t
+ hscroll-margin 1
+ mouse-wheel-progressive-speed nil
+ pixel-scroll-precision-interpolation-factor 1.0
+ mouse-wheel-scroll-amount '(0.05
+                             ((shift) . 0.9)
+                             ((control meta) . global-text-scale)
+                             ((control) . text-scale)
+                             ((meta) . hscroll))
+ scroll-bar-adjust-thumb-portion nil
+ window-resize-pixelwise t
+ frame-inhibit-implied-resize t
+ next-screen-context-lines 1
+ open-paren-in-column-0-is-defun-start nil
+ jit-lock-chunk-size 4096
+ jit-lock-antiblink-grace 1
+ shell-kill-buffer-on-exit t
+ eshell-kill-on-exit t
+ eshell-scroll-to-bottom-on-input 'this
+ view-inhibit-help-message t
+ compilation-scroll-output t
+ c-ts-mode-indent-style 'k&r
+ c-ts-mode-indent-offset 4
+ c-default-style '((c-mode . "stroustrup")
+                   (c++-mode . "stroustrup")
+                   (java-mode . "java")
+                   (awk-mode . "awk")
+                   (other . "k&r")))
 
 ;; Set up file backups, always back up org files. Some of this is redundant
 ;; with minimal-emacs.d but I'd like to keep all the info together.
 (let ((backup-dir (expand-file-name "backup" user-emacs-directory)))
   (make-directory backup-dir t)
   (setq backup-directory-alist `(("." . ,backup-dir)))
-  (setq make-backup-files t)
-  )
+  (setq make-backup-files t))
 
 
 ;; This is added by minimal-emacs.d
@@ -417,7 +419,7 @@ tabs that only have a single window."
                            ((bar . 1) . (bar . 1))
                            ((bar . 2) . (bar . 2))
                            ((bar . 4) . (bar . 4))))
-(setq cursor-in-non-selected-windows nil)
+(setq-default cursor-in-non-selected-windows nil)
 
 (defvar my/cursor-colors-normal '("#7F7F7F"))
 (defvar my/cursor-colors-emacs '("#FF0FF"))
@@ -774,7 +776,7 @@ matching against the buffer name for now."
   (evil-move-cursor-back nil)
   (evil-split-window-below t)
   (evil-vsplit-window-right t)
-  (evil-want-C-w-delete nil)
+  (evil-want-C-w-delete t)
   (evil-cross-lines t)
   (evil-want-abbrev-expand-on-insert-exit nil)
   :custom-face
@@ -844,21 +846,12 @@ matching against the buffer name for now."
   ;; Fix mouse clicks in Customize buffers
   (with-eval-after-load "custom"
     (evil-make-overriding-map custom-mode-map))
-
-  ;; I don't remember what this was fixing but it's breaking TAB,
-  ;; commenting out for now. Using general.el would probably solve the
-  ;; original issue, whatever it was.
-  ;; (with-eval-after-load "yasnippet"
-  ;;   (evil-make-overriding-map yas-minor-mode-map))
-
   (evil-define-operator my/evil-comment-or-uncomment (beg end)
     "Toggle comment for the region between BEG and END."
     (interactive "<r>")
     (comment-or-uncomment-region beg end))
   :general-config
-  ('(insert emacs)
-   "C-w" 'evil-window-map
-   "C-S-w" 'evil-delete-backward-word)
+  ('(insert emacs) "C-S-w" 'evil-window-map)
   ('(normal visual) 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
   ('evil-window-map
    "C-=" 'fit-window-to-buffer
@@ -872,18 +865,23 @@ matching against the buffer name for now."
    ;; Force opening stuff in the MRU window
    "O" 'other-window-prefix
    ;; Force opening stuff in the current window
-   "S" 'same-window-prefix
-   )
+   "S" 'same-window-prefix)
   ('insert 'prog-mode-map "<tab>" 'indent-for-tab-command)
   ('visual "<tab>" 'evil-shift-right
            "<backtab>" 'evil-shift-left)
   ('normal "<tab>" 'evil-shift-right-line
-           "<backtab>" 'evil-shift-left-line))
+           "<backtab>" 'evil-shift-left-line)
+  ("M-H" 'evil-window-left
+   "M-J" 'evil-window-down
+   "M-K" 'evil-window-up
+   "M-L" 'evil-window-right
+   "M-N" 'my/switch-to-next-buffer
+   "M-P" 'my/switch-to-prev-buffer))
 
 (use-package evil-collection :ensure t
   :after evil
   :custom
-  (evil-collection-key-blacklist '("C-j" "C-k"))
+  ;; (evil-collection-key-blacklist '("c-j" "C-k"))
   (evil-collection-magit-use-z-for-folds t)
   (evil-collection-magit-section-use-z-for-folds t)
   (evil-collection-magit-want-horizontal-movement t)
@@ -939,14 +937,15 @@ matching against the buffer name for now."
 (use-package evil-lion :ensure t
   :hook (after-init . evil-lion-mode))
 
-  ;; NOTE: Keybinds are in evil-cleverparens because, yet again, it overwrites
-  ;; a bunch of default evil keybinds without checking.
+;; NOTE: Keybinds are in evil-cleverparens because, yet again, it overwrites
+;; a bunch of default evil keybinds without checking.
 (use-package evil-surround :ensure t
   :hook (after-init . global-evil-surround-mode)
   :config
-  (add-to-list* 'evil-surround-operator-alist
-                '(evil-cp-change . change)
-                '(evil-cp-delete . delete)))
+  ;; (add-to-list* 'evil-surround-operator-alist
+  ;;               '(evil-cp-change . change)
+  ;;               '(evil-cp-delete . delete))
+  )
 
 (use-package magit :ensure t :defer t
   :commands magit
@@ -975,8 +974,8 @@ matching against the buffer name for now."
   ('(normal insert emacs) '(eat-mode-map eshell-mode-map)
    "C-S-w" 'my/eat-C-w
    "C-c P" 'eat-send-password
-   "C-j" 'my/switch-to-next-buffer
-   "C-k" 'my/switch-to-prev-buffer
+   ;; "C-j" 'my/switch-to-next-buffer
+   ;; "C-k" 'my/switch-to-prev-buffer
    "C-S-k" 'my/eat-C-k
    "C-<left>" 'my/eat-prev-word
    "C-<right>" 'my/eat-next-word))
@@ -1380,93 +1379,99 @@ show all buffers."
   ;; something that wasn't in use.
   :general ('org-mode-map "C-c l" 'org-autolist-mode))
 
-
-;; TODO: Also try paredit + enhanced-evil-paredit
-
-(use-package smartparens :ensure t
-  ;; :hook (prog-mode . smartparens-mode) ; Making this manual for now
-  :custom
-  (sp-highlight-pair-overlay nil)
-  (sp-delete-blank-sexps t)
+;; Paredit mode hook is added with other lisp hooks below
+(use-package paredit :ensure t
   :config
-  (require 'smartparens-config)
-  (require 'aggressive-indent)
-  (defun my/wrap-quotes ()
-    (interactive "*")
-    (sp-wrap-with-pair "\""))
-  (defun my/wrap-round-indent ()
-    (interactive "*")
-    (call-interactively #'sp-wrap-round)
-    (aggressive-indent-indent-defun))
-  (defun my/wrap-curly-indent ()
-    (interactive "*")
-    (call-interactively #'sp-wrap-curly)
-    (aggressive-indent-indent-defun))
-  (defun my/wrap-square-indent ()
-    (interactive "*")
-    (call-interactively #'sp-wrap-square)
-    (aggressive-indent-indent-defun))
-  :general-config
-  ('(normal insert)
-   "M-j" 'sp-join-sexp
-   "C-M-j" 'sp-split-sexp
-   "M-;" 'sp-comment
-   "M-\"" 'my/wrap-quotes)
-  ('visual
-   "M-(" 'my/wrap-round-indent
-   "M-{" 'my/wrap-curly-indent
-   "M-[" 'my/wrap-square-indent))
+  (general-unbind paredit-mode-map "M-J") ; The only conflict
+  (general-def paredit-mode-map "M-U" 'paredit-join-sexps))
+(use-package enhanced-evil-paredit :ensure t
+  :config (add-hook 'paredit-mode-hook 'enhanced-evil-paredit-mode))
 
-;; TODO: Set up movement keybinds that don't conflict with Vim muscle memory
-(use-package evil-cleverparens :ensure t
-  :custom
-  (evil-cleverparens-use-additional-bindings nil)
-  (evil-cleverparens-use-additional-movement-keys nil)
-  (evil-cleverparens-use-regular-insert t)
-  :hook (smartparens-mode . evil-cleverparens-mode)
-  :config
-  (defun my/wrap-quotes-selected (beg end)
-    "Adds one to the end to match Vim-style visual selection, except newlines"
-    (interactive "r")
-    (if (eq (char-after (- end 1)) ?\n)
-        (evil-cp--wrap-region-with-pair "\"" beg end)
-      (evil-cp--wrap-region-with-pair "\"" beg (min (+ 1 end) (point-max)))))
-  :general-config
-  ('(normal insert)
-   ;; Mnemonic: Holding Ctrl moves left paren, holding Alt moves the
-   ;; right paren (Ctrl is left of Alt when using right hand for <>).
-   "C->" 'sp-backward-barf-sexp
-   "C-<" 'sp-backward-slurp-sexp
-   "M->" 'sp-forward-slurp-sexp
-   "M-<" 'sp-forward-barf-sexp)
-  ('insert
-   "M-(" 'evil-cp-wrap-next-round
-   "M-)" 'evil-cp-wrap-previous-round
-   "M-{" 'evil-cp-wrap-next-curly
-   "M-}" 'evil-cp-wrap-previous-curly
-   "M-[" 'evil-cp-wrap-next-square
-   "M-]" 'evil-cp-wrap-previous-square)
-  ('(insert emacs)
-   "C-S-w" 'evil-cp-delete-backward-word)
-  ('visual
-   "M-\"" 'my/wrap-quotes-selected))
+;; Commenting this out because I'm planning on removing it. Leaving it for
+;; quick reference to my old keybinds.
+;; (use-package smartparens :ensure t
+;;   ;; :hook (prog-mode . smartparens-mode) ; Making this manual for now
+;;   :custom
+;;   (sp-highlight-pair-overlay nil)
+;;   (sp-delete-blank-sexps t)
+;;   :config
+;;   (require 'smartparens-config)
+;;   (require 'aggressive-indent)
+;;   (defun my/wrap-quotes ()
+;;     (interactive "*")
+;;     (sp-wrap-with-pair "\""))
+;;   (defun my/wrap-round-indent ()
+;;     (interactive "*")
+;;     (call-interactively #'sp-wrap-round)
+;;     (aggressive-indent-indent-defun))
+;;   (defun my/wrap-curly-indent ()
+;;     (interactive "*")
+;;     (call-interactively #'sp-wrap-curly)
+;;     (aggressive-indent-indent-defun))
+;;   (defun my/wrap-square-indent ()
+;;     (interactive "*")
+;;     (call-interactively #'sp-wrap-square)
+;;     (aggressive-indent-indent-defun))
+;;   :general-config
+;;   ('(normal insert)
+;;    "M-j" 'sp-join-sexp
+;;    "C-M-j" 'sp-split-sexp
+;;    "M-;" 'sp-comment
+;;    "M-\"" 'my/wrap-quotes)
+;;   ('visual
+;;    "M-(" 'my/wrap-round-indent
+;;    "M-{" 'my/wrap-curly-indent
+;;    "M-[" 'my/wrap-square-indent))
 
-(use-package aggressive-indent :ensure t
-  :config
-  ;; Aggressive indent doesn't respond well to the way elisp indents ; and ;;
-  ;; comments differently. This is modified from the existing comment logic in
-  ;; aggressive-indent.el.
-  (add-to-list 'aggressive-indent-dont-indent-if
-               '(let ((line (thing-at-point 'line)))
-                  (and (stringp line)
-                       (stringp comment-start)
-                       (let ((c (substring comment-start 0 1)))
-                         ;; Whitespace, followed by any amount of the comment
-                         ;; starting character.
-                         (string-match (concat "\\`[[:blank:]]*" c "*") line)))))
-  (defun my/indent-defun (&rest _) (aggressive-indent-indent-defun))
-  (advice-add 'insert-parentheses :after 'my/indent-defun)
-  (global-aggressive-indent-mode))
+;; (use-package evil-cleverparens :ensure t
+;;   :custom
+;;   (evil-cleverparens-use-additional-bindings nil)
+;;   (evil-cleverparens-use-additional-movement-keys nil)
+;;   (evil-cleverparens-use-regular-insert t)
+;;   :hook (smartparens-mode . evil-cleverparens-mode)
+;;   :config
+;;   (defun my/wrap-quotes-selected (beg end)
+;;     "Adds one to the end to match Vim-style visual selection, except newlines"
+;;     (interactive "r")
+;;     (if (eq (char-after (- end 1)) ?\n)
+;;         (evil-cp--wrap-region-with-pair "\"" beg end)
+;;       (evil-cp--wrap-region-with-pair "\"" beg (min (+ 1 end) (point-max)))))
+;;   :general-config
+;;   ('(normal insert)
+;;    ;; Mnemonic: Holding Ctrl moves left paren, holding Alt moves the
+;;    ;; right paren (Ctrl is left of Alt when using right hand for <>).
+;;    "C->" 'sp-backward-barf-sexp
+;;    "C-<" 'sp-backward-slurp-sexp
+;;    "M->" 'sp-forward-slurp-sexp
+;;    "M-<" 'sp-forward-barf-sexp)
+;;   ('insert
+;;    "M-(" 'evil-cp-wrap-next-round
+;;    "M-)" 'evil-cp-wrap-previous-round
+;;    "M-{" 'evil-cp-wrap-next-curly
+;;    "M-}" 'evil-cp-wrap-previous-curly
+;;    "M-[" 'evil-cp-wrap-next-square
+;;    "M-]" 'evil-cp-wrap-previous-square)
+;;   ('(insert emacs)
+;;    "C-S-w" 'evil-cp-delete-backward-word)
+;;   ('visual
+;;    "M-\"" 'my/wrap-quotes-selected))
+
+;; (use-package aggressive-indent :ensure t
+;;   :config
+;;   ;; Aggressive indent doesn't respond well to the way elisp indents ; and ;;
+;;   ;; comments differently. This is modified from the existing comment logic in
+;;   ;; aggressive-indent.el.
+;;   (add-to-list 'aggressive-indent-dont-indent-if
+;;                '(let ((line (thing-at-point 'line)))
+;;                   (and (stringp line)
+;;                        (stringp comment-start)
+;;                        (let ((c (substring comment-start 0 1)))
+;;                          ;; Whitespace, followed by any amount of the comment
+;;                          ;; starting character.
+;;                          (string-match (concat "\\`[[:blank:]]*" c "*") line)))))
+;;   (defun my/indent-defun (&rest _) (aggressive-indent-indent-defun))
+;;   (advice-add 'insert-parentheses :after 'my/indent-defun)
+;;   (global-aggressive-indent-mode))
 
 (use-package flycheck :ensure t :defer t
   :config
@@ -1595,11 +1600,11 @@ show all buffers."
    "C-p" 'eshell-previous-matching-input-from-input
    "C-n" 'eshell-next-matching-input-from-input))
 
-(use-package comint :ensure nil
-  :general-config
-  ('comint-mode-map
-   "C-j" 'my/switch-to-next-buffer
-   "C-k" 'my/switch-to-prev-buffer))
+;; (use-package comint :ensure nil
+;;   :general-config
+;;   ('comint-mode-map
+;;    "C-j" 'my/switch-to-next-buffer
+;;    "C-k" 'my/switch-to-prev-buffer))
 
 (use-package winner-mode :ensure nil
   :custom (winner-dont-bind-my-keys t)
@@ -1620,7 +1625,7 @@ show all buffers."
     (which-key-dont-use-unicode nil)
     (which-key-idle-secondary-delay 0.1)
     (which-key-paging-key "<f1>")
-    (which-key-show-operator-state-maps t)
+    (which-key-show-operator-state-maps nil)
     (which-key-min-column-description-width 32)
     (which-key-max-description-length 48)
     (which-key-max-display-columns 4)
@@ -1650,10 +1655,11 @@ show all buffers."
 
 (use-package doc-view :ensure nil :defer t
   :custom (doc-view-continuous t)
-  :general
-  ('normal 'doc-view-mode-map
-           "C-j" 'my/switch-to-next-buffer
-           "C-k" 'my/switch-to-prev-buffer))
+  ;; :general
+  ;; ('normal 'doc-view-mode-map
+  ;;          "C-j" 'my/switch-to-next-buffer
+  ;;          "C-k" 'my/switch-to-prev-buffer)
+  )
 
 (use-package isearch :ensure nil
   :custom
@@ -1778,9 +1784,10 @@ show all buffers."
   :general-config
   ('(normal insert) 'org-mode-map
    "<backtab>" 'org-shifttab)
-  ('normal 'org-mode-map
-           "C-j" 'my/switch-to-next-buffer
-           "C-k" 'my/switch-to-prev-buffer))
+  ;; ('normal 'org-mode-map
+  ;;          "C-j" 'my/switch-to-next-buffer
+  ;;          "C-k" 'my/switch-to-prev-buffer)
+  )
 
 (use-package proced :ensure nil
   :custom
@@ -1934,6 +1941,18 @@ buffer objects."
   (general-add-hook 'dired-mode-hook '( dired-hide-details-mode
                                         dired-omit-mode)))
 
+(use-package image-dired :ensure nil
+  :custom
+  (image-dired-thumbnail-storage 'standard)
+  (image-dired-external-viewer "feh")
+  :config
+  (general-def
+    'image-dired-thumbnail-mode-map
+    [remap evil-backward-char] 'image-dired-backward-image
+    [remap evil-forward-char] 'image-dired-forward-image
+    [remap evil-previous-line] 'image-dired-previous-line
+    [remap evil-next-line] 'image-dired-next-line))
+
 (use-package which-func :ensure nil
   :custom-face
   (which-func ((t (:height 120 :inherit (shadow medium fixed-pitch)))))
@@ -1954,8 +1973,7 @@ buffer objects."
   (defun my/elisp-read-only (&rest _)
     (when (string-suffix-p ".el.gz" (buffer-file-name))
       (read-only-mode)))
-  (general-add-hook 'emacs-lisp-mode-hook 'my/elisp-read-only)
-  )
+  (general-add-hook 'emacs-lisp-mode-hook 'my/elisp-read-only))
 
 (use-package help-mode :ensure nil
   :init
@@ -2005,11 +2023,7 @@ if one couldn't be determined."
                   '(my/prog-word-syntax my/show-trailing-whitespace))
 
 (general-add-hook my/lisp-mode-hooks
-                  '(my/lisp-word-syntax
-                    ;; my/string-underline ; disabling this for now
-                    ))
-
-(general-add-hook '(prog-mode-hook text-mode-hook) 'my/line-spacing)
+                  '(my/lisp-word-syntax paredit-mode))
 
 (general-add-hook '( eww-mode-hook markdown-mode-hook markdown-view-mode-hook
                      gfm-mode-hook gfm-view-mode-hook)
@@ -2310,27 +2324,19 @@ invisible copy of the character causing the resizing so it's always present."
  "<mode-line> <mouse-2>" 'mouse-delete-window
  "<mode-line> <mouse-3>" 'menu-bar-open) ;; TODO: Something more useful than this
 
-(general-def '(normal motion)
-  "C-j" 'my/switch-to-next-buffer
-  "C-k" 'my/switch-to-prev-buffer)
+;; (general-def '(normal motion)
+;;   "C-j" 'my/switch-to-next-buffer
+;;   "C-k" 'my/switch-to-prev-buffer)
 
 ;; Allows switching buffers in modes that otherwise use C-j or C-k, like shells
-(general-def 'evil-window-map
-  "C-j" 'my/switch-to-next-buffer
-  "C-k" 'my/switch-to-prev-buffer)
+;; (general-def 'evil-window-map
+;;   "C-j" 'my/switch-to-next-buffer
+;;   "C-k" 'my/switch-to-prev-buffer)
 
-;; evil-cleverparens overwrites these at some point, try to ensure
-;; that doesn't happen
-(with-eval-after-load 'evil-cleverparens
-  (general-def '(normal visual)
-    ">" 'evil-shift-right
-    "<" 'evil-shift-left)
-  ;; More things evil-cp overwrites, plus my customization
-  (with-eval-after-load 'evil-surround
+(with-eval-after-load 'evil-surround
     (general-def 'visual 'evil-surround-mode-map
       "s" #'evil-surround-region
-      "S" #'evil-Surround-region)))
-
+      "S" #'evil-Surround-region))
 
 (defvar my/project-commands '())
 (defun my/current-project-symbol ()
@@ -2593,6 +2599,9 @@ it on the buffer itself."
 (setq display-buffer-alist
       (let* ((bot-common '(display-buffer-in-side-window
                            (side . bottom) (preserve-size . t)
+                           ;; This setting might accomplish a lot of what I've
+                           ;; been trying to do manually. Test and see.
+                           (dedicated . side)
                            (body-function . my/window-body-fn)))
              (bot-left-window `(,@bot-common (slot . -1)))
              (bot-right-window `(,@bot-common (slot . 1)))
@@ -2606,7 +2615,8 @@ it on the buffer itself."
                                   (regex ".*[Rr][Ee][Pp][Ll].*")
                                   "compilation" "lua" "Python" "inferior"
                                   "Warnings" "Messages" "Ibuffer" "eat*")))
-             (bot-left-modes '( dired-mode eww-mode magit-mode))
+             (bot-left-modes '( dired-mode eww-mode magit-mode
+                                image-dired-thumbnail-mode))
              (bot-right-modes '( comint-mode special-mode messages-buffer-mode
                                  ibuffer-mode))
              (derived-rule (lambda (x) (cons 'derived-mode x)))
@@ -2615,6 +2625,16 @@ it on the buffer itself."
            display-buffer-in-direction
            (direction . rightmost)
            (window-parameters (mode-line-format . none)))
+          ((or ,(image-file-name-regexp)
+               (derived-mode . image-mode))
+           display-buffer-in-direction
+           (direction . rightmost)
+           (window-min-width . 60)
+           (window-width . 60)
+           (dedicated . t)
+           (body-function . my/window-body-fn)
+           (mode image-mode image-dired-image-mode)
+           )
           (my/match-non-special-buffers
            nil
            (body-function . my/window-body-fn))

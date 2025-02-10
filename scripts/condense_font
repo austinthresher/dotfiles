@@ -2,6 +2,7 @@
 import sys
 from pathlib import Path
 import re
+import math
 
 def usage():
     print(f"Usage: fontforge -script {sys.argv[0]} [SCALE 1-99] [FILE]")
@@ -13,9 +14,13 @@ except ImportError:
     print("This script must be run from fontforge:")
     usage()
 
+# Any glyphs in this list will not be scaled, since they tend to be small.
+# Their width will still be adjusted for correct spacing.
+DONT_SCALE = "- ' ` ! = : ; , . | ? [ ] { } ( )".split()
+
 # Modify spacing between letters this much more/less than the glyphs.
 # 0.0 preserves the original spacing, 1.0 fully scales the spacing.
-SPACING_MULT = 0.5
+SPACING_MULT = 0.75
 
 WEIGHTS = ["Black", "ExtraBold", "Bold", "SemiBold", "Medium", "Regular",
            "SemiLight", "Light", "ExtraLight", "Thin"]
@@ -113,19 +118,44 @@ def main():
         old_dims = [(g.width, g.left_side_bearing, g.right_side_bearing)
                     for g in font.glyphs()]
         font.selection.all()
+        font.selection.select(("less",), *DONT_SCALE)
         font.transform(psMat.scale(x_scale, 1),
                        ["simplePos", "guide", "kernClasses"])
         # Adjust width to help preserve character spacing
-        for g, old in zip(font.glyphs(), old_dims):
-            old_width, old_left, old_right = old
-            delta = g.width - old_width
-            if delta == 0: continue
-            target_width = lerp(old_width, g.width, SPACING_MULT)
-            target_left = lerp(old_left, g.left_side_bearing, SPACING_MULT)
-            target_right = lerp(old_right, g.right_side_bearing, SPACING_MULT)
-            g.left_side_bearing = int(target_left)
-            g.right_side_bearing = int(target_right)
-            g.width = int(target_width)
+        for g, (old_width, old_left, old_right) in zip(font.glyphs(), old_dims):
+            if g.width == 0: continue
+            # Middle width is fixed based on glyph shape.
+            # Adjust left and right bearing to proportionally make up for the
+            # desired spacing.
+            min_x, _, max_x, _ = g.boundingBox()
+            middle_width = max_x - min_x
+            target_total_width = int(lerp(old_width, old_width*x_scale, SPACING_MULT))
+            total_target_bearing = int(target_total_width - middle_width)
+            # Check for easy cases and avoid dividing by zero
+            if g.left_side_bearing == 0 and g.right_side_bearing == 0:
+                g.width = target_total_width
+                continue
+            elif g.left_side_bearing == 0:
+                g.right_side_bearing = total_target_bearing
+                g.width = target_total_width # fix rounding errors
+                continue
+            elif g.right_side_bearing == 0:
+                g.left_side_bearing = total_target_bearing
+                g.width = target_total_width # fix rounding errors
+                continue
+            elif g.left_side_bearing + g.right_side_bearing == 0:
+                # In this case, left = -right
+                half_bearing = total_target_bearing / 2
+                g.left_side_bearing = int(math.copysign(half_bearing, g.left_side_bearing))
+                g.right_side_bearing = int(math.copysign(half_bearing, g.right_side_bearing))
+                g.width = target_total_width # fix rounding errors
+                continue
+            total_bearing_magnitude = abs(g.left_side_bearing) + abs(g.right_side_bearing)
+            left_ratio = g.left_side_bearing / total_bearing_magnitude
+            right_ratio = g.right_side_bearing / total_bearing_magnitude
+            g.left_side_bearing = int(left_ratio * total_target_bearing)
+            g.right_side_bearing = int(right_ratio * total_target_bearing)
+            g.width = target_total_width # fix rounding errors
 
         font.generate(str(outpath))
         print(f"wrote {outpath}")
