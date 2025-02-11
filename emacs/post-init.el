@@ -1,9 +1,12 @@
 ;;; -*- no-byte-compile: t; lexical-binding: t; -*-
 
-;; TODO: Pick a single key binding for buffer swapping, probably a function key
-;; TODO: See if paredit is better behaved than smartparens
-;; TODO: Add keybind for find file at point
-;; TODO: Use monospacifier to scale symbol/noto fonts to match my defaults
+;; TODO:
+;; - Fix manpages not searching ~/.local/usr/share/man
+;; - Tweak paredit bindings
+;; - Move some plugin-specific bindings to leader key
+;; - add [wo]man to buffer-display-alist
+;; - autofocus occur window when it appears
+;; - finish my/consult-history-advice
 
 ;;;; TODOs that probably require writing elisp:
 ;;;; ======================================================================
@@ -749,6 +752,13 @@ matching against the buffer name for now."
       (tab-line-switch-to-prev-tab)
     (switch-to-prev-buffer)))
 
+(defun my/window-up    () (interactive) (evil-window-up 1))
+(defun my/window-down  () (interactive) (evil-window-down 1))
+(defun my/window-left  () (interactive) (evil-window-left 1))
+(defun my/window-right () (interactive) (evil-window-right 1))
+
+(general-create-definer my/leader-def :prefix "\\")
+
 ;;;; External Packages
 ;;;; ======================================================================
 
@@ -796,9 +806,7 @@ matching against the buffer name for now."
   (setq evil-operator-state-cursor 'hollow)
   (add-to-list* 'evil-emacs-state-modes
                 'comint-mode 'eat-mode 'eshell-mode 'shell-mode 'term-mode
-                'inferior-python-mode 'vterm-mode 'minibuffer-mode
-                'org-mode ; trying this out
-                )
+                'inferior-python-mode 'vterm-mode 'minibuffer-mode)
   (setq evil-insert-state-modes
         (seq-remove (lambda (x) (memq x evil-emacs-state-modes))
                     evil-insert-state-modes))
@@ -850,6 +858,7 @@ matching against the buffer name for now."
     "Toggle comment for the region between BEG and END."
     (interactive "<r>")
     (comment-or-uncomment-region beg end))
+  (general-unbind 'motion "\\")
   :general-config
   ('(insert emacs) "C-S-w" 'evil-window-map)
   ('(normal visual) 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
@@ -871,12 +880,12 @@ matching against the buffer name for now."
            "<backtab>" 'evil-shift-left)
   ('normal "<tab>" 'evil-shift-right-line
            "<backtab>" 'evil-shift-left-line)
-  ("M-H" 'evil-window-left
-   "M-J" 'evil-window-down
-   "M-K" 'evil-window-up
-   "M-L" 'evil-window-right
-   "M-N" 'my/switch-to-next-buffer
-   "M-P" 'my/switch-to-prev-buffer))
+  ("M-H"  'my/window-left
+   "M-J"  'my/window-down
+   "M-K"    'my/window-up
+   "M-L" 'my/window-right
+   "M-N"  'my/switch-to-next-buffer
+   "M-P"  'my/switch-to-prev-buffer))
 
 (use-package evil-collection :ensure t
   :after evil
@@ -956,12 +965,13 @@ matching against the buffer name for now."
 ;; NOTE: C-q will quote the next input, so you can send ESC with C-q ESC
 (use-package eat :ensure t
   :commands eat
-  :custom (eat-kill-buffer-on-exit t)
+  :custom
+  (eat-kill-buffer-on-exit t)
+  ;; I like the history feature but it breaks pagers / etc
+  ;; (eat-enable-auto-line-mode t)
   :hook ((eshell-load . eat-eshell-mode)
          (eshell-load . eat-eshell-visual-command-mode))
   :config
-  (defun my/eat-C-w () (interactive) (eat-self-input 1 23)) ; ASCII for C-w
-  (defun my/eat-C-k () (interactive) (eat-self-input 1 11)) ; ASCII for C-k
   (defun my/eat-prev-word ()
     (interactive) ; M-b (ESC b)
     (eat-self-input 1 27)
@@ -972,11 +982,14 @@ matching against the buffer name for now."
     (eat-self-input 1 102))
   :general-config
   ('(normal insert emacs) '(eat-mode-map eshell-mode-map)
-   "C-S-w" 'my/eat-C-w
+   "C-S-w" 'evil-window-map
    "C-c P" 'eat-send-password
-   ;; "C-j" 'my/switch-to-next-buffer
-   ;; "C-k" 'my/switch-to-prev-buffer
-   "C-S-k" 'my/eat-C-k
+   "M-H"  'my/window-left
+   "M-J"  'my/window-down
+   "M-K"    'my/window-up
+   "M-L" 'my/window-right
+   "M-N"  'my/switch-to-next-buffer
+   "M-P"  'my/switch-to-prev-buffer
    "C-<left>" 'my/eat-prev-word
    "C-<right>" 'my/eat-next-word))
 
@@ -1128,7 +1141,6 @@ matching against the buffer name for now."
   ('minibuffer-local-map
    "M-s" 'consult-history
    "M-r" 'consult-history)
-
   ;; Enable automatic preview at point in the *Completions* buffer.
   :hook (completion-list-mode . consult-preview-at-point-mode)
   :init
@@ -1182,7 +1194,6 @@ show all buffers."
       (if (my/main-window?)
           (consult-buffer '(my/consult--source-buffer-main-window))
         (consult-buffer '(my/consult--source-buffer-side-window)))))
-
   (keymap-global-set "C-x b" 'consult-buffer-similar)
 
   (consult-customize
@@ -1193,7 +1204,14 @@ show all buffers."
    consult--source-recent-file consult--source-project-recent-file
    ;; :preview-key "M-."
    :preview-key '(:debounce 0.4 any))
-  (setq consult-narrow-key "<"))
+  (setq consult-narrow-key "<")
+  ;; Start consult history with empty input if it's the initial value
+  ;; from find-file
+  (defun my/consult-history-advice (&rest _)
+    ;; TODO: Compare minibuffer input to default-directory, clear minibuffer if same
+    nil)
+
+  )
 
 (use-package corfu :ensure t
   :config
@@ -1382,8 +1400,11 @@ show all buffers."
 ;; Paredit mode hook is added with other lisp hooks below
 (use-package paredit :ensure t
   :config
-  (general-unbind paredit-mode-map "M-J") ; The only conflict
-  (general-def paredit-mode-map "M-U" 'paredit-join-sexps))
+  ;; Fix a few conflicts
+  (general-unbind paredit-mode-map "M-J" "M-s")
+  (general-def paredit-mode-map
+    "C-c M-s" 'paredit-splice-sexps
+    "C-c M-J" 'paredit-join-sexps))
 (use-package enhanced-evil-paredit :ensure t
   :config (add-hook 'paredit-mode-hook 'enhanced-evil-paredit-mode))
 
@@ -1560,9 +1581,20 @@ show all buffers."
   :custom
   (consult-project-function 'projectile-project-root)
   (projectile-tags-file-name ".tags")
-  :config (projectile-mode)
+  :config
+  (add-to-list 'projectile-globally-ignored-buffers "\\`\\*.*\\'")
+  (add-to-list* 'projectile-globally-ignored-modes
+                "Custom-mode"
+                "backtrace-mode"
+                "Info-mode"
+                "devdocs-mode")
+  (general-unbind projectile-mode-map "")
+  (projectile-mode)
+  (my/leader-def projectile-mode-map
+                 "p" 'projectile-command-map)
   :general
-  ('projectile-mode-map "C-c p" 'projectile-command-map))
+  (projectile-command-map "ESC" nil)
+  )
 
 ;; WIP: Try this out, figure out buffer switching
 (use-package consult-projectile :ensure t)
@@ -1600,6 +1632,10 @@ show all buffers."
    "C-p" 'eshell-previous-matching-input-from-input
    "C-n" 'eshell-next-matching-input-from-input))
 
+(use-package replace :ensure nil
+  :config
+  (add-hook 'occur-mode-hook 'next-error-follow-minor-mode))
+
 ;; (use-package comint :ensure nil
 ;;   :general-config
 ;;   ('comint-mode-map
@@ -1609,7 +1645,7 @@ show all buffers."
 (use-package winner-mode :ensure nil
   :custom (winner-dont-bind-my-keys t)
   :hook (after-init . winner-mode)
-  :general ('evil-window-map ; C-w prefix
+  :general ('evil-window-map            ; C-w prefix
             "u" 'winner-undo
             "C-r" 'winner-redo))
 

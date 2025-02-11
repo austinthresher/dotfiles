@@ -113,6 +113,9 @@ fi
 export EDITOR=edit-tty
 export VISUAL=edit
 
+# The colon at the end indicates to prepend to the existing manpath
+export MANPATH="$HOME/.local/share/man:"
+
 # Use bat as a cat replacement
 if is_executable bat; then
     bathelp() {
