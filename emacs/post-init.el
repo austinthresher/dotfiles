@@ -312,7 +312,8 @@ tabs that only have a single window."
                      t)
      `(org-done ((t (:family ,my/default-font))) t)
      `(org-todo ((t (:family ,my/default-font))) t)
-     `(org-archived ((t (:foreground ,fg-dim :weight medium))))
+     `(org-archived ((t (:foreground ,fg-dim :weight medium))) t)
+     `(indent-guide-face ((t (:foreground ,bg-active :weight light))))
      )))
 
 (general-add-hook '(enable-theme-functions
@@ -349,13 +350,15 @@ tabs that only have a single window."
        (scroll-bar-width  . ,(spacious-padding--get-scroll-bar-width reset)))))
   (spacious-padding-mode))
 
-
 ;;;; General settings
 ;;;; ======================================================================
 
-(setq-default line-spacing 2)
-(setq-default truncate-lines nil)
-(setq-default tab-width 8)
+(setq-default
+ line-spacing 2
+ truncate-lines nil
+ tab-width 8
+ left-margin-width 1
+ right-margin-width 1)
 
 (setq
  large-file-warning-threshold nil
@@ -610,8 +613,7 @@ folding elements, etc.)"
 
 (defun my/margins (&rest _)
   "Add this as a hook to buffers that should have extra margins"
-  (setq-local left-margin-width 1
-              right-margin-width 1))
+  )
 
 (defun my/margins-redisplay (&rest _)
   "Performs the redisplay that is necessary for the margin change to appear."
@@ -1302,44 +1304,21 @@ show all buffers."
                          :background unspecified))))
   (rainbow-delimiters-depth-1-face ((t (:foreground unspecified
                                         :background unspecified
-                                        :weight medium
+                                        :weight semibold
                                         :inherit nil))))
   (rainbow-delimiters-depth-2-face ((t (:foreground unspecified
                                         :background unspecified
-                                        :weight light
+                                        :weight normal
                                         :inherit nil))))
   (rainbow-delimiters-depth-3-face ((t (:foreground unspecified
                                         :background unspecified
                                         :weight extralight
                                         :inherit nil)))))
 
-(use-package yasnippet :ensure t
-  :custom (yas-alias-to-yas/prefix-p nil)
-  :bind (:map yas-minor-mode-map
-         ("C-i" . yas-expand)
-         ("C-S-i" . yas-insert-snippet)
-         :map yas-keymap
-         ("C-n" . yas-next-field)
-         ("C-p" . yas-prev-field)
-         ("S-<return>" . newline)
-         ("<return>" . yas-next-field)
-         ("<tab>" . yas-next-field))
-  :config
-  (yas-global-mode)
-  (general-unbind 'insert '(yas-minor-mode-map yas-keymap)
-    "<tab>" "<backtab>" "TAB" "S-TAB")
-  (define-key yas-keymap (kbd "TAB") nil)
-  (defun my/ensure-insert ()
-    (unless (eq evil-state 'insert)
-      (evil-insert 1)))
-  (add-hook 'yas-after-exit-snippet-hook 'evil-normal-state)
-  (add-hook 'yas-before-expand-snippet-hook 'my/ensure-insert))
-
-(use-package yasnippet-snippets :ensure t)
-
-(use-package adaptive-wrap :ensure t
-  :hook (prog-mode . adaptive-wrap-prefix-mode)
-  :custom (adaptive-wrap-extra-indent 1))
+;; TODO: Decide if this is worth keeping
+;; (use-package adaptive-wrap :ensure t
+;;   :hook (prog-mode . adaptive-wrap-prefix-mode)
+;;   :custom (adaptive-wrap-extra-indent 1))
 
 (use-package expand-region :ensure t
   :custom (expand-region-contract-fast-key "V")
@@ -1403,8 +1382,17 @@ show all buffers."
   ;; Fix a few conflicts
   (general-unbind paredit-mode-map "M-J" "M-s")
   (general-def paredit-mode-map
-    "C-c M-s" 'paredit-splice-sexps
-    "C-c M-J" 'paredit-join-sexps))
+    "C-c M-s" 'paredit-splice-sexp
+    "C-c M-J" 'paredit-join-sexps
+    ;; Mnemonic: Holding Ctrl is moving the left side of the list and
+    ;; holding Alt is moving the right side of the list because Ctrl is
+    ;; to the left of Alt when using your right hand to press - and +.
+    ;; Negative prefix can still be accessed with "C-M--".
+    "M-=" 'paredit-forward-slurp-sexp
+    "M--" 'paredit-forward-barf-sexp
+    "C-=" 'paredit-backward-slurp-sexp
+    "C--" 'paredit-backward-barf-sexp))
+
 (use-package enhanced-evil-paredit :ensure t
   :config (add-hook 'paredit-mode-hook 'enhanced-evil-paredit-mode))
 
@@ -1514,6 +1502,40 @@ show all buffers."
   (minions-mode-line-lighter "=")
   (minions-mode-line-delimiters '(" " . " ")))
 
+(use-package symbol-overlay :ensure t
+  :hook (prog-mode . symbol-overlay-mode)
+  :custom
+  (symbol-overlay-displayed-window nil)
+  :custom-face
+  (symbol-overlay-face-1 ((t (:inherit (modus-themes-subtle-blue)))))
+  (symbol-overlay-face-2 ((t (:inherit (modus-themes-subtle-magenta)))))
+  (symbol-overlay-face-3 ((t (:inherit (modus-themes-subtle-green)))))
+  (symbol-overlay-face-4 ((t (:inherit (modus-themes-subtle-yellow)))))
+  (symbol-overlay-face-5 ((t (:inherit (modus-themes-subtle-red)))))
+  (symbol-overlay-face-6 ((t (:inherit (modus-themes-subtle-cyan)))))
+  (symbol-overlay-face-7 ((t (:inherit (modus-themes-intense-yellow)))))
+  (symbol-overlay-face-8 ((t (:inherit (modus-themes-intense-green)))))
+  :config
+  (let ((map (make-sparse-keymap)))
+    (setq symbol-overlay-map map)
+    (evil-make-intercept-map symbol-overlay-map)
+    (general-def '(normal emacs) symbol-overlay-map
+      "n" 'symbol-overlay-jump-next
+      "p" 'symbol-overlay-jump-prev
+      "N" 'symbol-overlay-jump-prev
+      "C-c r" 'symbol-overlay-rename
+      "C-c t" 'symbol-overlay-toggle-in-scope
+      "<" 'symbol-overlay-jump-first
+      ">" 'symbol-overlay-jump-last))
+  ;; Required for the overlay map to work
+  (add-hook 'symbol-overlay-mode-hook 'evil-normalize-keymaps)
+  :general
+  ('(normal emacs) symbol-overlay-mode-map
+   "C-c o" 'symbol-overlay-put
+   "M-n" 'symbol-overlay-switch-forward
+   "M-p" 'symbol-overlay-switch-backward
+   "C-c O" 'symbol-overlay-remove-all))
+
 (use-package list-unicode-display :ensure t)
 
 (use-package nov :ensure t
@@ -1530,6 +1552,17 @@ show all buffers."
   (markdown-hide-markup t)
   (markdown-enable-wiki-links t)
   (markdown-list-item-bullets '("•" "‣" "‧" "╴")))
+
+(use-package indent-guide :ensure t
+  ;; TODO: Decide if I want this to be global or not
+  :hook (prog-mode . indent-guide-mode)
+  ;; (python-mode . indent-guide-mode)
+  ;; (python-ts-mode . indent-guide-mode)
+  :config
+  (add-to-list 'indent-guide-lispy-modes 'fennel-mode)
+  :custom
+  (indent-guide-char "┊")
+  (indent-guide-recursive t))
 
 (use-package devdocs :ensure t
   :commands devdocs-lookup
@@ -1593,8 +1626,7 @@ show all buffers."
   (my/leader-def projectile-mode-map
                  "p" 'projectile-command-map)
   :general
-  (projectile-command-map "ESC" nil)
-  )
+  (projectile-command-map "ESC" nil))
 
 ;; WIP: Try this out, figure out buffer switching
 (use-package consult-projectile :ensure t)
@@ -1616,6 +1648,7 @@ show all buffers."
 ;; (use-package bufler
 ;;   :vc (:url "https://github.com/alphapapa/bufler.el")
 ;;   :custom (bufler-columns '("Name" "Path")))
+
 
 
 ;;;; Built-in Packages
@@ -2061,9 +2094,6 @@ if one couldn't be determined."
 (general-add-hook my/lisp-mode-hooks
                   '(my/lisp-word-syntax paredit-mode))
 
-(general-add-hook '( eww-mode-hook markdown-mode-hook markdown-view-mode-hook
-                     gfm-mode-hook gfm-view-mode-hook)
-                  'my/margins)
 
 (general-add-hook '( eww-mode-hook markdown-mode-hook markdown-view-mode-hook
                      gfm-mode-hook gfm-view-mode-hook Info-mode-hook)
