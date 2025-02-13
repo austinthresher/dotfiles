@@ -64,6 +64,13 @@ fi
 alias tmux='tmux -u'
 alias usermount="udisksctl"
 
+# NOTE: Takes the repo name before any flags. Extracting the last argument
+# was a lot more of a headache than just swapping the order.
+ghclone() {
+    REPO="$1"; shift
+    git clone "https://github.com/$REPO" "$@"
+}
+
 is_executable () {
     command -v "$@" &> /dev/null
 }
