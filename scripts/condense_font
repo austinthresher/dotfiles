@@ -4,8 +4,14 @@ from pathlib import Path
 import re
 import math
 
+DEFAULT_SCALE = 80
+
 def usage():
-    print(f"Usage: fontforge -script {sys.argv[0]} [SCALE 1-99] [FILE]")
+    print(f"usage: fontforge -script {sys.argv[0]} file [hscale] [hspacing]")
+    print("\tfile: the font used as input")
+    print("\thscale: integer percentage to scale font glyphs horizontally")
+    print("\thspacing: percentage to scale spacing, defaults to hscale")
+
 
 try:
     import fontforge
@@ -18,9 +24,6 @@ except ImportError:
 # Their width will still be adjusted for correct spacing.
 DONT_SCALE = "- ' ` ! = : ; , . | ? [ ] { } ( )".split()
 
-# Modify spacing between letters this much more/less than the glyphs.
-# 0.0 preserves the original spacing, 1.0 fully scales the spacing.
-SPACING_MULT = 0.75
 
 WEIGHTS = ["Black", "ExtraBold", "Bold", "SemiBold", "Medium", "Regular",
            "SemiLight", "Light", "ExtraLight", "Thin"]
@@ -51,115 +54,113 @@ def make_font_name(name, label):
         return f"{prefix}Condensed{label}{suffix}"
     return f"{name}Condensed{label}"
 
-def lerp(start, end, amt):
-    return start*(1.0-amt) + end*amt
+# returns (font, outpath)
+def open_and_rename_font(inpath, label):
+    weight = weight_from_name(inpath.stem)
+    style = style_from_name(inpath.stem)
+    variant = f"{weight}{style}" # e.g. "ExtraBoldItalic"
+    base_name = inpath.stem
+    if variant:
+        variant_idx = inpath.stem.index("-"+variant)
+        base_name = base_name[:variant_idx]
+    name = f"{base_name}Condensed{label}-{variant}"
+    outpath = f"{name}{inpath.suffix}"
+    font = fontforge.open(str(inpath))
+    # Everything below here is just to make font selection dialogs work
+    # Add spaces before caps
+    nice_name = re.sub("([^A-Z])([A-Z])", r"\1 \2", base_name)
+    nice_name += f" Condensed {label}"
+    family = nice_name
+    if weight: family += f" {weight}"
+    fullname = family
+    if style: fullname += f" {style}"
+    sfnt_table = {}
+    for lang, strid, text in font.sfnt_names:
+        # A few samples I looked at all had "English (US)", might need
+        # to handle this better depending on the font
+        if lang != "English (US)": continue
+        sfnt_table[strid] = text
+    if "UniqueID" in sfnt_table and inpath.stem in sfnt_table["UniqueID"]:
+        old_id = sfnt_table["UniqueID"]
+        sfnt_table["UniqueID"] = re.sub(inpath.stem, name, old_id)
+    else:
+        del sfnt_table["UniqueID"] # Let FontForge handle this
+    sfnt_table["Fullname"] = fullname
+    sfnt_table["Family"] = family
+    sfnt_table["SubFamily"] = style or "Regular"
+    sfnt_table["PostScriptName"] = name
+    sfnt_table["Preferred Family"] = nice_name
+    preferred = " ".join([x for x in [weight, style] if x])
+    if preferred:
+        sfnt_table["Preferred Styles"] = preferred
+    sfnt_table["Preferred Family"] = nice_name
+    sfnt_table["Compatible Full"] = " ".join(
+        [x for x in [nice_name, weight, style] if x])
+    font.sfnt_names = tuple(
+        ("English (US)", k, v) for k, v in sfnt_table.items())
+    # This might be redundant with setting sfnt_names, but just in case
+    font.fontname, font.familyname, font.fullname = name, family, fullname
+    return font, outpath
 
 def main():
-    if len(sys.argv) < 3:
+    try: inpath = Path(sys.argv[1])
+    except:
         usage()
         sys.exit(1)
-    x_scale = float(sys.argv[1]) * 0.01
-    files = sys.argv[2:]
-    for f in files:
-        # Most of this is just parsing the font name so that it displays
-        # correctly in font selection dialogs
-        inpath = Path(f)
-        label = f"{int(x_scale*100)}"
-        weight = weight_from_name(inpath.stem)
-        style = style_from_name(inpath.stem)
-        variant = f"{weight}{style}" # e.g. "ExtraBoldItalic"
-        base_name = inpath.stem
-        if variant:
-            variant_idx = inpath.stem.index("-"+variant)
-            base_name = base_name[:variant_idx]
-        name = f"{base_name}Condensed{label}-{variant}"
-        outpath = f"{name}{inpath.suffix}"
-        font = fontforge.open(str(inpath))
-        # Add spaces before caps
-        nice_name = re.sub("([^A-Z])([A-Z])", r"\1 \2", base_name)
-        nice_name += f" Condensed {label}"
-        family = nice_name
-        if weight:
-            family += f" {weight}"
-        fullname = family
-        if style:
-            fullname += f" {style}"
+    try: x_scale = float(sys.argv[2]) * 0.01
+    except: x_scale = float(DEFAULT_SCALE) * 0.01
+    try: x_spacing = float(sys.argv[3]) * 0.01
+    except: x_spacing = x_scale
 
-        sfnt_table = {}
-        for lang, strid, text in font.sfnt_names:
-            # A few samples I looked at all had "English (US)", might need
-            # to handle this better depending on the font
-            if lang != "English (US)": continue
-            sfnt_table[strid] = text
-        if "UniqueID" in sfnt_table and inpath.stem in sfnt_table["UniqueID"]:
-            old_id = sfnt_table["UniqueID"]
-            sfnt_table["UniqueID"] = re.sub(inpath.stem, name, old_id)
-        else:
-            del sfnt_table["UniqueID"] # Let FontForge handle this
-        sfnt_table["Fullname"] = fullname
-        sfnt_table["Family"] = family
-        sfnt_table["SubFamily"] = style or "Regular"
-        sfnt_table["PostScriptName"] = name
-        sfnt_table["Preferred Family"] = nice_name
-        preferred = " ".join([x for x in [weight, style] if x])
-        if preferred:
-            sfnt_table["Preferred Styles"] = preferred
-        sfnt_table["Preferred Family"] = nice_name
-        sfnt_table["Compatible Full"] = " ".join([x for x in
-                                                  [nice_name, weight, style]
-                                                  if x])
+    label = f"{int(x_scale*100)}x{int(x_spacing*100)}"
+    font, outpath = open_and_rename_font(inpath, label)
 
-        font.sfnt_names = tuple(("English (US)", k, v)
-                                for k, v in sfnt_table.items())
-        # This might be redundant with setting sfnt_names, but just in case
-        font.fontname, font.familyname, font.fullname = name, family, fullname
-
-        # Save old dimensions and then actually scale the font
-        old_dims = [(g.width, g.left_side_bearing, g.right_side_bearing)
-                    for g in font.glyphs()]
-        font.selection.all()
-        font.selection.select(("less",), *DONT_SCALE)
-        font.transform(psMat.scale(x_scale, 1),
-                       ["simplePos", "guide", "kernClasses"])
-        # Adjust width to help preserve character spacing
-        for g, (old_width, old_left, old_right) in zip(font.glyphs(), old_dims):
-            if g.width == 0: continue
-            # Middle width is fixed based on glyph shape.
-            # Adjust left and right bearing to proportionally make up for the
-            # desired spacing.
-            min_x, _, max_x, _ = g.boundingBox()
-            middle_width = max_x - min_x
-            target_total_width = int(lerp(old_width, old_width*x_scale, SPACING_MULT))
-            total_target_bearing = int(target_total_width - middle_width)
-            # Check for easy cases and avoid dividing by zero
-            if g.left_side_bearing == 0 and g.right_side_bearing == 0:
-                g.width = target_total_width
-                continue
-            elif g.left_side_bearing == 0:
-                g.right_side_bearing = total_target_bearing
-                g.width = target_total_width # fix rounding errors
-                continue
-            elif g.right_side_bearing == 0:
-                g.left_side_bearing = total_target_bearing
-                g.width = target_total_width # fix rounding errors
-                continue
-            elif g.left_side_bearing + g.right_side_bearing == 0:
-                # In this case, left = -right
-                half_bearing = total_target_bearing / 2
-                g.left_side_bearing = int(math.copysign(half_bearing, g.left_side_bearing))
-                g.right_side_bearing = int(math.copysign(half_bearing, g.right_side_bearing))
-                g.width = target_total_width # fix rounding errors
-                continue
-            total_bearing_magnitude = abs(g.left_side_bearing) + abs(g.right_side_bearing)
-            left_ratio = g.left_side_bearing / total_bearing_magnitude
-            right_ratio = g.right_side_bearing / total_bearing_magnitude
-            g.left_side_bearing = int(left_ratio * total_target_bearing)
-            g.right_side_bearing = int(right_ratio * total_target_bearing)
+    # Save old dimensions and then actually scale the font
+    old_dims = [(g.width, g.left_side_bearing, g.right_side_bearing)
+                for g in font.glyphs()]
+    font.selection.all()
+    font.selection.select(("less",), *DONT_SCALE)
+    font.transform(psMat.scale(x_scale, 1),
+                   ["simplePos", "guide", "kernClasses"])
+    # Adjust width to help preserve character spacing
+    for g, (old_width, old_left, old_right) in zip(font.glyphs(), old_dims):
+        if g.width == 0: continue
+        # Middle width is fixed based on glyph shape.
+        # Adjust left and right bearing to proportionally make up for the
+        # desired spacing.
+        min_x, _, max_x, _ = g.boundingBox()
+        middle_width = max_x - min_x
+        target_total_width = int(old_width * x_spacing)
+        total_target_bearing = int(target_total_width - middle_width)
+        # Check for easy cases and avoid dividing by zero
+        if g.left_side_bearing == 0 and g.right_side_bearing == 0:
+            g.width = target_total_width
+            continue
+        elif g.left_side_bearing == 0:
+            g.right_side_bearing = total_target_bearing
             g.width = target_total_width # fix rounding errors
+            continue
+        elif g.right_side_bearing == 0:
+            g.left_side_bearing = total_target_bearing
+            g.width = target_total_width # fix rounding errors
+            continue
+        elif g.left_side_bearing + g.right_side_bearing == 0:
+            # In this case, left = -right
+            half_bearing = total_target_bearing / 2
+            g.left_side_bearing = int(math.copysign(half_bearing, g.left_side_bearing))
+            g.right_side_bearing = int(math.copysign(half_bearing, g.right_side_bearing))
+            g.width = target_total_width # fix rounding errors
+            continue
+        total_bearing_magnitude = abs(g.left_side_bearing) + abs(g.right_side_bearing)
+        left_ratio = g.left_side_bearing / total_bearing_magnitude
+        right_ratio = g.right_side_bearing / total_bearing_magnitude
+        g.left_side_bearing = int(left_ratio * total_target_bearing)
+        g.right_side_bearing = int(right_ratio * total_target_bearing)
+        g.width = target_total_width # fix rounding errors
 
-        font.generate(str(outpath))
-        print(f"wrote {outpath}")
-        font.close()
+    font.generate(str(outpath))
+    print(f"wrote {outpath}")
+    font.close()
 
 if __name__ == "__main__":
     main()

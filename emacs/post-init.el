@@ -7,6 +7,7 @@
 ;; - add [wo]man to buffer-display-alist
 ;; - autofocus occur window when it appears
 ;; - finish my/consult-history-advice
+;; - add emacs/readline shortcuts to insert mode
 
 ;;;; TODOs that probably require writing elisp:
 ;;;; ======================================================================
@@ -759,7 +760,9 @@ matching against the buffer name for now."
 (defun my/window-left  () (interactive) (evil-window-left 1))
 (defun my/window-right () (interactive) (evil-window-right 1))
 
-(general-create-definer my/leader-def :prefix "\\")
+(general-create-definer my/leader-def
+  :states '(normal visual)
+  :prefix "\\")
 
 ;;;; External Packages
 ;;;; ======================================================================
@@ -1219,6 +1222,23 @@ show all buffers."
   :config
   (global-corfu-mode)
   (corfu-popupinfo-mode)
+  (defun my/corfu-complete-or-send ()
+    (interactive)
+    (funcall-interactively
+     (if (derived-mode-p 'eshell-mode 'comint-mode)
+         #'corfu-complete
+       #'corfu-send)))
+  ;; Corfu is showing its popup one line off when tab-line-mode is active
+  (cl-defmethod corfu--popup-show :around ( pos off width lines
+                                            &context (tab-line-mode (eql t))
+                                            &optional curr lo bar)
+    ;; Adjust pos by one line. Couldn't find a better way to do it, so this
+    ;; modifies the cons cell directly.
+    (when-let* ((xy (posn-x-y pos))
+                (xy-cell (seq-find (lambda (a) (equal a xy)) pos)))
+      ;; The 2 accounts for the border pixels
+      (setcdr xy-cell (- (cdr xy-cell) (window-default-line-height) 2)))
+    (cl-call-next-method))
   :general
   ('emacs
    "C-S-SPC" 'set-mark-command)
@@ -1230,7 +1250,7 @@ show all buffers."
    "<tab>" 'corfu-expand
    "TAB" 'corfu-expand
    "C-SPC" 'corfu-complete ;; Fill selected completion
-   "<return>" 'corfu-send
+   "<return>" 'my/corfu-complete-or-send
    "C-n" 'corfu-next
    "C-p" 'corfu-previous)
   :custom
@@ -1556,7 +1576,7 @@ show all buffers."
 (use-package indent-guide :ensure t
   ;; TODO: Decide if I want this to be global or not
   :hook (prog-mode . indent-guide-mode)
-  ;; (python-mode . indent-guide-mode)
+      ;; (python-mode . indent-guide-mode)
   ;; (python-ts-mode . indent-guide-mode)
   :config
   (add-to-list 'indent-guide-lispy-modes 'fennel-mode)
