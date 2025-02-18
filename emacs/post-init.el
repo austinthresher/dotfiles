@@ -881,28 +881,28 @@ matching against the buffer name for now."
    ;; Force opening stuff in the current window
    "S" 'same-window-prefix)
   ('insert 'prog-mode-map "<tab>" 'indent-for-tab-command)
-  ('visual "<tab>" 'evil-shift-right
+  ('visual 'prog-mode-map
+           "<tab>" 'evil-shift-right
            "<backtab>" 'evil-shift-left)
-  ('normal "<tab>" 'evil-shift-right-line
+  ('normal 'prog-mode-map
+           "<tab>" 'evil-shift-right-line
            "<backtab>" 'evil-shift-left-line)
-  ("M-H"  'my/window-left
-   "M-J"  'my/window-down
-   "M-K"    'my/window-up
+  ("M-H" 'my/window-left
+   "M-J" 'my/window-down
+   "M-K" 'my/window-up
    "M-L" 'my/window-right
-   "M-N"  'my/switch-to-next-buffer
-   "M-P"  'my/switch-to-prev-buffer))
+   "M-N" 'my/switch-to-next-buffer
+   "M-P" 'my/switch-to-prev-buffer))
 
 (use-package evil-collection :ensure t
   :after evil
   :custom
-  ;; (evil-collection-key-blacklist '("c-j" "C-k"))
   (evil-collection-magit-use-z-for-folds t)
   (evil-collection-magit-section-use-z-for-folds t)
   (evil-collection-magit-want-horizontal-movement t)
   :config
-  (remove-from-list 'evil-collection-mode-list 'eat
-                    'org ;; not sure about this yet
-                    )
+  ;; FIXME: Why was this here? Trying with this commented, remove if not needed.
+  ;; (remove-from-list 'evil-collection-mode-list 'eat)
   (evil-collection-init)
   ;; Make '==' execute 'vip='. I couldn't figure this out as a keybind.
   (defun my/indent-paragraph-or-evil-indent (fn beg end)
@@ -2374,7 +2374,7 @@ invisible copy of the character causing the resizing so it's always present."
                    'mode-line-active
                  'mode-line-inactive))
          (mode-line-color (face-attribute face :background nil 'mode-line)))
-    (propertize "🔒" 'face `(:foreground ,mode-line-color
+    (propertize " " 'face `(:foreground ,mode-line-color ;; 🔒
                             :weight medium
                             :family ,my/variable-font
                             :height ,my/mode-line-font-height))))
@@ -2562,6 +2562,14 @@ arbitrarily saved as a bottom left window. "
        (my/restore-bottom-windows))
     (_ (message "Using 1 bottom window")
        (my/combine-bottom-windows))))
+
+(defun my/get-mode-parents (mode)
+  "Returns a list of the modes the current major mode is derived from."
+  (and mode (cons mode (my/get-mode-parents (get mode 'derived-mode-parent)))))
+(defun show-mode-parents ()
+  "Show the chain of modes the current major mode is derived from."
+  (interactive)
+  (message "%s" (my/get-mode-parents major-mode)))
 
 (general-def
   "<f12>" 'cycle-bottom-windows
