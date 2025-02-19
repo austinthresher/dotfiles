@@ -356,7 +356,7 @@ tabs that only have a single window."
 
 (setq-default
  line-spacing 2
- truncate-lines nil
+ truncate-lines t
  tab-width 8
  left-margin-width 1
  right-margin-width 1)
@@ -635,6 +635,7 @@ folding elements, etc.)"
 (defun normal-fonts (&rest _)
   "Undoes the change made by `small-fonts'"
   (interactive)
+  (setq-local line-spacing (default-value 'line-spacing))
   (while my/small-font-cookies
     (face-remap-remove-relative (pop my/small-font-cookies))))
 
@@ -755,10 +756,41 @@ matching against the buffer name for now."
       (tab-line-switch-to-prev-tab)
     (switch-to-prev-buffer)))
 
-(defun my/window-up    () (interactive) (evil-window-up 1))
-(defun my/window-down  () (interactive) (evil-window-down 1))
-(defun my/window-left  () (interactive) (evil-window-left 1))
-(defun my/window-right () (interactive) (evil-window-right 1))
+;; Fit window to contents when navigating to a window that isn't big enough
+
+(defun my/longest-visible-line ()
+  (save-excursion
+    (let ((lines (window-height))
+          (word-wrap nil)
+          (truncate-lines t))
+      (named-let loop ((line 0) (longest 0))
+        (move-to-window-line line)
+        (let ((len (- (line-end-position) (line-beginning-position))))
+          (if (< line lines)
+              (loop (1+ line) (max len longest))
+            (max len longest)))))))
+
+(defun my/fit-window ()
+  (let ((w (my/longest-visible-line)))
+    (when (> w (window-width))
+      (evil-window-set-width (min w 120)))))
+
+(defun my/window-up ()
+  (interactive)
+  (evil-window-up 1)
+  (my/fit-window))
+(defun my/window-down ()
+  (interactive)
+  (evil-window-down 1)
+  (my/fit-window))
+(defun my/window-left ()
+  (interactive)
+  (evil-window-left 1)
+  (my/fit-window))
+(defun my/window-right ()
+  (interactive)
+  (evil-window-right 1)
+  (my/fit-window))
 
 (general-create-definer my/leader-def
   :states '(normal visual)
@@ -2259,20 +2291,30 @@ if one couldn't be determined."
                                                #'projectile-mode-menu))
         " "))))
 
+;; FIXME: Make this reflect renamed buffers
 (defun my/get-buffer-name ()
   (let ((fname (buffer-file-name))
         (proj (projectile-project-p)))
-    (cond ((and fname proj)
-           (let ((path (string-remove-prefix proj fname)))
-             (if (length< path 32)
-                 path
-               (require 'rng-uri)
-               (let ((parts (rng-split-path path))
-                     (limit (lambda (x)
-                              (string-limit x (if (string-prefix-p "." x) 2 1)))))
-                 (rng-join-path (append (mapcar limit (butlast parts))
-                                        (last parts)))))))
-          (t (buffer-name)))))
+    (cond
+     ;; If the buffer name has been changed from the visited file name,
+     ;; use the changed name and don't try to be clever.
+     ((and fname (not (string-suffix-p (buffer-name) fname)))
+      (buffer-name))
+     ;; If we have a valid project + visited file, show the path relative
+     ;; to the project root, abbreviating if the path is long. Arbitrarily
+     ;; uses half the window width as the max character length.
+     ((and fname proj)
+      (let ((path (string-remove-prefix proj fname))
+            (length-limit (truncate (window-width) 2)))
+        (if (length< path length-limit)
+            path
+          (require 'rng-uri)
+          (let ((parts (rng-split-path path))
+                (limit (lambda (x)
+                         (string-limit x (if (string-prefix-p "." x) 2 1)))))
+            (rng-join-path (append (mapcar limit (butlast parts))
+                                   (last parts)))))))
+     (t (buffer-name)))))
 
 (defun my/modeline-buffer-name ()
   (let* ((face-extra (when (and (buffer-file-name) (buffer-modified-p))
@@ -2727,8 +2769,7 @@ it on the buffer itself."
            (window-width . 60)
            (dedicated . t)
            (body-function . my/window-body-fn)
-           (mode image-mode image-dired-image-mode)
-           )
+           (mode image-mode image-dired-image-mode))
           (my/match-non-special-buffers
            nil
            (body-function . my/window-body-fn))
