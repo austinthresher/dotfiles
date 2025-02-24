@@ -1,0 +1,29 @@
+#!/bin/bash
+set +x
+
+BOLD=$(tput bold)
+NORM=$(tput sgr0)
+COLS=$(tput cols)
+AWK_CMD='function bold(txt){return "'${BOLD}'" txt "'${NORM}'"};'
+AWK_CMD+='NR==1{printf("%s\n", bold($0))};'
+AWK_CMD+='NR>1{printf("%s\n", $0)}'
+SEARCH="$1"
+FLAGS=""
+if [ -z "$SEARCH" ]; then
+    SEARCH=".*"
+    FLAGS="--forest"
+else
+    shift
+    if [ -z "$@" ]; then
+        FLAGS="-o ppid"
+    else
+        FLAGS="$@"
+    fi
+fi
+PIDLIST=$(pgrep -d, "$SEARCH")
+if [ ! -z "$PIDLIST" ]; then
+    ps --cumulative -o pid $FLAGS -o user,%cpu,%mem,nlwp=TC,etime,args \
+        --pid $PIDLIST --cols $COLS \
+        | awk "$AWK_CMD" \
+        | less -FR
+fi

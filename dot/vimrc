@@ -67,19 +67,6 @@ if 1 " BEGIN NO VIM-TINY
 
 let &showbreak = '>>> '
 
-" runtime ftplugin/man.vim
-
-" function! CustomizeMan()
-"     nnoremap <buffer> <nowait> q ZQ 
-"     setlocal scrolloff=99
-" endfunction
-" 
-" augroup RunCustomizeMan
-"     autocmd!
-"     autocmd filetype man call CustomizeMan()
-" augroup END
-
-
 " Netrw settings
 let g:netrw_sizestyle='H'
 let g:netrw_banner=0

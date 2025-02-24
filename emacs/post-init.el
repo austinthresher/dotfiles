@@ -241,6 +241,7 @@ tabs that only have a single window."
                       delta)))
 
 (defun my/update-faces-for-theme (&rest _)
+  (setf (alist-get ".*Symbola.*" face-font-rescale-alist) 0.75)
   (modus-themes-with-colors
     (custom-set-faces
      `(default ((t (:family ,my/default-font :height ,my/font-height))) t)
@@ -1187,10 +1188,8 @@ matching against the buffer name for now."
   ;; Enable automatic preview at point in the *Completions* buffer.
   :hook (completion-list-mode . consult-preview-at-point-mode)
   :init
-  ;; Optionally configure the register formatting. This improves the register
   (setq register-preview-delay 0.5
         register-preview-function #'consult-register-format)
-  ;; Optionally tweak the register preview window.
   (advice-add #'register-preview :override #'consult-register-window)
   ;; Use Consult to select xref locations with preview
   (setq xref-show-xrefs-function #'consult-xref
@@ -1252,9 +1251,7 @@ show all buffers."
   ;; from find-file
   (defun my/consult-history-advice (&rest _)
     ;; TODO: Compare minibuffer input to default-directory, clear minibuffer if same
-    nil)
-
-  )
+    nil))
 
 (use-package corfu :ensure t
   :config
@@ -1688,6 +1685,10 @@ show all buffers."
 
 ;; WIP: Try this out, figure out buffer switching
 (use-package consult-projectile :ensure t)
+
+;; Only using this for the find-file previews
+(use-package dirvish :ensure t
+  :hook (after-init . dirvish-peek-mode))
 
 ;; TODO: Figure out isolating visible buffers / etc on a per-project basis
 ;; (use-package perspective :ensure t)
@@ -2191,41 +2192,12 @@ if one couldn't be determined."
         (_ 'state-other))
     'mode-line-inactive))
 
-(defun my/spacer (face width)
-  `(:propertize " "
-    face ,face
-    display (space :width ,width)))
-
-(defun my/color-spacer (color width)
-  (my/spacer `(:background ,color :family ,my/default-font) width))
-
-;; TODO: Memoize colors if it causes slowdown
-(defun my/gradient-spacer (from-col to-col width)
-  `(,(my/color-spacer (my/blend from-col to-col 0.25) width)
-    ,(my/color-spacer (my/blend from-col to-col 0.5) width)
-    ,(my/color-spacer (my/blend from-col to-col 0.75) width)))
-
-;; Note that these assume they're being used in the selected mode line
-(defun my/left-gradient (&optional width)
-  (let ((mode-line-color (face-attribute 'mode-line :background nil 'default))
-        (vim-color (face-attribute (my/vim-color) :background nil 'default)))
-    (my/gradient-spacer vim-color mode-line-color
-                        (or width '(2)))))
-
-(defun my/right-gradient (&optional width)
-  (let ((mode-line-color (face-attribute 'mode-line :background nil 'default))
-        (vim-color (face-attribute (my/vim-color) :background nil 'default)))
-    (my/gradient-spacer mode-line-color vim-color
-                        (or width '(2)))))
-
 (defun my/vim-state ()
   (if (mode-line-window-selected-p)
       (let* ((mode-text (concat " " (upcase (symbol-name evil-state)) " "))
              (col (face-attribute 'mode-line :box))
              (col (if (stringp col) col (plist-get col :color))))
-        `(,(propertize mode-text 'face (my/vim-color))
-          ;; (:propertize " " face (:background ,col) display (space :width (1)))
-          ))))
+        `(,(propertize mode-text 'face (my/vim-color))))))
 
 (defun my/make-check-text (status errors warnings info map)
   (if (or (null status) (string= status ""))
@@ -2276,9 +2248,8 @@ if one couldn't be determined."
                  (butlast minions-mode-line-modes 4))
                t)))
     (put-text-property 0 (length text)
-                       'face
-                       `((:height ,my/font-height)
-                         fixed-pitch) text)
+                       'face `((:height ,my/font-height) fixed-pitch)
+                       text)
   text))
 
 (defun my/modeline-project ()
@@ -2343,9 +2314,7 @@ if one couldn't be determined."
 (defun my/propertize-position (pos)
   (let* ((col (face-attribute 'mode-line :box))
          (col (if (stringp col) col (plist-get col :color))))
-    `("  "
-      ;; (:propertize " " face (:background ,col) display (space :width (1)))
-      ,(propertize (format-mode-line pos t) 'face (my/vim-color)))))
+    `("  " ,(propertize (format-mode-line pos t) 'face (my/vim-color)))))
 
 (defun my/modeline-position-default ()
   (my/propertize-position '( " %3l:%2C ")))
@@ -2404,7 +2373,7 @@ visiting a file."
       (let* ((modified (buffer-modified-p))
              (view-str (when view-mode "🔍 "))
              (read-only-str (if buffer-read-only "🔒 " ""))
-             (modified-str (if modified "∙ " "")))
+             (modified-str (if modified "• " "")))
         (propertize (concat (or view-str read-only-str)
                             (if (or modified (not buffer-read-only)) modified-str ""))
                     'face `(:inherit ,(if modified 'error 'shadow)
@@ -2415,7 +2384,9 @@ visiting a file."
 
 (defun my/mode-line-height-hack ()
   "Terrible hack to fix the annoying resizing that keeps happening. Put an
-invisible copy of the character causing the resizing so it's always present."
+invisible copy of the character causing the resizing so it's always present.
+Note that this requires monochrome emoji, otherwise the lock icon will always
+be visible."
   (let* ((face (if (mode-line-window-selected-p)
                    'mode-line-active
                  'mode-line-inactive))

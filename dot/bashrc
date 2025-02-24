@@ -85,8 +85,9 @@ if is_executable nvim; then
     # See TODO below about scrolloff.
     NVIM_ARGS='--cmd "set showtabline=0 nohidden" +Man! +"norm M" '
     NVIM_ARGS+='+"set scrolloff=10 noshowcmd" +"nnoremap <CR> <C-]>" '
-    NVIM_ARGS+='+"nnoremap <Backspace> <C-T>" '
     NVIM_ARGS+='+"nnoremap <MiddleMouse> <C-T>" '
+    NVIM_ARGS+='+"nnoremap <Backspace> <C-u>" '
+    NVIM_ARGS+='+"nnoremap <Space> <C-d>" '
     export MANPAGER="nvim ${NVIM_ARGS}"
     if ! is_executable vim; then
         alias vim=nvim
@@ -102,7 +103,8 @@ elif is_executable vim; then
     VIM_ARGS='--not-a-term --cmd "runtime ftplugin/man.vim" '
     VIM_ARGS+='+"set scrolloff=10" +MANPAGER +"norm M" '
     VIM_ARGS+='+"nnoremap <CR> :call dist#man#PreGetPage(0)<cr>" '
-    VIM_ARGS+='+"nnoremap <Backspace> :call dist#man#PopPage()<cr>" '
+    VIM_ARGS+='+"nnoremap <Space> <C-d>" '
+    VIM_ARGS+='+"nnoremap <Backspace> <C-u>" '
     VIM_ARGS+='+"nnoremap <2-LeftMouse> :call dist#man#PreGetPage(0)<cr>" '
     VIM_ARGS+='+"nnoremap <MiddleMouse> :call dist#man#PopPage()<cr>" '
     # VIM_ARGS+=' -'
