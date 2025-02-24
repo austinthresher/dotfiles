@@ -110,7 +110,9 @@ tabs that only have a single window."
      (fg-visual fg-main)
      (fg-replace fg-main)
      (fg-operator fg-main)
-     (fg-emacs fg-main)))
+     (fg-emacs fg-main)
+     ;; I have different colors for tab-bar-tab and tab-line-tab-current
+     (bg-tab-current-alt bg-hl-line)))
   (modus-themes-common-palette-overrides
    '((fringe bg-main)
      (cursor blue-cooler)
@@ -147,7 +149,9 @@ tabs that only have a single window."
      (overline-heading-4 bg-magenta-intense)
      (overline-heading-5 bg-green-intense)
      (overline-heading-6 bg-red-intense)
-     (overline-heading-7 bg-cyan-intense)))
+     (overline-heading-7 bg-cyan-intense)
+     (bg-tab-current-alt "#dae5ec") ; original value of bg-hl-line
+     (bg-hl-line "#f0f8ff")))
   (modus-vivendi-palette-overrides
    '((comment "#70b08f")
      (bg-normal blue-intense)
@@ -182,7 +186,9 @@ tabs that only have a single window."
      (fg-term-blue-bright bg-term-blue-bright)
      (fg-term-magenta-bright bg-term-magenta-bright)
      (fg-term-cyan-bright bg-term-cyan-bright)
-     (fg-term-white-bright bg-term-white-bright)))
+     (fg-term-white-bright bg-term-white-bright)
+     (bg-tab-current-alt "#2f3849") ; original color for bg-hl-line
+     (bg-hl-line "#0e1824")))
   (modus-themes-headings '((1 . (variable-pitch 1.25 bold))
                            (2 . (variable-pitch 1.25 semibold))
                            (3 . (variable-pitch 1.20 semibold))
@@ -206,17 +212,17 @@ tabs that only have a single window."
 (defvar my/mode-line-font-height 140)
 (defvar my/tab-line-font-height 110)
 
-(defvar my/default-font "Monaspace Neon Condensed 80")
+(defvar my/default-font "Monaspace Neon Condensed 85x85")
 ;; Make comments and docstrings stand out with a serif font
-(defvar my/comment-font "Monaspace Xenon Condensed 80")
+(defvar my/comment-font "Monaspace Xenon Condensed 85x85")
 ;; This can be used for emphasis in code without breaking monospacing
-(defvar my/special-font "Monaspace Krypton Condensed 80")
+(defvar my/special-font "Monaspace Krypton Condensed 85x85")
 
-(defvar my/fixed-font "Monaspace Xenon Condensed 80")
-(defvar my/fixed-sans-font "Monaspace Argon Condensed 80")
-(defvar my/fixed-serif-font "Monaspace Xenon Condensed 80")
+(defvar my/fixed-font "Monaspace Xenon Condensed 85x85")
+(defvar my/fixed-sans-font "Monaspace Argon Condensed 85x85")
+(defvar my/fixed-serif-font "Monaspace Xenon Condensed 85x85")
 
-(defvar my/variable-font "Noto Sans")
+(defvar my/variable-font "Roboto")
 (defvar my/buffer-name-font "Roboto")
 
 ;; This has to be in points
@@ -242,7 +248,7 @@ tabs that only have a single window."
      `(fixed-pitch ((t (:family ,my/fixed-font))) t)
      `(fixed-pitch-serif ((t (:family ,my/fixed-serif-font))) t)
      `(variable-pitch ((t (:family ,my/variable-font))) t)
-     `(font-lock-comment-face ((t (:family ,my/comment-font :weight light))) t)
+     `(font-lock-comment-face ((t (:family ,my/comment-font))) t)
      `(font-lock-doc-face ((t (:family ,my/comment-font))) t)
      ;; `(font-lock-string-face ((t (:family ,my/fixed-sans-font))) t)
      `(mode-line ((t (:family ,my/variable-font
@@ -287,7 +293,7 @@ tabs that only have a single window."
                     :overline ,bg-main
                     :height ,my/tab-bar-font-height)))
                t)
-     `(tab-bar-tab ((t (:background ,bg-hl-line))) t)
+     `(tab-bar-tab ((t (:background ,bg-tab-current-alt))) t)
      `(tab-bar-tab-inactive ((t (:foreground ,bg-active
                                  :underline (:position 0 :color ,bg-dim))))
                             t)
@@ -1824,8 +1830,6 @@ show all buffers."
                        'wikipedia-history
                        "_"))
   :config
-  (setq browse-url-browser-function 'eww-browse-url)
-
   ;; TODO: Make this more generic with a url regex / function alist later
   (defun my/clean-github (document &optional point buffer)
     "Make Github repos slightly more readable in eww."
@@ -2416,12 +2420,12 @@ invisible copy of the character causing the resizing so it's always present."
                    'mode-line-active
                  'mode-line-inactive))
          (mode-line-color (face-attribute face :background nil 'mode-line)))
-    (propertize " " 'face `(:foreground ,mode-line-color ;; 🔒
+    (propertize "🔒" 'face `(:foreground ,mode-line-color
                             :weight medium
                             :family ,my/variable-font
                             :height ,my/mode-line-font-height))))
 
-(setopt mode-line-right-align-edge 'right-margin) ;'window
+(setopt mode-line-right-align-edge 'window)
 (setq-default mode-line-format
               `((:eval (my/evil-state))
                 (:eval (my/modeline-buffer-name))
@@ -2433,7 +2437,8 @@ invisible copy of the character causing the resizing so it's always present."
                 (:eval (my/modeline-project))
                 (:eval (my/modeline-fly))
                 (:eval (my/modeline-modes))
-                (:eval (my/modeline-position))))
+                (:eval (my/modeline-position))
+                " "))
 
 ;; In daemon mode, the messages buffer is created too early to get the
 ;; mode line changes.
@@ -2796,3 +2801,5 @@ it on the buffer itself."
 (let ((local-init (expand-file-name "local-init.el"
                                     user-emacs-directory)))
   (when (file-exists-p local-init) (load local-init)))
+
+
