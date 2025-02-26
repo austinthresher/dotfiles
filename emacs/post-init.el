@@ -14,8 +14,6 @@
 ;; * Make keybinds for the mouse back/forward buttons that call appropriate
 ;;   functions in the window under the mouse, based on the major mode of that
 ;;   window's buffer. pdf-history-backward, help-go-back, etc.
-;; * Try to figure out triggering sp-comment when the comment string is typed
-;;   for the current language's mode.
 ;; * Write a function for fennel-mode to update `fennel-indent-function' for
 ;;   the current symbol (or current function definition, if possible). Also
 ;;   look at the `fennel-doc-string-elt' symbol property to add docstring
@@ -24,6 +22,7 @@
 ;; * See if there's a way to advise `delete-window' to allow making side
 ;;   windows be the only window in thier frame. Do something like detecting
 ;;   when that would happen and "promote" the side window to a main window.
+;; * Cache mode-line updates and rate limit them
 
 
 ;;;; Utility macros and functions
@@ -251,7 +250,6 @@ tabs that only have a single window."
      `(variable-pitch ((t (:family ,my/variable-font))) t)
      `(font-lock-comment-face ((t (:family ,my/comment-font))) t)
      `(font-lock-doc-face ((t (:family ,my/comment-font))) t)
-     ;; `(font-lock-string-face ((t (:family ,my/fixed-sans-font))) t)
      `(mode-line ((t (:family ,my/variable-font
                       :height ,my/mode-line-font-height)))
                  t)
@@ -315,13 +313,31 @@ tabs that only have a single window."
      `(org-idea-face ((t (:family ,my/default-font
                           :foreground ,blue-faint
                           :weight normal
-                          :height 0.9
-                          )))
+                          :height 0.9)))
                      t)
      `(org-done ((t (:family ,my/default-font))) t)
      `(org-todo ((t (:family ,my/default-font))) t)
      `(org-archived ((t (:foreground ,fg-dim :weight medium))) t)
+     `(org-block-begin-line ((t (:family ,my/special-font
+                                 :weight medium
+                                 :overline ,border
+                                 :foreground ,bg-dim
+                                 :background ,bg-dim
+                                 :height 0.75)))
+                            t)
+     `(org-block ((t (:background ,bg-dim))) t)
+     `(org-block-end-line ((t (:family ,my/special-font
+                               :weight medium
+                               :overline nil
+                               :underline (:position 0 :color ,border)
+                               :foreground ,bg-dim
+                               :background ,bg-dim
+                               :height 0.75)))
+                          t)
      `(indent-guide-face ((t (:foreground ,bg-active :weight light))))
+     `(org-block-syntax ((t (:foreground ,border))) t)
+     ;; Make hl-line reveal "hidden" text (same/similar fg and bg)
+     `(hl-line ((t (:distant-foreground ,fg-dim))) t)
      )))
 
 (general-add-hook '(enable-theme-functions
@@ -563,6 +579,7 @@ tabs that only have a single window."
 ;; Even though minimal-emacs.d tries to add this, (display-graphic-p) will
 ;; return nil when running as a daemon, preventing it from adding the hook.
 (add-hook 'after-init-hook 'context-menu-mode)
+(add-hook 'after-init-hook 'global-hl-line-mode)
 ;; TODO: remove some of these symbols, like "or", and re-enable
 ;; (add-hook 'prog-mode-hook 'global-prettify-symbols-mode)
 (add-hook 'after-init-hook 'global-tab-line-mode)
@@ -619,15 +636,6 @@ folding elements, etc.)"
   (my/no-fringes)
   (set-window-buffer (selected-window) (current-buffer)))
 
-(defun my/margins (&rest _)
-  "Add this as a hook to buffers that should have extra margins"
-  )
-
-(defun my/margins-redisplay (&rest _)
-  "Performs the redisplay that is necessary for the margin change to appear."
-  (my/margins)
-  (set-window-buffer (selected-window) (current-buffer)))
-
 (defun my/no-blink-cursor (&rest _)
   "Add this as a hook to buffers that should not blink the cursor"
   (setq-local blink-cursor-mode nil))
@@ -636,6 +644,9 @@ folding elements, etc.)"
   "Add this as a hook to force word wrap in a buffer"
   (setq-local truncate-lines nil)
   (word-wrap-whitespace-mode t))
+
+(defun my/terminal-font ()
+  (face-remap-add-relative 'default :family my/special-font))
 
 (defvar-local my/small-font-cookies nil)
 
@@ -1108,13 +1119,7 @@ matching against the buffer name for now."
   (completion-category-defaults nil)
   (completion-category-overrides '((file (styles partial-completion))
                                    (eglot (styles orderless))
-                                       (eglot-capf (styles orderless))))
-  ;; :custom-face
-  ;; (orderless-match-face-0 ((t (:inherit (underline blue-fg)))))
-  ;; (orderless-match-face-1 ((t (:inherit (underline magenta-fg)))))
-  ;; (orderless-match-face-2 ((t (:inherit (underline green-fg)))))
-  ;; (orderless-match-face-3 ((t (:inherit (underline yellow-fg)))))
-  )
+                                       (eglot-capf (styles orderless)))))
 
 (use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
@@ -1303,7 +1308,6 @@ show all buffers."
   (text-mode-ispell-word-completion nil)
   (tab-always-indent 'complete))
 
-;; Note: this _might_ be conflicting with popupinfo in the GUI, needs testing
 (use-package corfu-terminal :ensure t
   :config (corfu-terminal-mode))
 
@@ -1313,8 +1317,6 @@ show all buffers."
   :init
   (general-add-hook 'completion-at-point-functions '( cape-dabbrev cape-file))
   :config
-  ;; TODO: Look at corfu wiki for example merging elisp cap with dabbrev
-
   ;; Fix the issue where completion doesn't show all of the candidates
   (advice-add 'eglot-completion-at-point :around 'cape-wrap-buster))
 
@@ -1323,13 +1325,7 @@ show all buffers."
   (after-init . global-form-feed-st-mode)
   (server-after-make-frame-hook . global-form-feed-st-mode)
   :custom (form-feed-st-include-modes
-           '(prog-mode text-mode compilation-mode))
-  ;; :custom-face
-  ;; ;; strike-through was giving a weird artifact, but this works pretty well
-  ;; (form-feed-st-line ((t (:strike-through unspecified
-  ;;                         :inherit form-feed-line-normal))))
-  )
-
+           '(prog-mode text-mode compilation-mode)))
 
 (use-package highlight-parentheses :ensure t
   :hook
@@ -1370,11 +1366,6 @@ show all buffers."
                                         :weight extralight
                                         :inherit nil)))))
 
-;; TODO: Decide if this is worth keeping
-;; (use-package adaptive-wrap :ensure t
-;;   :hook (prog-mode . adaptive-wrap-prefix-mode)
-;;   :custom (adaptive-wrap-extra-indent 1))
-
 (use-package expand-region :ensure t
   :custom (expand-region-contract-fast-key "V")
   :general-config
@@ -1414,22 +1405,6 @@ show all buffers."
   ;; Others: ⁍ ⁌ ❫ ❩ ⏩ ⧽ › » 𜱺 𜲂 🠶
   (org-superstar-item-bullet-alist '((42 . "⸰") (43 . "‣") (45 . "━"))) ; *+-
   (org-superstar-headline-bullets-list '("◆" "⬗" "⬥" "⬩")))
-
-(use-package org-variable-pitch :ensure t
-  :config
-  (remove-from-list 'org-variable-pitch-fixed-faces 'org-indent)
-  (add-to-list* 'org-variable-pitch-fixed-faces
-                'header-line 'org-column 'org-column-title 'org-note-face
-                'org-idea-face 'org-tag)
-  (general-add-hook '(after-init-hook server-after-make-frame-hook)
-                    'org-variable-pitch-setup))
-
-(use-package org-autolist :ensure t
-  ;; Trying to get used to "normal" org behavior first, making this a toggle
-  ;; :hook (org-mode . org-autolist-mode)
-  ;; Not sure I like this keybind, need to revisit later. I just picked
-  ;; something that wasn't in use.
-  :general ('org-mode-map "C-c l" 'org-autolist-mode))
 
 ;; Paredit mode hook is added with other lisp hooks below
 (use-package paredit :ensure t
@@ -1520,23 +1495,6 @@ show all buffers."
 ;;   ('visual
 ;;    "M-\"" 'my/wrap-quotes-selected))
 
-;; (use-package aggressive-indent :ensure t
-;;   :config
-;;   ;; Aggressive indent doesn't respond well to the way elisp indents ; and ;;
-;;   ;; comments differently. This is modified from the existing comment logic in
-;;   ;; aggressive-indent.el.
-;;   (add-to-list 'aggressive-indent-dont-indent-if
-;;                '(let ((line (thing-at-point 'line)))
-;;                   (and (stringp line)
-;;                        (stringp comment-start)
-;;                        (let ((c (substring comment-start 0 1)))
-;;                          ;; Whitespace, followed by any amount of the comment
-;;                          ;; starting character.
-;;                          (string-match (concat "\\`[[:blank:]]*" c "*") line)))))
-;;   (defun my/indent-defun (&rest _) (aggressive-indent-indent-defun))
-;;   (advice-add 'insert-parentheses :after 'my/indent-defun)
-;;   (global-aggressive-indent-mode))
-
 (use-package flycheck :ensure t :defer t
   :config
   (defun my/flycheck-mouse-next (event)
@@ -1609,10 +1567,7 @@ show all buffers."
   (markdown-list-item-bullets '("•" "‣" "‧" "╴")))
 
 (use-package indent-guide :ensure t
-  ;; TODO: Decide if I want this to be global or not
   :hook (prog-mode . indent-guide-mode)
-      ;; (python-mode . indent-guide-mode)
-  ;; (python-ts-mode . indent-guide-mode)
   :config
   (add-to-list 'indent-guide-lispy-modes 'fennel-mode)
   :custom
@@ -1728,12 +1683,6 @@ show all buffers."
   :config
   (add-hook 'occur-mode-hook 'next-error-follow-minor-mode))
 
-;; (use-package comint :ensure nil
-;;   :general-config
-;;   ('comint-mode-map
-;;    "C-j" 'my/switch-to-next-buffer
-;;    "C-k" 'my/switch-to-prev-buffer))
-
 (use-package winner-mode :ensure nil
   :custom (winner-dont-bind-my-keys t)
   :hook (after-init . winner-mode)
@@ -1782,12 +1731,7 @@ show all buffers."
       (flymake-goto-prev-error))))
 
 (use-package doc-view :ensure nil :defer t
-  :custom (doc-view-continuous t)
-  ;; :general
-  ;; ('normal 'doc-view-mode-map
-  ;;          "C-j" 'my/switch-to-next-buffer
-  ;;          "C-k" 'my/switch-to-prev-buffer)
-  )
+  :custom (doc-view-continuous t))
 
 (use-package isearch :ensure nil
   :custom
@@ -1904,16 +1848,17 @@ show all buffers."
                                       my/org-mode-local-hooks))
   (defun my/org-extra-keywords ()
     (add-to-list 'org-font-lock-extra-keywords
-                 `("^[ ]+\\([-+*][ ]\\|[0-9][.)][ ]\\)?\\(.*\\)"
-                   (2 '(face org-dim-face)))))
+                 `("^[ \t]+\\([-+*][ ]\\|[0-9][.)][ ]\\)?\\(.*\\)"
+                   (2 'org-dim-face)))
+    (add-to-list 'org-font-lock-extra-keywords
+                 `("^[ \t]*#\\+[A-Za-z_]*[ \t]*\\(.*\\)"
+                   (1 'org-block-syntax prepend))
+                 :prepend)
+    )
   (add-hook 'org-font-lock-set-keywords-hook 'my/org-extra-keywords)
   :general-config
   ('(normal insert) 'org-mode-map
-   "<backtab>" 'org-shifttab)
-  ;; ('normal 'org-mode-map
-  ;;          "C-j" 'my/switch-to-next-buffer
-  ;;          "C-k" 'my/switch-to-prev-buffer)
-  )
+   "<backtab>" 'org-shifttab))
 
 (use-package proced :ensure nil
   :custom
@@ -2168,13 +2113,20 @@ if one couldn't be determined."
 ;;                      help-mode-hook Custom-mode-hook messages-buffer-mode-hook)
 ;;                   'my/no-mode-line)
 
-(general-add-hook '( help-mode-hook eww-mode-hook compilation-mode-hook
-                     comint-mode-hook apropos-mode-hook Info-mode-hook
-                     evil-collection-eldoc-doc-buffer-mode-hook
-                     package-menu-mode-hook eat-mode-hook proced-mode-hook
-                     shortdoc-mode-hook vterm-mode-hook Custom-mode-hook
-                     bufler-list-mode-hook devdocs-mode-hook debugger-mode)
-                  'small-fonts)
+;; I'm going to try using normal sized fonts for now, small fonts can still
+;; be toggled manually.
+;; (general-add-hook '( help-mode-hook eww-mode-hook compilation-mode-hook
+;;                      comint-mode-hook apropos-mode-hook Info-mode-hook
+;;                      evil-collection-eldoc-doc-buffer-mode-hook
+;;                      package-menu-mode-hook eat-mode-hook proced-mode-hook
+;;                      shortdoc-mode-hook vterm-mode-hook Custom-mode-hook
+;;                      devdocs-mode-hook debugger-mode-hook
+;;                      messages-buffer-mode-hook)
+;;                   'small-fonts)
+
+(general-add-hook '( eat-mode-hook comint-mode-hook eshell-mode-hook
+                     messages-buffer-mode-hook)
+                  'my/terminal-font)
 
 
 ;;;; Customized Mode Line
@@ -2371,8 +2323,8 @@ if one couldn't be determined."
 visiting a file."
   (if (buffer-file-name)
       (let* ((modified (buffer-modified-p))
-             (view-str (when view-mode "🔍 "))
-             (read-only-str (if buffer-read-only "🔒 " ""))
+                 (view-str (when view-mode "🔍 "))
+             (read-only-str (if buffer-read-only " " "")) ;; Alt Locks: 🔒
              (modified-str (if modified "• " "")))
         (propertize (concat (or view-str read-only-str)
                             (if (or modified (not buffer-read-only)) modified-str ""))
@@ -2391,7 +2343,7 @@ be visible."
                    'mode-line-active
                  'mode-line-inactive))
          (mode-line-color (face-attribute face :background nil 'mode-line)))
-    (propertize "🔒" 'face `(:foreground ,mode-line-color
+    (propertize "" 'face `(:foreground ,mode-line-color
                             :weight medium
                             :family ,my/variable-font
                             :height ,my/mode-line-font-height))))
@@ -2413,11 +2365,11 @@ be visible."
 
 ;; In daemon mode, the messages buffer is created too early to get the
 ;; mode line changes.
-(add-hook 'messages-buffer-mode-hook 'small-fonts)
 (with-current-buffer (messages-buffer)
   (setq mode-line-format (default-value 'mode-line-format))
   ;; (my/no-mode-line)
-  (small-fonts))
+  ;; (small-fonts)
+  (my/terminal-font))
 
 
 ;;;; Other keybinds

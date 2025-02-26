@@ -1,0 +1,17 @@
+[user]
+	name = Austin Thresher
+
+[include]
+	path = .gitconfig_local
+
+[diff]
+        context = 1
+	algorithm = histogram
+[core]
+	attributesfile = /home/athresher/.gitattributes
+
+[diff "lisp"]
+	xfuncname = "^((\\(|;;;).*)$"
+
+[diff "lua"]
+	xfuncname = "^((function|local function|--).*)$"

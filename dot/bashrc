@@ -71,6 +71,19 @@ ghclone() {
     git clone "https://github.com/$REPO" "$@"
 }
 
+# View the history of a specific file in a repo, including renames
+githist() {
+    GIT_FILENAME="$1"; shift
+    git log --follow -p -U1 --oneline "$@" -- "${GIT_FILENAME}"
+}
+
+# View the history of the given function in the given filename
+gitfn() {
+    GIT_FUNCNAME="$1"; shift
+    GIT_FILENAME="$1"; shift
+    git log -U1 -L --oneline ":${GIT_FUNCNAME}:${GIT_FILENAME}" "$@"
+}
+
 is_executable () {
     command -v "$@" &> /dev/null
 }
@@ -114,7 +127,8 @@ fi
 # Allow launching emacsclient directly without having to start a daemon first
 if is_executable emacsclient; then
     alias emc='emacsclient-wrapper'
-    alias em='emacsclient --alternate-editor="" --tty'
+    # alias em='emacsclient --alternate-editor="" --tty'
+    alias em='emacs -nw'
 fi
 
 # These scripts are in my dotfiles.
