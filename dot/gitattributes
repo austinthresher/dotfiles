@@ -17,3 +17,5 @@
 *.m	diff=matlab
 *.sh	diff=bash
 *.scm	diff=scheme
+*.fnl	diff=lisp
+*.lua	diff=lua

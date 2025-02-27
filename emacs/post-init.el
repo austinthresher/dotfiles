@@ -9,8 +9,8 @@
 ;; - finish my/consult-history-advice
 ;; - add emacs/readline shortcuts to insert mode
 
-;;;; TODOs that probably require writing elisp:
 ;;;; ======================================================================
+;;;; TODOs that probably require writing elisp:
 ;; * Make keybinds for the mouse back/forward buttons that call appropriate
 ;;   functions in the window under the mouse, based on the major mode of that
 ;;   window's buffer. pdf-history-backward, help-go-back, etc.
@@ -23,10 +23,12 @@
 ;;   windows be the only window in thier frame. Do something like detecting
 ;;   when that would happen and "promote" the side window to a main window.
 ;; * Cache mode-line updates and rate limit them
+;; * Do a post-process pass on devdocs buffers to remove extra newlines,
+;;   specifically ones that surround a single line.
 
 
-;;;; Utility macros and functions
 ;;;; ======================================================================
+;;;; Utility macros and functions
 
 (defmacro add-to-list* (ls &rest vals)
   "Add multiple items to the same list. Expands to multiple add-to-list calls."
@@ -80,15 +82,15 @@ tabs that only have a single window."
   (raise-frame))
 
 
-;;;; Early dependencies
 ;;;; ======================================================================
+;;;; Early dependencies
 
 (use-package dash :ensure t :demand t)
 (require 'cl-lib)
 
 
-;;;; Theme
 ;;;; ======================================================================
+;;;; Theme
 
 (use-package modus-themes :ensure t :demand t
   :custom
@@ -200,8 +202,8 @@ tabs that only have a single window."
   (load-theme 'modus-vivendi t))
 
 
-;;;; Font and Faces
 ;;;; ======================================================================
+;;;; Font and Faces
 
 ;; TODO: Look at fontaine
 
@@ -222,6 +224,7 @@ tabs that only have a single window."
 (defvar my/fixed-serif-font "Monaspace Xenon Condensed 85x85")
 
 (defvar my/variable-font "Roboto")
+(defvar my/alt-variable-font "Noto Sans SemiCondensed")
 (defvar my/buffer-name-font "Roboto")
 
 ;; This has to be in points
@@ -248,6 +251,9 @@ tabs that only have a single window."
      `(fixed-pitch ((t (:family ,my/fixed-font))) t)
      `(fixed-pitch-serif ((t (:family ,my/fixed-serif-font))) t)
      `(variable-pitch ((t (:family ,my/variable-font))) t)
+     `(variable-pitch-text ((t (:family ,my/alt-variable-font
+                                :height unspecified)))
+                           t)
      `(font-lock-comment-face ((t (:family ,my/comment-font))) t)
      `(font-lock-doc-face ((t (:family ,my/comment-font))) t)
      `(mode-line ((t (:family ,my/variable-font
@@ -304,19 +310,22 @@ tabs that only have a single window."
      `(header-line ((t (:underline (:position 0 :color ,bg-inactive)
                         :height 0.9)))
                    t)
-     `(org-dim-face ((t (:foreground ,(my/blend-color fg-main bg-main 0.2)))) t)
-     `(org-note-face ((t (:family ,my/default-font
+     ;; These don't have to align with other monospace fonts because headings
+     ;; already use variable pitch.
+     `(org-note-face ((t (:family "Iosevka"
                           :foreground ,fg-dim
                           :weight normal
                           :height 0.9)))
                      t)
-     `(org-idea-face ((t (:family ,my/default-font
+     `(org-idea-face ((t (:family "Iosevka"
                           :foreground ,blue-faint
                           :weight normal
                           :height 0.9)))
                      t)
-     `(org-done ((t (:family ,my/default-font))) t)
-     `(org-todo ((t (:family ,my/default-font))) t)
+     `(org-done ((t (:family "Iosevka"))) t)
+     `(org-todo ((t (:family "Iosevka"))) t)
+     ;; Other custom(ized) org faces
+     `(org-dim-face ((t (:foreground ,(my/blend-color fg-main bg-main 0.2)))) t)
      `(org-archived ((t (:foreground ,fg-dim :weight medium))) t)
      `(org-block-begin-line ((t (:family ,my/special-font
                                  :weight medium
@@ -334,8 +343,8 @@ tabs that only have a single window."
                                :background ,bg-dim
                                :height 0.75)))
                           t)
-     `(indent-guide-face ((t (:foreground ,bg-active :weight light))))
      `(org-block-syntax ((t (:foreground ,border))) t)
+     `(indent-guide-face ((t (:foreground ,bg-active :weight light))))
      ;; Make hl-line reveal "hidden" text (same/similar fg and bg)
      `(hl-line ((t (:distant-foreground ,fg-dim))) t)
      )))
@@ -374,8 +383,8 @@ tabs that only have a single window."
        (scroll-bar-width  . ,(spacious-padding--get-scroll-bar-width reset)))))
   (spacious-padding-mode))
 
-;;;; General settings
 ;;;; ======================================================================
+;;;; General settings
 
 (setq-default
  line-spacing 2
@@ -432,8 +441,8 @@ tabs that only have a single window."
 (remove-hook 'after-init-hook 'window-divider-mode)
 
 
-;;;; Cursor customization
 ;;;; ======================================================================
+;;;; Cursor customization
 
 (setq blink-cursor-blinks 0)
 (setq blink-cursor-delay 0.2)
@@ -556,8 +565,8 @@ tabs that only have a single window."
 (advice-add 'describe-char :before 'my/cursor-delete-overlay)
 (blink-cursor-mode t)
 
-;;;; Less noisy minibuffer
 ;;;; ======================================================================
+;;;; Less noisy minibuffer
 
 (setq set-message-functions '(inhibit-message set-minibuffer-message))
 (add-to-list* 'inhibit-message-regexps
@@ -565,8 +574,8 @@ tabs that only have a single window."
               "Mark saved")
 
 
-;;;; Initial built-in minor modes
 ;;;; ======================================================================
+;;;; Initial built-in minor modes
 
 (add-hook 'after-init-hook 'global-auto-revert-mode)
 (add-hook 'after-init-hook 'recentf-mode)
@@ -584,8 +593,9 @@ tabs that only have a single window."
 ;; (add-hook 'prog-mode-hook 'global-prettify-symbols-mode)
 (add-hook 'after-init-hook 'global-tab-line-mode)
 
-;;;; File type associations
+
 ;;;; ======================================================================
+;;;; File type associations
 
 (add-to-list* 'auto-mode-alist
               '("bashrc" . sh-mode) ; matches bashrc and bashrc_local (no dot)
@@ -600,8 +610,8 @@ tabs that only have a single window."
                   '("\\.cmake\\'" . cmake-ts-mode))))
 
 
-;;;; Customization functions that can be used with hooks or advice
 ;;;; ======================================================================
+;;;; Customization functions that can be used with hooks or advice
 
 (defun my/no-mode-line (&rest _)
   "Add this as a hook to modes that should not have a modeline. Leaves a tiny
@@ -657,27 +667,22 @@ folding elements, etc.)"
   (while my/small-font-cookies
     (face-remap-remove-relative (pop my/small-font-cookies))))
 
-(defun small-fonts (&rest _)
+(defun small-fonts (&optional height-multiplier)
   "Add this as a hook to have smaller fonts in a buffer"
   (interactive)
   (normal-fonts)
   (setq-local line-spacing nil)
-  (push (face-remap-add-relative 'default
-                                 `(:height ,my/smaller-font-height
-                                   :weight normal))
-        my/small-font-cookies)
-  (push (face-remap-add-relative 'variable-pitch
-                                 `(:height ,my/smaller-font-height))
-        my/small-font-cookies)
-  (push (face-remap-add-relative 'fixed-pitch
-                                 `(:height ,my/smaller-font-height))
-        my/small-font-cookies)
-  (push (face-remap-add-relative 'fixed-pitch-serif
-                                 `(:height ,my/smaller-font-height))
-        my/small-font-cookies)
-  (push (face-remap-add-relative 'header-line
-                                 `(:height ,(- my/smaller-font-height 10)))
-        my/small-font-cookies))
+  (let ((h (truncate (* my/smaller-font-height (or height-multiplier 1)))))
+    (push (face-remap-add-relative 'default `(:height ,h :weight normal))
+          my/small-font-cookies)
+    (push (face-remap-add-relative 'variable-pitch `(:height ,h))
+          my/small-font-cookies)
+    (push (face-remap-add-relative 'fixed-pitch `(:height ,h))
+          my/small-font-cookies)
+    (push (face-remap-add-relative 'fixed-pitch-serif `(:height ,h))
+          my/small-font-cookies)
+    (push (face-remap-add-relative 'header-line `(:height ,(truncate (* 0.9 h))))
+          my/small-font-cookies)))
 
 
 (defun my/font-weight (&rest _)
@@ -718,8 +723,9 @@ matching against the buffer name for now."
     (view-mode-enter nil 'kill-buffer-if-not-modified)))
 (add-hook 'temp-buffer-show-hook 'my/temp-buffer-view-mode)
 
-;;;; Other commands and functions that need early definitions
+
 ;;;; ======================================================================
+;;;; Other commands and functions that need early definitions
 
 (defun my/side-window? (&optional win)
   (let ((win (or win (selected-window))))
@@ -788,10 +794,12 @@ matching against the buffer name for now."
               (loop (1+ line) (max len longest))
             (max len longest)))))))
 
+(defvar-local my/max-auto-width 120)
 (defun my/fit-window ()
   (let ((w (my/longest-visible-line)))
     (when (> w (window-width))
-      (evil-window-set-width (min w 120)))))
+      (scroll-right (window-width))
+      (evil-window-set-width (min w my/max-auto-width)))))
 
 (defun my/window-up ()
   (interactive)
@@ -814,8 +822,9 @@ matching against the buffer name for now."
   :states '(normal visual)
   :prefix "\\")
 
-;;;; External Packages
+
 ;;;; ======================================================================
+;;;; External Packages
 
 ;; Enable extra use-package keywords
 (use-package general :ensure t :demand t)
@@ -1375,6 +1384,11 @@ show all buffers."
 (use-package lua-mode :ensure t :mode "\\.lua\\'")
 (use-package vimrc-mode :ensure t :mode "[._]?g?vim\\(rc\\)?\\'")
 (use-package fennel-mode :ensure t :mode "\\.fnl\\'")
+(use-package dockerfile-mode :ensure t)
+
+;; Note: this lists vterm integration as a feature, consider reinstalling vterm
+;; if it can't use eat instead
+(use-package docker :ensure t)
 
 (use-package slime :ensure t
   :config (setq inferior-lisp-program "sbcl"))
@@ -1577,6 +1591,12 @@ show all buffers."
 (use-package devdocs :ensure t
   :commands devdocs-lookup
   :config
+  (defun my/customize-devdocs ()
+    (setq-local my/max-auto-width 90)
+    ;; I'm not sure this is actually working
+    (setq-local shr-width 90)
+    (small-fonts))
+  (add-hook 'devdocs-mode-hook 'my/customize-devdocs)
   (defun devdocs-install-all ()
     "Doesn't actually install _everything_, just the stuff I care about"
     (interactive)
@@ -1587,6 +1607,29 @@ show all buffers."
             "numpy" "ocaml" "octave~9" "opengl~4" "opengl~2.1" "pygame"
             "python~3.12" "pytorch~22" "qt" "qt~5.15" "rust" "sqlite" "svg"
             "tcl_tk" "zig")))
+  (defvar my/auto-devdoc-alist
+    '((sh-mode "bash" "man")
+      (bash-ts-mode "bash" "man")
+      (bash-ts-mode "bash" "man")
+      (c-mode "c" "cmake" "gnu_make" "gcc~13")
+      (c-ts-mode "c" "cmake" "gnu_make" "gcc~13")
+      (cpp-mode "c" "cpp"  "cmake" "gnu_make" "gcc~13" "gcc~13_cpp")
+      (cpp-ts-mode "c" "cpp"  "cmake" "gnu_make" "gcc~13" "gcc~13_cpp")
+      (dockerfile-mode "docker")
+      (python-mode "python~3.12" "numpy")
+      (python-ts-mode "python~3.12" "numpy")
+      (markdown-mode "markdown")
+      (markdown-ts-mode "markdown")
+      (json-mode "jq")
+      (json-ts-mode "jq")
+      (lua-mode "lua~5.3" "love")
+      (lua-ts-mode "lua~5.3" "love")
+      (fennel-mode "lua~5.3" "love")
+      (emacs-lisp-mode "elisp")))
+  (defun my/auto-devdoc (&rest _)
+    (when-let* ((docs (assoc major-mode my/auto-devdoc-alist)))
+      (setq-local devdocs-current-docs (cdr docs))))
+  (add-hook 'prog-mode-hook 'my/auto-devdoc)
   :bind ("C-h D" . devdocs-lookup))
 
 (use-package treesit-auto :ensure t
@@ -1664,9 +1707,8 @@ show all buffers."
 ;;   :custom (bufler-columns '("Name" "Path")))
 
 
-
-;;;; Built-in Packages
 ;;;; ======================================================================
+;;;; Built-in Packages
 
 (use-package eshell :ensure nil
   :custom (eshell-destroy-buffer-when-process-dies t)
@@ -2129,8 +2171,8 @@ if one couldn't be determined."
                   'my/terminal-font)
 
 
-;;;; Customized Mode Line
 ;;;; ======================================================================
+;;;; Customized Mode Line
 
 (defun my/vim-color ()
   (if (mode-line-window-selected-p)
@@ -2372,8 +2414,8 @@ be visible."
   (my/terminal-font))
 
 
-;;;; Other keybinds
 ;;;; ======================================================================
+;;;; Other keybinds
 
 (general-define-key
  "C-x k" 'kill-current-buffer
@@ -2605,8 +2647,8 @@ pressed twice in a row."
   (keymap-set rectangle-mark-mode-map "C-r" 'replace-rectangle))
 
 
-;;;; Window layout and display-buffer-alist
 ;;;; ======================================================================
+;;;; Window layout and display-buffer-alist
 
 (setq switch-to-buffer-obey-display-actions nil)
 (setq window-sides-slots '(1 0 0 2))

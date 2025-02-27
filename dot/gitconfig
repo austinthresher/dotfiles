@@ -9,6 +9,7 @@
 	algorithm = histogram
 [core]
 	attributesfile = /home/athresher/.gitattributes
+ 	pager = LESS= less -FR
 
 [diff "lisp"]
 	xfuncname = "^((\\(|;;;).*)$"
