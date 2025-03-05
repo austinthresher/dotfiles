@@ -25,6 +25,8 @@
 ;; * Cache mode-line updates and rate limit them
 ;; * Do a post-process pass on devdocs buffers to remove extra newlines,
 ;;   specifically ones that surround a single line.
+;; * Make Lisp/Fennel docstrings align with the indentation of the first line.
+;;   Look at Python to figure out how to do this.
 
 
 ;;;; ======================================================================
@@ -121,7 +123,7 @@ tabs that only have a single window."
      (bg-tab-bar bg-main)
      (bg-tab-other bg-inactive)
      (bg-tab-current bg-paren-expression)
-     (bg-region bg-cyan-subtle)
+     (bg-region bg-cyan-intense)
      (bg-mode-line-active bg-sage)
      (fg-mode-line-inactive fg-dim)
      (bg-mode-line-inactive bg-main)
@@ -158,6 +160,7 @@ tabs that only have a single window."
      (bg-normal blue-intense)
      (bg-visual bg-green-intense)
      (bg-emacs magenta-intense)
+     (bg-term-black "#282828")
      (bg-term-red "#e53c3c")
      (bg-term-green "#33bc33")
      (bg-term-yellow "#fec43f")
@@ -416,7 +419,10 @@ tabs that only have a single window."
  open-paren-in-column-0-is-defun-start nil
  jit-lock-chunk-size 4096
  jit-lock-antiblink-grace 1
+ resize-mini-windows t
  shell-kill-buffer-on-exit t
+ shell-command-prompt-show-cwd t
+ shell-command-dont-erase-buffer t
  eshell-kill-on-exit t
  eshell-scroll-to-bottom-on-input 'this
  view-inhibit-help-message t
@@ -444,36 +450,43 @@ tabs that only have a single window."
 ;;;; ======================================================================
 ;;;; Cursor customization
 
-(setq blink-cursor-blinks 0)
-(setq blink-cursor-delay 0.2)
-(setq blink-cursor-interval 0.1)
+(defvar my/cursor-rate 0.05)
 (setq-default cursor-type 'box)
-(setq blink-cursor-alist '((box . box) (hollow . hollow) (bar . bar)
-                           (t . box) (nil . box)
-                           ((box . 1) . box)
-                           ((hbar . 2) . (hbar . 2))
-                           ((hbar . 4) . (hbar . 4))
-                           ((hbar . 6) . (hbar . 6))
-                           ((hbar . 16) . (hbar . 16))
-                           ((bar . 1) . (bar . 1))
-                           ((bar . 2) . (bar . 2))
-                           ((bar . 4) . (bar . 4))))
 (setq-default cursor-in-non-selected-windows nil)
 
 (defvar my/cursor-colors-normal '("#7F7F7F"))
-(defvar my/cursor-colors-emacs '("#FF0FF"))
+(defvar my/cursor-colors-insert '("#FFFFFF"))
+(defvar my/cursor-colors-visual '("#FFFFFF"))
+(defvar my/cursor-colors-emacs '("#FF00FF"))
 (defvar my/cached-cursor-theme nil)
+(defvar my/cursor-color-idx 0)
+(defvar my/cursor-timer nil)
+(defvar my/underline-ov nil)
+(defvar-local my/diminished-cursor nil)
+(defvar-local my/cursor-cached-color "#7F7F7F")
 
 (defun my/update-cursor-colors ()
+  "Called after a theme change to use cursor colors based on the theme"
   (require 'color)
-  (let ((bg (color-name-to-rgb (modus-themes-get-color-value 'bg-dim t)))
-        (cursor (color-name-to-rgb (modus-themes-get-color-value 'cursor t)))
-        (emacs-cursor '(1.0 0.0 1.0))
-        (steps '(1.0 0.75 0.50 0.25 0.0 0.25 0.50 0.75 1.0)))
+  (let* ((bg (color-name-to-rgb (modus-themes-get-color-value 'bg-hl-line t)))
+         (region (color-name-to-rgb (modus-themes-get-color-value 'bg-region t)))
+         (cursor (color-name-to-rgb (modus-themes-get-color-value 'cursor t)))
+         (insert-cursor (color-name-to-rgb (modus-themes-get-color-value 'fg-alt t)))
+         (emacs-cursor '(1.0 0.0 1.0))
+         (slow-steps '(1.0 1.0 1.0 0.9 0.8 0.6 0.4 0.3 0.2 0.1 0.2 0.3 0.4 0.6 0.8 0.9))
+         (steps '(1.0 1.0 1.0 1.0 0.8 0.5 0.3 0.1 0.3 0.5 0.8)))
     (setq my/cursor-colors-normal
           (--map (apply #'color-rgb-to-hex
                         `(,@(color-blend cursor bg it) 2))
+                 slow-steps))
+    (setq my/cursor-colors-insert
+          (--map (apply #'color-rgb-to-hex
+                        `(,@(color-blend insert-cursor bg it) 2))
                  steps))
+    (setq my/cursor-colors-visual
+          (--map (apply #'color-rgb-to-hex
+                        `(,@(color-blend insert-cursor region it) 2))
+                 (--map (sqrt it) slow-steps)))
     (setq my/cursor-colors-emacs
           (--map (apply #'color-rgb-to-hex
                         `(,@(color-blend emacs-cursor bg it) 2))
@@ -483,21 +496,20 @@ tabs that only have a single window."
   (when (not (eq (car custom-enabled-themes) my/cached-cursor-theme))
     (my/update-cursor-colors)
     (setq my/cached-cursor-theme (car custom-enabled-themes)))
-  (if (and (boundp 'evil-state) (eq evil-state 'emacs))
-      my/cursor-colors-emacs
-    my/cursor-colors-normal))
+  (cond ((eq evil-state 'emacs) my/cursor-colors-emacs)
+        ((eq evil-state 'visual) my/cursor-colors-visual)
+        ((eq evil-state 'insert) my/cursor-colors-insert)
+        (t my/cursor-colors-normal)))
 
-(defvar my/cursor-color-idx 0)
 (defun my/get-cursor-color () (nth my/cursor-color-idx (my/get-cursor-colors)))
-
-(defvar my/underline-ov nil)
 
 (defun my/cursor-delete-overlay (&rest _)
   (when (overlayp my/underline-ov)
     (delete-overlay my/underline-ov)
     (setq my/underline-ov nil)))
 
-(defun my/update-underline-color ()
+(defun my/cursor-update-color ()
+  (set-face-attribute 'cursor nil :background (my/get-cursor-color))
   (when (overlayp my/underline-ov)
     (overlay-put my/underline-ov 'face
                  `(:underline (:color ,(my/get-cursor-color) :position 0)))
@@ -509,17 +521,33 @@ tabs that only have a single window."
               (overlays-at (point)))))
 
 (defun my/cursor-should-underline? ()
-  (and (not (my/cursor-over-image?))
-       blink-cursor-mode))
+  (and (eq evil-state 'normal)
+       (not my/diminished-cursor)
+       (not (my/cursor-over-image?))))
+
+(defun my/cursor-color-advance (&rest _)
+  (setq my/cursor-color-idx (% (1+ my/cursor-color-idx)
+                               (length (my/get-cursor-colors))))
+  (my/cursor-update-color))
+
+(defun my/cursor-timer-function (&rest _)
+  ;; Diminished cursor, usually reading a document or something
+  (if my/diminished-cursor
+      (set-face-attribute 'cursor nil
+                          :background (nth 3 (my/get-cursor-colors)))
+    (my/cursor-color-advance)))
+
+(defun my/cursor-reset-timer (&rest _)
+  (setq my/cursor-color-idx 0)
+  (my/cursor-update-color)
+  (when my/cursor-timer (cancel-timer my/cursor-timer))
+  (setq my/cursor-timer (run-with-timer my/cursor-rate my/cursor-rate
+                                        'my/cursor-timer-function)))
 
 (defun my/update-cursor-overlay (&rest _)
-  ;; Diminished cursor, usually reading a document or something
-  (unless blink-cursor-mode
-    (set-face-attribute 'cursor nil
-                        :background (nth 3 (my/get-cursor-colors))))
+  (setq my/cursor-color-idx 0)
   (or (ignore-errors
-        (if (or (not (eq evil-state 'normal))
-                (not (my/cursor-should-underline?)))
+        (if (not (my/cursor-should-underline?))
             (my/cursor-delete-overlay)
           (unless (overlayp my/underline-ov)
             (setq my/underline-ov (make-overlay (point) (point))))
@@ -527,43 +555,19 @@ tabs that only have a single window."
             (save-excursion
               (forward-char)
               (move-overlay my/underline-ov start (point) (current-buffer))
-              (my/update-underline-color))))
+              (my/cursor-update-color))))
         t)
       ;; If we had any errors, just delete the overlay entirely to try again
       ;; next time.
-      (my/cursor-delete-overlay)))
+      (my/cursor-delete-overlay))
+  (my/cursor-update-color))
 
 (add-hook 'post-command-hook 'my/update-cursor-overlay)
+(add-hook 'after-init-hook 'my/cursor-reset-timer)
 
-(defun my/cursor-color-reset (&rest _)
-  (setq my/cursor-color-idx 0)
-  (setq blink-cursor-blinks 0)
-  (set-face-attribute 'cursor nil :background (my/get-cursor-color))
-  (my/update-underline-color))
-
-(defun my/cursor-start-blink (&rest _)
-  ;; The animation looks really weird when the cursor is on an image
-  (if (my/cursor-over-image?)
-       (progn (my/cursor-delete-overlay)
-              (setq blink-cursor-blinks 1)
-              (when blink-cursor-timer (cancel-timer blink-cursor-timer))
-              (setq blink-cursor-timer nil)
-              (blink-cursor-end))
-     (my/cursor-color-reset)))
-
-(defun my/cursor-color-advance (&rest _)
-  (when (> blink-cursor-blinks-done 1) ; fixes flickering issue
-   (setq my/cursor-color-idx (% (1+ my/cursor-color-idx)
-                                (length (my/get-cursor-colors)))))
-  (set-face-attribute 'cursor nil :background (my/get-cursor-color))
-  (my/update-underline-color))
-
-(advice-add 'blink-cursor-start :after 'my/cursor-start-blink)
-(advice-add 'blink-cursor-end :before 'my/cursor-color-reset)
-(advice-add 'blink-cursor-timer-function :before 'my/cursor-color-advance)
 (advice-add 'what-cursor-position :before 'my/cursor-delete-overlay)
 (advice-add 'describe-char :before 'my/cursor-delete-overlay)
-(blink-cursor-mode t)
+
 
 ;;;; ======================================================================
 ;;;; Less noisy minibuffer
@@ -646,9 +650,9 @@ folding elements, etc.)"
   (my/no-fringes)
   (set-window-buffer (selected-window) (current-buffer)))
 
-(defun my/no-blink-cursor (&rest _)
-  "Add this as a hook to buffers that should not blink the cursor"
-  (setq-local blink-cursor-mode nil))
+(defun my/use-diminished-cursor (&rest _)
+  "Add this as a hook to buffers that should not animate the cursor"
+  (setq-local my/diminished-cursor t))
 
 (defun my/word-wrap (&rest _)
   "Add this as a hook to force word wrap in a buffer"
@@ -713,8 +717,6 @@ apart in languages that only use whitespace to separate list elements."
   (face-remap-add-relative 'font-lock-string-face
                            '(:inherit string-underline)))
 
-;; FIXME: I thought that this was breaking `describe-variable' sometimes,
-;; but I think it was something else. Remove this comment if it's fixed.
 (defun my/temp-buffer-view-mode (&rest args)
   "Make pretty-printed buffers use view-mode, be read-only, and easily
 closable. I don't know what else uses with-output-to-temp-buffer so I'm
@@ -723,6 +725,21 @@ matching against the buffer name for now."
     (view-mode-enter nil 'kill-buffer-if-not-modified)))
 (add-hook 'temp-buffer-show-hook 'my/temp-buffer-view-mode)
 
+(defun my/hide-global-hl-line (&rest _)
+  "Add this as a hook to disable hl-line-mode locally in a buffer."
+  (when global-hl-line-mode
+    (setq hl-line-mode nil)
+    (setq-local global-hl-line-mode nil)
+    (global-hl-line-unhighlight)))
+
+(defun my/start-process-shell-command-advice (name buffer command)
+  "Inserts the executed command before the output of a shell command."
+  (when (or (string= (buffer-name buffer) shell-command-buffer-name-async)
+            (string= (buffer-name buffer) shell-command-buffer-name))
+    (goto-char (point-max))
+    (insert (concat "$ " command))
+    (newline)))
+(advice-add 'start-process-shell-command :before 'my/start-process-shell-command-advice)
 
 ;;;; ======================================================================
 ;;;; Other commands and functions that need early definitions
@@ -874,8 +891,6 @@ matching against the buffer name for now."
   (setq evil-insert-state-modes
         (seq-remove (lambda (x) (memq x evil-emacs-state-modes))
                     evil-insert-state-modes))
-  (add-hook 'evil-normal-state-entry-hook 'my/cursor-color-reset)
-  (add-hook 'evil-emacs-state-entry-hook 'my/cursor-color-reset)
   (evil-select-search-module 'evil-search-module 'evil-search)
   ;; Evil doesn't give an option to hide the previous search term.
   ;; Always show a blank prompt when performing a search.
@@ -914,6 +929,30 @@ matching against the buffer name for now."
             'my/normal-state-on-focus-change)
   (add-hook 'tab-bar-tab-post-select-functions
             'my/normal-state-on-tab-change)
+  (defun my/evil-shell-command-async-advice
+      (old-fn beg end type command &optional previous)
+    "When running a shell command interactively with !, run it asynchronously
+unless there is an active region."
+    ;; Check for all of the conditions where we should not modify the command
+    (if (or (not evil-called-from-ex-p)
+            evil-ex-range
+            (string-match "[ \t]*&[ \t]*\\'" (or command ""))) ; already async
+        (apply old-fn (list beg end type command previous))
+      ;; Wait for output before displaying
+      (let ((async-shell-command-display-buffer nil)
+            (prev-command evil-previous-shell-command))
+        (if (and previous (zerop (length command)) prev-command)
+            ;; Don't let the added "&" show up in the stored previous command
+            (let ((async-command (format "%s &" prev-command)))
+              (message "!%s" prev-command)
+              (apply old-fn (list beg end type async-command nil))
+              (setq evil-previous-shell-command prev-command))
+          (let ((async-command (format "%s &" command))
+                (clean-command (evil-ex-replace-special-filenames command)))
+            (message "!%s" clean-command)
+            (apply old-fn (list beg end type async-command nil))
+            (setq evil-previous-shell-command clean-command))))))
+  (advice-add 'evil-shell-command :around 'my/evil-shell-command-async-advice)
   (evil-mode t)
   ;; Fix mouse clicks in Customize buffers
   (with-eval-after-load "custom"
@@ -1278,16 +1317,16 @@ show all buffers."
          #'corfu-complete
        #'corfu-send)))
   ;; Corfu is showing its popup one line off when tab-line-mode is active
-  (cl-defmethod corfu--popup-show :around ( pos off width lines
-                                            &context (tab-line-mode (eql t))
-                                            &optional curr lo bar)
-    ;; Adjust pos by one line. Couldn't find a better way to do it, so this
-    ;; modifies the cons cell directly.
-    (when-let* ((xy (posn-x-y pos))
-                (xy-cell (seq-find (lambda (a) (equal a xy)) pos)))
-      ;; The 2 accounts for the border pixels
-      (setcdr xy-cell (- (cdr xy-cell) (window-default-line-height) 2)))
-    (cl-call-next-method))
+  ;; (cl-defmethod corfu--popup-show :around ( pos off width lines
+  ;;                                           &context (tab-line-mode (eql t))
+  ;;                                           &optional curr lo bar)
+  ;;   ;; Adjust pos by one line. Couldn't find a better way to do it, so this
+  ;;   ;; modifies the cons cell directly.
+  ;;   (when-let* ((xy (posn-x-y pos))
+  ;;               (xy-cell (seq-find (lambda (a) (equal a xy)) pos)))
+  ;;     ;; The 2 accounts for the border pixels
+  ;;     (setcdr xy-cell (- (cdr xy-cell) (window-default-line-height) 2)))
+  ;;   (cl-call-next-method))
   :general
   ('emacs
    "C-S-SPC" 'set-mark-command)
@@ -1438,7 +1477,8 @@ show all buffers."
     "C--" 'paredit-backward-barf-sexp))
 
 (use-package enhanced-evil-paredit :ensure t
-  :config (add-hook 'paredit-mode-hook 'enhanced-evil-paredit-mode))
+  ;;:config (add-hook 'paredit-mode-hook 'enhanced-evil-paredit-mode)
+  )
 
 ;; Commenting this out because I'm planning on removing it. Leaving it for
 ;; quick reference to my old keybinds.
@@ -1604,7 +1644,7 @@ show all buffers."
           '("bash" "c" "cpp" "clojure~1.11" "cmake" "css" "docker" "dom"
             "elisp" "gcc~13" "gcc~13_cpp" "gnu_make" "godot~4.2" "haskell~9"
             "html" "http" "javascript" "jq" "man" "markdown" "lua~5.3" "love"
-            "numpy" "ocaml" "octave~9" "opengl~4" "opengl~2.1" "pygame"
+            "numpy~1.23" "ocaml" "octave~9" "opengl~4" "opengl~2.1" "pygame"
             "python~3.12" "pytorch~22" "qt" "qt~5.15" "rust" "sqlite" "svg"
             "tcl_tk" "zig")))
   (defvar my/auto-devdoc-alist
@@ -1616,8 +1656,8 @@ show all buffers."
       (cpp-mode "c" "cpp"  "cmake" "gnu_make" "gcc~13" "gcc~13_cpp")
       (cpp-ts-mode "c" "cpp"  "cmake" "gnu_make" "gcc~13" "gcc~13_cpp")
       (dockerfile-mode "docker")
-      (python-mode "python~3.12" "numpy")
-      (python-ts-mode "python~3.12" "numpy")
+      (python-mode "python~3.12" "numpy~1.23")
+      (python-ts-mode "python~3.12" "numpy~1.23")
       (markdown-mode "markdown")
       (markdown-ts-mode "markdown")
       (json-mode "jq")
@@ -1627,9 +1667,10 @@ show all buffers."
       (fennel-mode "lua~5.3" "love")
       (emacs-lisp-mode "elisp")))
   (defun my/auto-devdoc (&rest _)
-    (when-let* ((docs (assoc major-mode my/auto-devdoc-alist)))
-      (setq-local devdocs-current-docs (cdr docs))))
-  (add-hook 'prog-mode-hook 'my/auto-devdoc)
+    (unless devdocs-current-docs
+      (when-let* ((docs (assoc major-mode my/auto-devdoc-alist)))
+        (setq-local devdocs-current-docs (cdr docs)))))
+  (advice-add 'devdocs-lookup :before 'my/auto-devdoc)
   :bind ("C-h D" . devdocs-lookup))
 
 (use-package treesit-auto :ensure t
@@ -2136,7 +2177,9 @@ if one couldn't be determined."
                   '(my/prog-word-syntax my/show-trailing-whitespace))
 
 (general-add-hook my/lisp-mode-hooks
-                  '(my/lisp-word-syntax paredit-mode))
+                  '(my/lisp-word-syntax
+                    ; paredit-mode
+                    ))
 
 
 (general-add-hook '( eww-mode-hook markdown-mode-hook markdown-view-mode-hook
@@ -2149,7 +2192,7 @@ if one couldn't be determined."
                   '(my/word-wrap my/no-fringes))
 
 (general-add-hook '( pdf-view-mode-hook nov-mode-hook doc-view-mode-hook)
-                  'my/no-blink-cursor)
+                  'my/use-diminished-cursor)
 
 ;; (general-add-hook '( evil-collection-eldoc-doc-buffer-mode-hook eww-mode-hook
 ;;                      help-mode-hook Custom-mode-hook messages-buffer-mode-hook)
@@ -2168,7 +2211,7 @@ if one couldn't be determined."
 
 (general-add-hook '( eat-mode-hook comint-mode-hook eshell-mode-hook
                      messages-buffer-mode-hook)
-                  'my/terminal-font)
+                  '( my/terminal-font my/hide-global-hl-line))
 
 
 ;;;; ======================================================================
@@ -2409,8 +2452,7 @@ be visible."
 ;; mode line changes.
 (with-current-buffer (messages-buffer)
   (setq mode-line-format (default-value 'mode-line-format))
-  ;; (my/no-mode-line)
-  ;; (small-fonts)
+  (my/hide-global-hl-line)
   (my/terminal-font))
 
 

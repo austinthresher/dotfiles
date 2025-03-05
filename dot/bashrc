@@ -1,4 +1,12 @@
-if [[ $- == *i* ]]; then echo "Running $(uname -s -r)"; fi
+if [[ $- == *i* ]]; then
+    if command -v lsb_release &> /dev/null; then
+        DISTRO=$(lsb_release -sd)
+    else
+        DISTRO=$(uname -sr)
+    fi
+    SEP="\e[90m│\e[0m"
+    echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$DISTRO\e[0m $SEP"
+fi
 
 # The first part of this file runs both interactively and non-interactively
 # =========================================================================
@@ -155,7 +163,11 @@ is_executable glow && alias mdv='glow -p'
 is_executable rlwrap && is_executable sbcl && alias sbcl='rlwrap sbcl'
 is_executable fdfind && alias fd='fdfind'
 
-source promptcolor
+DARK="\[\033[90m\]"
+LIGHT="\[\033[37m\]"
+DIM="\[\033[2m\]"
+RESET="\[\033[0m\]"
+export PS1="$DARK\w$LIGHT$DIM $ $RESET"
 
 # Let .bashrc_local take precedence over anything here
 [ -e "$HOME/.bashrc_local" ] && source "$HOME/.bashrc_local"
