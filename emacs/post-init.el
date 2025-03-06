@@ -435,6 +435,8 @@ tabs that only have a single window."
                    (awk-mode . "awk")
                    (other . "k&r")))
 
+(add-to-list 'warning-suppress-types '(undo discard-info))
+
 ;; Set up file backups, always back up org files. Some of this is redundant
 ;; with minimal-emacs.d but I'd like to keep all the info together.
 (let ((backup-dir (expand-file-name "backup" user-emacs-directory)))
@@ -999,8 +1001,6 @@ unless there is an active region."
   (evil-collection-magit-section-use-z-for-folds t)
   (evil-collection-magit-want-horizontal-movement t)
   :config
-  ;; FIXME: Why was this here? Trying with this commented, remove if not needed.
-  ;; (remove-from-list 'evil-collection-mode-list 'eat)
   (evil-collection-init)
   ;; Make '==' execute 'vip='. I couldn't figure this out as a keybind.
   (defun my/indent-paragraph-or-evil-indent (fn beg end)
@@ -1583,13 +1583,22 @@ show all buffers."
   (symbol-overlay-face-7 ((t (:inherit (modus-themes-intense-yellow)))))
   (symbol-overlay-face-8 ((t (:inherit (modus-themes-intense-green)))))
   :config
+  (defun symbol-overlay-next-or-forward ()
+    (interactive)
+    (or (ignore-errors (symbol-overlay-jump-next) t)
+        (symbol-overlay-switch-forward)))
+  (defun symbol-overlay-prev-or-backward ()
+    (interactive)
+    (or (ignore-errors (symbol-overlay-jump-prev) t)
+        (symbol-overlay-switch-backward)))
   (let ((map (make-sparse-keymap)))
     (setq symbol-overlay-map map)
     (evil-make-intercept-map symbol-overlay-map)
     (general-def '(normal emacs) symbol-overlay-map
-      "n" 'symbol-overlay-jump-next
-      "p" 'symbol-overlay-jump-prev
-      "N" 'symbol-overlay-jump-prev
+      "M-n" 'symbol-overlay-jump-next
+      "M-p" 'symbol-overlay-jump-prev
+      "C-c M-n" 'symbol-overlay-switch-forward
+      "C-c M-p" 'symbol-overlay-switch-backward
       "C-c r" 'symbol-overlay-rename
       "C-c t" 'symbol-overlay-toggle-in-scope
       "<" 'symbol-overlay-jump-first
@@ -1599,8 +1608,8 @@ show all buffers."
   :general
   ('(normal emacs) symbol-overlay-mode-map
    "C-c o" 'symbol-overlay-put
-   "M-n" 'symbol-overlay-switch-forward
-   "M-p" 'symbol-overlay-switch-backward
+   "M-n" 'symbol-overlay-next-or-forward
+   "M-p" 'symbol-overlay-prev-or-backward
    "C-c O" 'symbol-overlay-remove-all))
 
 (use-package list-unicode-display :ensure t)
@@ -1671,7 +1680,10 @@ show all buffers."
       (when-let* ((docs (assoc major-mode my/auto-devdoc-alist)))
         (setq-local devdocs-current-docs (cdr docs)))))
   (advice-add 'devdocs-lookup :before 'my/auto-devdoc)
-  :bind ("C-h D" . devdocs-lookup))
+  :bind ("C-h D" . devdocs-lookup)
+  :general-config
+  ('(normal emacs) 'devdocs-mode-map
+   "C-o" 'devdocs-go-back))
 
 (use-package treesit-auto :ensure t
   :hook
@@ -1728,6 +1740,22 @@ show all buffers."
 ;; Only using this for the find-file previews
 (use-package dirvish :ensure t
   :hook (after-init . dirvish-peek-mode))
+
+(use-package dtrt-indent :ensure t
+  :hook (after-init . dtrt-indent-global-mode)
+  :config
+  ;; Eglot formats buffers using `tab-width'. Use dtrt-indent to find the
+  ;; correct indentation variable for the current major mode, and then
+  ;; temporarily set `tab-width' to this value when running `eglot-format'.
+  (defun my/get-indent ()
+    (pcase (dtrt-indent--search-hook-mapping major-mode)
+      (`(,_mode ,_syntax ,indent-var)
+       (if (boundp indent-var) (symbol-value indent-var) tab-width))))
+  (defun my/eglot-format-advice (old-fn &rest args)
+    (let ((tab-width (my/get-indent)))
+      (apply old-fn args)))
+  (advice-add 'eglot-format :around 'my/eglot-format-advice))
+
 
 ;; TODO: Figure out isolating visible buffers / etc on a per-project basis
 ;; (use-package perspective :ensure t)
@@ -1892,7 +1920,8 @@ show all buffers."
   (add-hook 'minibuffer-exit-hook 'my/clear-eldoc-help-message))
 
 (use-package eglot :ensure nil
-  :custom (eglot-ignored-server-capabilities '(:inlayHintProvider)))
+  :custom (eglot-ignored-server-capabilities '(:inlayHintProvider))
+  :custom-face (eglot-highlight-symbol-face ((t (:inherit nil)))))
 
 (use-package org :ensure nil
   :commands org-capture
