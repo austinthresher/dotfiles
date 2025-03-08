@@ -1591,6 +1591,18 @@ show all buffers."
     (interactive)
     (or (ignore-errors (symbol-overlay-jump-prev) t)
         (symbol-overlay-switch-backward)))
+  (defun my/symbol-overlay-ignored-p-advice (fn sym)
+    "Also ignore symbols that appear to be numbers. This is advice instead of
+an entry in `symbol-overlay-ignore-functions' because those only apply to the
+exact major mode listed."
+    ;; string-to-number returns 0 on failure, so we have to check that first
+    (or (string-match-p "\\`0+\\'" sym)
+        (not (= 0 (string-to-number sym)))
+        (not (= 0 (string-to-number sym 16)))
+        (funcall fn sym)))
+  (advice-add 'symbol-overlay-ignored-p
+              :around 'my/symbol-overlay-ignored-p-advice)
+
   (let ((map (make-sparse-keymap)))
     (setq symbol-overlay-map map)
     (evil-make-intercept-map symbol-overlay-map)
