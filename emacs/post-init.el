@@ -238,6 +238,10 @@ tabs that only have a single window."
 (defface light '((t (:weight light))) "Light weight")
 (defface medium '((t (:weight medium))) "Medium weight")
 (defface smaller '((t (:height 0.8))) "Smaller height")
+(defface divider '((t (:underline (:color "#7F7F7F"
+                                   :position 10)
+                       :extend t)))
+  "Apply this face to a newline to draw a divider line in a buffer.")
 
 (defun my/blend-color (from to delta)
   (apply #'color-rgb-to-hex
@@ -739,6 +743,12 @@ matching against the buffer name for now."
   (when (or (string= (buffer-name buffer) shell-command-buffer-name-async)
             (string= (buffer-name buffer) shell-command-buffer-name))
     (goto-char (point-max))
+    ;; Add a divider line to easily identify where each command begins
+    (unless (bolp) (newline))
+    (insert "\n")
+    (let ((ov (make-overlay (point) (- (point) 1) (current-buffer) t)))
+      (overlay-put ov 'face 'divider)
+      (overlay-put ov 'display "\n"))
     (insert (concat "$ " command))
     (newline)))
 (advice-add 'start-process-shell-command :before 'my/start-process-shell-command-advice)
@@ -836,6 +846,21 @@ matching against the buffer name for now."
   (interactive)
   (evil-window-right 1)
   (my/fit-window))
+
+;; TODO: Look at thingatpt.el for a potential alternative
+(defun my/forward-sexp ()
+  (interactive)
+  (let ((fwd (or (command-remapping 'forward-sexp) 'forward-sexp))
+        (fwd-up (or (command-remapping 'up-list) 'up-list)))
+    (or (ignore-errors (funcall fwd 1 t) t)
+        (funcall fwd-up 1))))
+
+(defun my/backward-sexp ()
+  (interactive)
+  (let ((back (or (command-remapping 'backward-sexp) 'backward-sexp))
+        (back-up (or (command-remapping 'backward-up-list) 'backward-up-list)))
+    (or (ignore-errors (funcall back 1 t) t)
+        (funcall back-up 1))))
 
 (general-create-definer my/leader-def
   :states '(normal visual)
@@ -964,6 +989,14 @@ unless there is an active region."
     (interactive "<r>")
     (comment-or-uncomment-region beg end))
   (general-unbind 'motion "\\")
+  (evil-define-motion my/evil-forward-sexp (count)
+    :jump t
+    :type exclusive
+    (dotimes (_ (or count 1)) (my/forward-sexp)))
+  (evil-define-motion my/evil-backward-sexp (count)
+    :jump t
+    :type exclusive
+    (dotimes (_ (or count 1)) (my/backward-sexp)))
   :general-config
   ('(insert emacs) "C-S-w" 'evil-window-map)
   ('(normal visual) 'prog-mode-map "gc" 'my/evil-comment-or-uncomment)
@@ -983,16 +1016,15 @@ unless there is an active region."
   ('insert 'prog-mode-map "<tab>" 'indent-for-tab-command)
   ('visual 'prog-mode-map
            "<tab>" 'evil-shift-right
-           "<backtab>" 'evil-shift-left)
+           "<backtab>" 'evil-shift-left
+           "(" 'my/evil-backward-sexp
+           ")" 'my/evil-forward-sexp)
   ('normal 'prog-mode-map
            "<tab>" 'evil-shift-right-line
-           "<backtab>" 'evil-shift-left-line)
-  ("M-H" 'my/window-left
-   "M-J" 'my/window-down
-   "M-K" 'my/window-up
-   "M-L" 'my/window-right
-   "M-N" 'my/switch-to-next-buffer
-   "M-P" 'my/switch-to-prev-buffer))
+           "<backtab>" 'evil-shift-left-line
+           "(" 'my/evil-backward-sexp
+           ")" 'my/evil-forward-sexp)
+  )
 
 (use-package evil-collection :ensure t
   :after evil
@@ -1645,6 +1677,18 @@ exact major mode listed."
   :hook (prog-mode . indent-guide-mode)
   :config
   (add-to-list 'indent-guide-lispy-modes 'fennel-mode)
+  ;; Fix indent-guide-recursive overflows when trying to show indent guides
+  ;; for code with incorrect formatting (happens a lot during editing)
+  (defvar my/indent-guide-nesting 0)
+  (defun my/indent-guide-post-command-hook-advice ()
+    (setq my/indent-guide-nesting 0))
+  (advice-add 'indent-guide-post-command-hook
+              :before 'my/indent-guide-post-command-hook-advice)
+  (defun my/indent-guide-show-advice (fn)
+    (incf my/indent-guide-nesting)
+    (when (< my/indent-guide-nesting 128)
+      (funcall fn)))
+  (advice-add 'indent-guide-show :around 'my/indent-guide-show-advice)
   :custom
   (indent-guide-char "┊")
   (indent-guide-recursive t))
@@ -1659,26 +1703,26 @@ exact major mode listed."
     (small-fonts))
   (add-hook 'devdocs-mode-hook 'my/customize-devdocs)
   (defun devdocs-install-all ()
-    "Doesn't actually install _everything_, just the stuff I care about"
+    "Install all devdocs I'm likely to need"
     (interactive)
     (mapc 'devdocs-install
-          '("bash" "c" "cpp" "clojure~1.11" "cmake" "css" "docker" "dom"
-            "elisp" "gcc~13" "gcc~13_cpp" "gnu_make" "godot~4.2" "haskell~9"
-            "html" "http" "javascript" "jq" "man" "markdown" "lua~5.3" "love"
-            "numpy~1.23" "ocaml" "octave~9" "opengl~4" "opengl~2.1" "pygame"
-            "python~3.12" "pytorch~22" "qt" "qt~5.15" "rust" "sqlite" "svg"
-            "tcl_tk" "zig")))
+          '("bash" "c" "clojure~1.11" "cmake" "cpp" "css" "docker" "dom" "elisp"
+            "gcc~14" "gcc~14_cpp" "gnu_make" "godot~4.2" "haskell~9" "html"
+            "http" "javascript" "jq" "love" "lua~5.3" "man" "markdown"
+            "numpy~1.23" "ocaml" "octave~9" "opengl~2.1" "opengl~4" "pandas~2"
+            "pygame" "python~3.13" "pytorch~2" "qt" "qt~5.15" "rust" "sqlite"
+            "svg" "tcl_tk" "zig")))
   (defvar my/auto-devdoc-alist
     '((sh-mode "bash" "man")
       (bash-ts-mode "bash" "man")
       (bash-ts-mode "bash" "man")
-      (c-mode "c" "cmake" "gnu_make" "gcc~13")
-      (c-ts-mode "c" "cmake" "gnu_make" "gcc~13")
-      (cpp-mode "c" "cpp"  "cmake" "gnu_make" "gcc~13" "gcc~13_cpp")
-      (cpp-ts-mode "c" "cpp"  "cmake" "gnu_make" "gcc~13" "gcc~13_cpp")
+      (c-mode "c" "cmake" "gnu_make" "gcc~14")
+      (c-ts-mode "c" "cmake" "gnu_make" "gcc~14")
+      (cpp-mode "c" "cpp"  "cmake" "gnu_make" "gcc~14" "gcc~14_cpp")
+      (cpp-ts-mode "c" "cpp"  "cmake" "gnu_make" "gcc~14" "gcc~14_cpp")
       (dockerfile-mode "docker")
-      (python-mode "python~3.12" "numpy~1.23")
-      (python-ts-mode "python~3.12" "numpy~1.23")
+      (python-mode "python~3.13" "numpy~1.23" "pandas~2")
+      (python-ts-mode "python~3.13" "numpy~1.23" "pandas~2")
       (markdown-mode "markdown")
       (markdown-ts-mode "markdown")
       (json-mode "jq")
@@ -1686,7 +1730,8 @@ exact major mode listed."
       (lua-mode "lua~5.3" "love")
       (lua-ts-mode "lua~5.3" "love")
       (fennel-mode "lua~5.3" "love")
-      (emacs-lisp-mode "elisp")))
+      (emacs-lisp-mode "elisp")
+      (tcl-mode "tcl_tk")))
   (defun my/auto-devdoc (&rest _)
     (unless devdocs-current-docs
       (when-let* ((docs (assoc major-mode my/auto-devdoc-alist)))
@@ -2503,7 +2548,14 @@ be visible."
 (general-define-key
  "C-x k" 'kill-current-buffer
  "<mode-line> <mouse-2>" 'mouse-delete-window
- "<mode-line> <mouse-3>" 'menu-bar-open) ;; TODO: Something more useful than this
+ "<mode-line> <mouse-3>" 'menu-bar-open
+ "M-H" 'my/window-left
+ "M-J" 'my/window-down
+ "M-K" 'my/window-up
+ "M-L" 'my/window-right
+ "M-N" 'my/switch-to-next-buffer
+ "M-P" 'my/switch-to-prev-buffer
+ )
 
 ;; (general-def '(normal motion)
 ;;   "C-j" 'my/switch-to-next-buffer
