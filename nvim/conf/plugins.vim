@@ -30,10 +30,6 @@ let g:lyra_dim_inactive = v:false
 let g:sneak#s_next = v:true
 let g:sneak#absolute_dir = v:true
 
-if !exists('g:coc_status')
-    let g:coc_status = ''
-endif
-
 call plug#begin()
     Plug 'austinthresher/vim-lyra'
     Plug 'google/vim-searchindex'

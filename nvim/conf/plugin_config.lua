@@ -3,7 +3,7 @@
 local V = _G["vim"].api.nvim_eval
 
 -- These colors go along with my lyra colorscheme.
--- If we're using catppuccin these are ignored.
+-- If we're using a different theme these are ignored.
 local colors = {
     red      = '#8C2D2D',
     green    = '#608860',
@@ -84,6 +84,7 @@ local function deep_copy(tbl)
     end
     return result
 end
+
 local use_custom_theme = false
 if not use_custom_theme then
     theme = deep_copy(require "lualine.themes.onelight")
@@ -119,8 +120,7 @@ if found then
             },
             lualine_c = {
                 { "filename", path = 1, cond = exclude_term },
-                { "b:term_title", cond = term },
-                { "g:coc_status", cond = exclude_term }
+                { "b:term_title", cond = term }
             },
             lualine_x = {
                 { 'encoding', cond = exclude_term },

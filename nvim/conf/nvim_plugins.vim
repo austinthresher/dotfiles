@@ -23,9 +23,3 @@ let g:repl['python'] = {
             \ 'preproc': function('PreprocPythonREPL'),
             \ }
 
-
-if executable('node')
-    Plug 'neoclide/coc.nvim', {'branch': 'release'}
-    call Include('nvim_coc.vim')
-endif
-
