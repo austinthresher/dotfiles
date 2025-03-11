@@ -238,6 +238,19 @@ tabs that only have a single window."
 (defvar my/alt-variable-font "Noto Sans SemiCondensed")
 (defvar my/buffer-name-font "Roboto")
 
+(defvar my/mono-alternatives
+  '("Iosevka" "IosevkaTerm" "JetBrainsMono" "JetBrainsMono NFM" "Cascadia Code"
+    "Consolas" "Monospace" "FreeMono" "Courier New" "courier" "fixed"))
+(defvar my/var-alternatives
+  '("Roboto" "Noto Sans" "Segoe UI" "Arial" "FreeSans"))
+
+(dolist (fam (list my/default-font my/comment-font my/special-font
+                   my/fixed-font my/fixed-sans-font my/fixed-serif-font))
+  (add-to-list 'face-font-family-alternatives `(,fam ,@my/mono-alternatives)))
+(dolist (fam (list my/variable-font my/alt-variable-font my/buffer-name-font))
+  (add-to-list 'face-font-family-alternatives
+               `(,fam ,@(append my/var-alternatives my/mono-alternatives))))
+
 ;; This has to be in points
 (defvar my/which-key-font-pts 14)
 
@@ -322,8 +335,14 @@ tabs that only have a single window."
                      :underline (:position 0 :color ,bg-main)
                      :height ,my/tab-line-font-height)))
                 t)
-     `(header-line ((t (:underline (:position 0 :color ,bg-inactive)
-                        :height 0.9)))
+     ;; This is a separate face so it can be used by `my/mono-header-line`
+     `(header-line-style ((t (:underline (:position 0 :color ,bg-inactive)
+                              :background ,bg-cyan-nuanced)))
+                         t)
+     `(header-line ((t (:height 0.9
+                        :background unspecified
+                        :inherit (header-line-style
+                                  modus-themes-ui-variable-pitch))))
                    t)
      ;; These don't have to align with other monospace fonts because headings
      ;; already use variable pitch.
@@ -702,6 +721,11 @@ folding elements, etc.)"
     (push (face-remap-add-relative 'header-line `(:height ,(truncate (* 0.9 h))))
           my/small-font-cookies)))
 
+(defun my/mono-header-line (&rest _)
+  "Add this as a hook to buffers that expect the header line to align with
+body text"
+  (face-remap-set-base 'header-line
+                       :inherit '(light header-line-style)))
 
 (defun my/font-weight (&rest _)
   "Add this as a hook to buffers that should have slightly heavier default
@@ -836,7 +860,8 @@ matching against the buffer name for now."
   (let ((w (my/longest-visible-line)))
     (when (> w (window-width))
       (scroll-right (window-width))
-      (evil-window-set-width (min w my/max-auto-width)))))
+      (evil-window-set-width (max (window-width)
+                                  (min w my/max-auto-width))))))
 
 (defun my/window-up ()
   (interactive)
@@ -1801,6 +1826,15 @@ exact major mode listed."
 
 ;; WIP: Try this out, figure out buffer switching
 (use-package consult-projectile :ensure t)
+
+(use-package csv-mode :ensure t
+  :custom (csv-align-style 'auto)
+  :config
+  (general-add-hook 'csv-mode-hook
+                    '(csv-guess-set-separator
+                      csv-align-mode
+                      csv-header-line
+                      my/mono-header-line)))
 
 ;; Only using this for the find-file previews
 (use-package dirvish :ensure t
