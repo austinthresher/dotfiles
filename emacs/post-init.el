@@ -208,13 +208,21 @@ tabs that only have a single window."
 ;;;; ======================================================================
 ;;;; Font and Faces
 
+(defvar my/display-scale 1.0)
+(defvar my/windows-adjustment 0.95) ;; Tweak the display scale on WSL
+
+;; Query `wslsys` for the display scale when running under WSL
+(when (getenv "WSL_DISTRO_NAME")
+  (let ((scale (string-to-number (shell-command-to-string "wslsys -S -s"))))
+    (setq my/display-scale (max 1.0 (* my/windows-adjustment scale)))))
+
 ;; TODO: Look at fontaine
 
-(defvar my/font-height 140)
-(defvar my/smaller-font-height 125)
-(defvar my/tab-bar-font-height 125)
-(defvar my/mode-line-font-height 140)
-(defvar my/tab-line-font-height 110)
+(defvar my/font-height (truncate (* my/display-scale 140)))
+(defvar my/smaller-font-height (truncate (* my/display-scale 125)))
+(defvar my/tab-bar-font-height (truncate (* my/display-scale 125)))
+(defvar my/mode-line-font-height (truncate (* my/display-scale 140)))
+(defvar my/tab-line-font-height (truncate (* my/display-scale 110)))
 
 (defvar my/default-font "Monaspace Neon Condensed 85x85")
 ;; Make comments and docstrings stand out with a serif font

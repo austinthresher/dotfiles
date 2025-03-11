@@ -1,11 +1,32 @@
+# TODO: Split interactive stuff into a separate file
+
+# Detect when we're running in Windows under a Unix-like shell
+# todo: git bash?
+if [ ! -z "$WSL_DISTRO_NAME" ]; then
+    export WINDOWS=WSL
+elif [ "$OSTYPE" == cygwin ]; then
+    export WINDOWS=Cygwin
+elif [ "$OSTYPE" == msys ]; then
+    export WINDOWS=MSYS
+fi
+
+# Assume there's an X server running if we're on Windows
+if [ -n "$WINDOWS" ] && [ -z "$DISPLAY" ]; then
+    export DISPLAY=0:0
+fi
+
+# Report the user, hostname, and terse machine info when opening a new
+# interactive shell
 if [[ $- == *i* ]]; then
+    # These should always exist if our shell is actually bash
+    DISTRO="$OSTYPE $HOSTTYPE"
     if command -v lsb_release &> /dev/null; then
         DISTRO=$(lsb_release -sd)
-    else
+    elif command -v uname &> /dev/null; then
         DISTRO=$(uname -sr)
     fi
     SEP="\e[90m│\e[0m"
-    echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$DISTRO\e[0m $SEP"
+    echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$DISTRO${WINDOWS:+ $WINDOWS}\e[0m $SEP"
 fi
 
 # The first part of this file runs both interactively and non-interactively
@@ -96,8 +117,7 @@ is_executable () {
     command -v "$@" &> /dev/null
 }
 
-is_executable lsb_release && alias ubuntu='lsb_release -d'
-
+# TODO: Move the manpager stuff to a script
 # Use neovim for vim commands when vim isn't available.
 if is_executable nvim; then
     # Use nvim as a manpager. Not the most elegant configuration.
