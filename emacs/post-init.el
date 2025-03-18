@@ -1,10 +1,8 @@
 ;;; -*- no-byte-compile: t; lexical-binding: t; -*-
 
 ;; TODO:
-;; - Fix manpages not searching ~/.local/usr/share/man
 ;; - Tweak paredit bindings
 ;; - Move some plugin-specific bindings to leader key
-;; - add [wo]man to buffer-display-alist
 ;; - autofocus occur window when it appears
 ;; - finish my/consult-history-advice
 ;; - add emacs/readline shortcuts to insert mode
@@ -121,12 +119,15 @@ tabs that only have a single window."
      (cursor blue-cooler)
      (prose-done bg-added-fringe)
      (bg-tab-bar bg-main)
-     (bg-tab-other bg-inactive)
+     (bg-tab-other bg-dim)
      (bg-tab-current bg-paren-expression)
      (bg-region bg-cyan-intense)
      (bg-mode-line-active bg-sage)
      (fg-mode-line-inactive fg-dim)
      (bg-mode-line-inactive bg-main)
+     (border-mode-line-active bg-main)
+     (border-mode-line-inactive bg-main)
+     (fg-heading-0 fg-main)
      (fg-heading-0 fg-main)
      (fg-heading-1 cyan-cooler)
      ;; (overline-heading-1 bg-cyan-subtle)
@@ -324,17 +325,29 @@ tabs that only have a single window."
      `(state-other ((t (:inherit (fixed-pitch-serif error)))) t)
      `(tab-bar ((t (:family ,my/buffer-name-font
                     :overline ,bg-main
-                    :height ,my/tab-bar-font-height)))
+                    :height ,my/tab-bar-font-height
+                    :underline (:position 0 :color ,bg-main))))
                t)
      `(tab-bar-tab ((t (:background ,bg-tab-current-alt))) t)
      `(tab-bar-tab-inactive ((t (:foreground ,bg-active
-                                 :underline (:position 0 :color ,bg-dim))))
+                                 :background ,bg-dim
+                                 :underline (:position 0 :color ,bg-main))))
                             t)
      `(tab-line ((t (:family ,my/buffer-name-font
                      :background ,(my/blend-color bg-main bg-dim 0.5)
                      :underline (:position 0 :color ,bg-main)
                      :height ,my/tab-line-font-height)))
                 t)
+     `(tab-line-tab-inactive
+       ((t (:background ,(my/blend-color bg-main bg-dim 0.5)
+            :box (:line-width (2 . 2)
+                  :color ,(my/blend-color bg-main bg-dim 0.5)))))
+       t)
+     `(tab-line-tab-current
+       ((t (:background ,bg-tab-current
+            :box (:line-width (2 . 2)
+                  :color ,bg-tab-current))))
+       t)
      ;; This is a separate face so it can be used by `my/mono-header-line`
      `(header-line-style ((t (:underline (:position 0 :color ,bg-inactive)
                               :background ,bg-cyan-nuanced)))
@@ -381,6 +394,10 @@ tabs that only have a single window."
      `(indent-guide-face ((t (:foreground ,bg-active :weight light))))
      ;; Make hl-line reveal "hidden" text (same/similar fg and bg)
      `(hl-line ((t (:distant-foreground ,fg-dim))) t)
+     ;; I've used the modus border color in too many places to change it,
+     ;; so I'm overwriting these colors manually
+     `(window-divider ((t (:foreground ,bg-dim))) t)
+     `(vertical-border ((t (:foreground ,bg-dim))) t)
      )))
 
 (general-add-hook '(enable-theme-functions
@@ -415,7 +432,9 @@ tabs that only have a single window."
        (right-fringe . ,(or (spacious-padding--get-right-fringe-width reset)
                             (spacious-padding--get-fringe-width reset)))
        (scroll-bar-width  . ,(spacious-padding--get-scroll-bar-width reset)))))
-  (spacious-padding-mode))
+  ;; Disabling for now, it's nice but takes up a lot of space
+  ;; (spacious-padding-mode)
+  )
 
 ;;;; ======================================================================
 ;;;; General settings

@@ -183,11 +183,12 @@ is_executable glow && alias mdv='glow -p'
 is_executable rlwrap && is_executable sbcl && alias sbcl='rlwrap sbcl'
 is_executable fdfind && alias fd='fdfind'
 
-DARK="\[\033[90m\]"
-LIGHT="\[\033[37m\]"
-DIM="\[\033[2m\]"
-RESET="\[\033[0m\]"
-export PS1="$DARK\w$LIGHT$DIM $ $RESET"
+TITLE="\[\e]0;\w\a\]"
+DARK="\[\e[90m\]"
+LIGHT="\[\e[37m\]"
+DIM="\[\e[2m\]"
+RESET="\[\e[0m\]"
+export PS1="$TITLE$DARK\w$LIGHT$DIM $ $RESET"
 
 # Let .bashrc_local take precedence over anything here
 [ -e "$HOME/.bashrc_local" ] && source "$HOME/.bashrc_local"
