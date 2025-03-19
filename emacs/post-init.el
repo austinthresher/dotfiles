@@ -245,6 +245,12 @@ tabs that only have a single window."
 (defvar my/var-alternatives
   '("Roboto" "Noto Sans" "Segoe UI" "Arial" "FreeSans"))
 
+(defvar my/font-alternatives-original nil)
+(unless my/font-alternatives-original
+  (setq my/font-alternatives-original (copy-tree face-font-family-alternatives)))
+
+(setq face-font-family-alternatives (copy-tree my/font-alternatives-original))
+
 (dolist (fam (list my/default-font my/comment-font my/special-font
                    my/fixed-font my/fixed-sans-font my/fixed-serif-font))
   (add-to-list 'face-font-family-alternatives `(,fam ,@my/mono-alternatives)))
@@ -264,6 +270,7 @@ tabs that only have a single window."
                                    :position 10)
                        :extend t)))
   "Apply this face to a newline to draw a divider line in a buffer.")
+(defface terminal '((t ())) "Face for terminal/shell buffers")
 
 (defun my/blend-color (from to delta)
   (apply #'color-rgb-to-hex
@@ -283,6 +290,7 @@ tabs that only have a single window."
      `(variable-pitch-text ((t (:family ,my/alt-variable-font
                                 :height unspecified)))
                            t)
+     `(terminal ((t (:family ,my/special-font))) t)
      `(font-lock-comment-face ((t (:family ,my/comment-font))) t)
      `(font-lock-doc-face ((t (:family ,my/comment-font))) t)
      `(mode-line ((t (:family ,my/variable-font
@@ -404,6 +412,46 @@ tabs that only have a single window."
                     server-after-make-frame-hook
                     after-init-hook)
                   'my/update-faces-for-theme)
+
+(defun my/overwrite-all-fonts (font &optional bold-font italic-font bold-italic-font)
+  (unless bold-font (setq bold-font font))
+  (unless italic-font (setq italic-font font))
+  (unless bold-italic-font (setq bold-italic-font bold-font))
+  (dolist (frame (frame-list))
+    (dolist (face (face-list))
+      (unless (and (eq 'unspecified (face-attribute face :font))
+                   (eq 'unspecified (face-attribute face :family))
+                   (eq 'unspecified (face-attribute face :height)))
+        (let ((bold? (or (string-match-p
+                          ".*bold.*" (symbol-name (face-attribute face :weight)))
+                         (string-match-p ".*bold.*" (symbol-name face))))
+              (italic? (or (string-match-p ".*italic.*" (symbol-name face))
+                           (eq 'italic (face-attribute face :slant))
+                           (eq 'oblique (face-attribute face :slant))))
+              (height (face-attribute face :height)))
+          (set-face-attribute face frame :height 'unspecified)
+          (cond ((and bold? italic?)
+                 (set-face-attribute face frame :font bold-italic-font))
+                (bold? (set-face-attribute face frame :font bold-font))
+                (italic? (set-face-attribute face frame :font italic-font))
+                ((or (and (floatp height) (> height 1.0))
+                     (and (numberp height) (> height my/font-height)))
+                 (set-face-attribute face frame :font bold-font))
+                (t (set-face-attribute face frame :font font))))))
+    (set-frame-font font nil t t)))
+
+;; Find these with `xlsfonts -fn *terminus*`
+(defvar my/pixel-normal "-xos4-terminus-medium-r-*--20-*-*-*-*-*-iso8859-*")
+(defvar my/pixel-bold "-xos4-terminus-bold-r-*--20-*-*-*-*-*-iso8859-*")
+(defvar my/pixel-italic "-xos4-terminus-medium-o-*--20-*-*-*-*-*-iso8859-*")
+(defvar my/pixel-bold-italic "-xos4-terminus-bold-o-*--20-*-*-*-*-*-iso8859-*")
+(defun pixel-fonts ()
+  "Overwrite all faces with brute force to use pixel fonts for this session"
+  (interactive)
+  (my/overwrite-all-fonts my/pixel-normal
+                          my/pixel-bold
+                          my/pixel-italic
+                          my/pixel-bold-italic))
 
 (use-package spacious-padding :ensure t :demand t
   :custom (spacious-padding-widths
@@ -712,7 +760,7 @@ folding elements, etc.)"
   (word-wrap-whitespace-mode t))
 
 (defun my/terminal-font ()
-  (face-remap-add-relative 'default :family my/special-font))
+  (face-remap-add-relative 'default :inherit 'terminal))
 
 (defvar-local my/small-font-cookies nil)
 
