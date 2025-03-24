@@ -856,6 +856,7 @@ matching against the buffer name for now."
     (newline)))
 (advice-add 'start-process-shell-command :before 'my/start-process-shell-command-advice)
 
+
 ;;;; ======================================================================
 ;;;; Other commands and functions that need early definitions
 
@@ -1452,18 +1453,7 @@ show all buffers."
      (if (derived-mode-p 'eshell-mode 'comint-mode)
          #'corfu-complete
        #'corfu-send)))
-  ;; Corfu is showing its popup one line off when tab-line-mode is active
-  ;; (cl-defmethod corfu--popup-show :around ( pos off width lines
-  ;;                                           &context (tab-line-mode (eql t))
-  ;;                                           &optional curr lo bar)
-  ;;   ;; Adjust pos by one line. Couldn't find a better way to do it, so this
-  ;;   ;; modifies the cons cell directly.
-  ;;   (when-let* ((xy (posn-x-y pos))
-  ;;               (xy-cell (seq-find (lambda (a) (equal a xy)) pos)))
-  ;;     ;; The 2 accounts for the border pixels
-  ;;     (setcdr xy-cell (- (cdr xy-cell) (window-default-line-height) 2)))
-  ;;   (cl-call-next-method))
-  :general
+  :general-config
   ('emacs
    "C-S-SPC" 'set-mark-command)
   ('(insert emacs)
@@ -1475,6 +1465,11 @@ show all buffers."
    "TAB" 'corfu-expand
    "C-SPC" 'corfu-complete ;; Fill selected completion
    "<return>" 'my/corfu-complete-or-send
+   "C-n" 'corfu-next
+   "C-p" 'corfu-previous)
+  ('evil-ex-completion-map
+   "M-n" 'next-history-element
+   "M-p" 'previous-history-element
    "C-n" 'corfu-next
    "C-p" 'corfu-previous)
   :custom
