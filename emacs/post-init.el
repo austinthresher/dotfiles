@@ -272,8 +272,9 @@ tabs that only have a single window."
   "Apply this face to a newline to draw a divider line in a buffer.")
 (defface terminal '((t ())) "Face for terminal/shell buffers")
 
+(defun my/color-rgb-to-hex (r g b) (color-rgb-to-hex r g b 2))
 (defun my/blend-color (from to delta)
-  (apply #'color-rgb-to-hex
+  (apply #'my/color-rgb-to-hex
          (color-blend (color-name-to-rgb to)
                       (color-name-to-rgb from)
                       delta)))
@@ -491,8 +492,10 @@ tabs that only have a single window."
  line-spacing 2
  truncate-lines t
  tab-width 8
- left-margin-width 1
- right-margin-width 1)
+ left-margin-width 0
+ right-margin-width 0
+ left-fringe-width 1
+ right-fringe-width 1)
 
 (setq
  large-file-warning-threshold nil
@@ -756,10 +759,11 @@ folding elements, etc.)"
 
 (defun my/word-wrap (&rest _)
   "Add this as a hook to force word wrap in a buffer"
-  (setq-local truncate-lines nil)
+  (toggle-truncate-lines -1)
   (word-wrap-whitespace-mode t))
 
 (defun my/terminal-font ()
+  (toggle-truncate-lines -1)
   (face-remap-add-relative 'default :inherit 'terminal))
 
 (defvar-local my/small-font-cookies nil)
@@ -1905,6 +1909,16 @@ exact major mode listed."
 
 ;; Only using this for the find-file previews
 (use-package dirvish :ensure t
+  :custom
+  (dirvish-use-mode-line nil)
+  (dirvish-use-header-line nil)
+  (defun my/dirvish-fix-mode-line-remap (&rest _)
+    (setq face-remapping-alist
+          (seq-remove (lambda (x)
+                        (member (car x)
+                                '(header-line-inactive mode-line-inactive)))
+                      face-remapping-alist)))
+  (add-hook 'dirvish-misc-mode-hook 'my/dirvish-fix-mode-line-remap)
   :hook (after-init . dirvish-peek-mode))
 
 (use-package dtrt-indent :ensure t
@@ -1932,8 +1946,8 @@ exact major mode listed."
     :custom
     (which-key-posframe-font (format "%s %s" my/fixed-font my/which-key-font-pts))
     (which-key-posframe-border-width 1)
-    (which-key-posframe-parameters '((left-fringe . 0)
-                                     (right-fringe . 0)))
+    (which-key-posframe-parameters '((left-fringe . 1)
+                                     (right-fringe . 1)))
     (which-key-posframe-poshandler
      'posframe-poshandler-point-bottom-left-corner)))
 
@@ -2384,7 +2398,8 @@ if one couldn't be determined."
 (general-add-hook '( eww-mode-hook markdown-mode-hook markdown-view-mode-hook
                      gfm-mode-hook gfm-view-mode-hook devdocs-mode-hook
                      doc-view-mode-hook)
-                  '(my/word-wrap my/no-fringes))
+                  '(my/word-wrap ; my/no-fringes
+                                 ))
 
 (general-add-hook '( pdf-view-mode-hook nov-mode-hook doc-view-mode-hook)
                   'my/use-diminished-cursor)
@@ -2406,7 +2421,9 @@ if one couldn't be determined."
 
 (general-add-hook '( eat-mode-hook comint-mode-hook eshell-mode-hook
                      messages-buffer-mode-hook)
-                  '( my/terminal-font my/hide-global-hl-line))
+                  '( my/terminal-font my/hide-global-hl-line
+                     ; my/no-fringes
+                     ))
 
 
 ;;;; ======================================================================
@@ -2626,7 +2643,8 @@ be visible."
     (propertize "" 'face `(:foreground ,mode-line-color
                             :weight medium
                             :family ,my/variable-font
-                            :height ,my/mode-line-font-height))))
+                            :height ,my/mode-line-font-height
+                            :inherit nil))))
 
 (setopt mode-line-right-align-edge 'window)
 (setq-default mode-line-format
@@ -2647,6 +2665,7 @@ be visible."
 ;; mode line changes.
 (with-current-buffer (messages-buffer)
   (setq mode-line-format (default-value 'mode-line-format))
+  (my/no-fringes)
   (my/hide-global-hl-line)
   (my/terminal-font))
 

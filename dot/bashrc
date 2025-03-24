@@ -25,8 +25,15 @@ if [[ $- == *i* ]]; then
     elif command -v uname &> /dev/null; then
         DISTRO=$(uname -sr)
     fi
-    SEP="\e[90m│\e[0m"
-    echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$DISTRO${WINDOWS:+ $WINDOWS}\e[0m $SEP"
+    # Remove quotes that appear on some systems
+    DISTRO=$(echo "$DISTRO" | tr -d '"')
+
+    # Version with vertical dividers
+    # SEP="\e[90m│\e[0m"
+    # echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$DISTRO${WINDOWS:+ $WINDOWS}\e[0m $SEP"
+    
+    # No dividers
+    echo -e " \e[92m$USER @ $(hostname)  \e[90m $DISTRO${WINDOWS:+ $WINDOWS} \e[0m"
 fi
 
 # The first part of this file runs both interactively and non-interactively
@@ -157,10 +164,35 @@ fi
 
 is_executable rlwrap && is_executable sbcl && alias sbcl='rlwrap sbcl'
 
+# TODO: Figure out where to put this and other config so that it applies to all shell sessions
+export PYENV_VERSION=3.13
+if is_executable pyenv; then
+    if [[ -d $HOME/.pyenv ]]; then
+        export PYENV_ROOT="$HOME/.pyenv"
+        if [[ ! "$PATH" == *"$PYENV_ROOT"* ]]; then
+            export PATH="$PYENV_ROOT/bin:$PATH"
+        fi
+    fi
+fi
+
+if is_executable pyenv; then
+    eval "$(pyenv init - bash)"
+    export PIPX_DEFAULT_PYTHON="$(pyenv which python)"
+fi
+
+# Enable bash completion if the files are present
+if [ -f /usr/share/bash-completion/bash_completion ]; then
+    . /usr/share/bash-completion/bash_completion
+elif [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+fi
+
+PROMPT_CHAR=› # #   #»
+PROMPT_START="\[\e[32m\]$PROMPT_CHAR \[\e[0m\]"
 TITLE="\[\e]0;\w\a\]"
 DARK="\[\e[90m\]"
 LIGHT="\[\e[37m\]"
 DIM="\[\e[2m\]"
 RESET="\[\e[0m\]"
-export PS1="$TITLE$DARK\w$LIGHT$DIM $ $RESET"
+export PS1="$TITLE$PROMPT_START$DARK\w$LIGHT$DIM $ $RESET"
 
