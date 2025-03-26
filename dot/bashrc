@@ -31,7 +31,7 @@ if [[ $- == *i* ]]; then
     # Version with vertical dividers
     # SEP="\e[90m│\e[0m"
     # echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$DISTRO${WINDOWS:+ $WINDOWS}\e[0m $SEP"
-    
+
     # No dividers
     echo -e " \e[92m$USER @ $(hostname)  \e[90m $DISTRO${WINDOWS:+ $WINDOWS} \e[0m"
 fi
@@ -163,6 +163,10 @@ if is_executable glow; then
 fi
 
 is_executable rlwrap && is_executable sbcl && alias sbcl='rlwrap sbcl'
+
+is_executable sshfs && alias sshfs='sshfs -o reconnect,ServerAliveInterval=5'
+# Without reconnect, just unmounts when the connection times out.
+# is_executable sshfs && alias sshfs='sshfs -o ServerAliveInterval=5'
 
 # TODO: Figure out where to put this and other config so that it applies to all shell sessions
 export PYENV_VERSION=3.13
