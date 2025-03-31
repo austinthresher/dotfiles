@@ -170,7 +170,7 @@ is_executable sshfs && alias sshfs='sshfs -o reconnect,ServerAliveInterval=5'
 
 # TODO: Figure out where to put this and other config so that it applies to all shell sessions
 export PYENV_VERSION=3.13
-if is_executable pyenv; then
+if ! is_executable pyenv; then
     if [[ -d $HOME/.pyenv ]]; then
         export PYENV_ROOT="$HOME/.pyenv"
         if [[ ! "$PATH" == *"$PYENV_ROOT"* ]]; then

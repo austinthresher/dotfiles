@@ -1487,9 +1487,6 @@ show all buffers."
   (text-mode-ispell-word-completion nil)
   (tab-always-indent 'complete))
 
-(use-package corfu-terminal :ensure t
-  :config (corfu-terminal-mode))
-
 (use-package cape :ensure t :defer t
   :commands (cape-dabbrev cape-file cape-elisp-block)
   :bind ("C-c p" . cape-prefix-map)
