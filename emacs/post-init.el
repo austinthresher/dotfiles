@@ -856,6 +856,26 @@ matching against the buffer name for now."
     (newline)))
 (advice-add 'start-process-shell-command :before 'my/start-process-shell-command-advice)
 
+(defun my/indent-for-tab-advice (oldfn &rest args)
+  "Even when setting `tab-always-indent' to t, `indent-for-tab-command'
+prioritizes changing indentation before attempting completion. This advice
+gives priority to completion as long as the point is past the first
+non-whitespace character on the current line. This mostly affects modes for
+languages like Python where it's ambiguous whether a line is 'already indented'
+as mentioned in the documentation for `tab-always-indent'."
+  ;; Preserve old behavior in buffers that don't have tab set up for completion
+  ;; or when transient mark mode is enabled and there is an active region.
+  (if (or (not (eq tab-always-indent 'complete))
+          (region-active-p))
+      (funcall-interactively #'apply oldfn args)
+    (let ((text-before-point (buffer-substring-no-properties
+                              (line-beginning-position) (point))))
+      (message "|%s|" text-before-point)
+      (if (string-match-p "\\`[ \t]*\\'" text-before-point)
+          (funcall-interactively #'apply oldfn args)
+        (funcall-interactively #'completion-at-point)))))
+(advice-add 'indent-for-tab-command :around 'my/indent-for-tab-advice)
+
 
 ;;;; ======================================================================
 ;;;; Other commands and functions that need early definitions
