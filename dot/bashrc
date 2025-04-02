@@ -163,12 +163,15 @@ if is_executable glow; then
 fi
 
 is_executable rlwrap && is_executable sbcl && alias sbcl='rlwrap sbcl'
-
+is_executable gio && alias trash='gio trash'
 is_executable sshfs && alias sshfs='sshfs -o reconnect,ServerAliveInterval=5'
-# Without reconnect, just unmounts when the connection times out.
+# Alternative: without reconnect, just unmounts when the connection times out.
 # is_executable sshfs && alias sshfs='sshfs -o ServerAliveInterval=5'
 
-# TODO: Figure out where to put this and other config so that it applies to all shell sessions
+# TODO: Figure out where to put this and other config so that it applies to all
+# shell sessions, (specifically, noninteractive ones like launching the emacs
+# daemon or over ssh). Maybe just wrap this in a "pyenv" script and throw it in
+# PATH so that it sets up the environment then forwards to the real pyenv.
 export PYENV_VERSION=3.13
 if ! is_executable pyenv; then
     if [[ -d $HOME/.pyenv ]]; then

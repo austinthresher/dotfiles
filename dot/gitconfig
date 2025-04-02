@@ -9,6 +9,7 @@
 	algorithm = histogram
 [core]
 	attributesfile = /home/athresher/.gitattributes
+        excludesfile = /home/athresher/.gitignore
         autocrlf = false
  	pager = LESS= less -FR
 

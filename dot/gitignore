@@ -20,7 +20,13 @@ tags
 .tags
 .projectile
 
-# Build files (these shouldn't end up in your source anyways!)
+# Special filenames for personal build scripts/etc that I don't want to put
+# in project .gitignores. If a project actually has a 'build.sh' it can be
+# added manually.
+build.sh
+mybuild.sh
+
+# Build files
 *.o
 *.a
 *.lib
