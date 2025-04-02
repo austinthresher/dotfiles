@@ -219,11 +219,31 @@ tabs that only have a single window."
 
 ;; TODO: Look at fontaine
 
-(defvar my/font-height (truncate (* my/display-scale 140)))
-(defvar my/smaller-font-height (truncate (* my/display-scale 125)))
-(defvar my/tab-bar-font-height (truncate (* my/display-scale 125)))
-(defvar my/mode-line-font-height (truncate (* my/display-scale 140)))
-(defvar my/tab-line-font-height (truncate (* my/display-scale 110)))
+(defvar my/font-height-base 140)
+(defvar my/smaller-font-height-base 125)
+(defvar my/tab-bar-font-height-base 125)
+(defvar my/mode-line-font-height-base 140)
+(defvar my/tab-line-font-height-base 110)
+
+(defvar my/font-height my/font-height-base)
+(defvar my/smaller-font-height my/smaller-font-height-base)
+(defvar my/tab-bar-font-height my/tab-bar-font-height-base)
+(defvar my/mode-line-font-height my/mode-line-font-height-base)
+(defvar my/tab-line-font-height my/tab-line-font-height-base)
+
+(defun my/update-font-heights ()
+  (setq my/font-height
+        (truncate (* my/display-scale my/font-height-base))
+        my/smaller-font-height
+        (truncate (* my/display-scale my/smaller-font-height-base))
+        my/tab-bar-font-height
+        (truncate (* my/display-scale my/tab-bar-font-height-base))
+        my/mode-line-font-height
+        (truncate (* my/display-scale my/mode-line-font-height-base))
+        my/tab-line-font-height
+        (truncate (* my/display-scale my/tab-line-font-height-base))))
+
+(my/update-font-heights)
 
 (defvar my/default-font "Monaspace Neon Condensed 85x85")
 ;; Make comments and docstrings stand out with a serif font
@@ -281,6 +301,7 @@ tabs that only have a single window."
 
 (defun my/update-faces-for-theme (&rest _)
   (setf (alist-get ".*Symbola.*" face-font-rescale-alist) 0.75)
+  (my/update-font-heights)
   (modus-themes-with-colors
     (custom-set-faces
      `(default ((t (:family ,my/default-font :height ,my/font-height))) t)
