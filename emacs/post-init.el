@@ -528,6 +528,7 @@ tabs that only have a single window."
  eshell-scroll-to-bottom-on-input 'this
  view-inhibit-help-message t
  compilation-scroll-output t
+ compilation-max-output-line-length nil
  c-ts-mode-indent-style 'k&r
  c-ts-mode-indent-offset 4
  c-default-style '((c-mode . "stroustrup")
@@ -535,6 +536,20 @@ tabs that only have a single window."
                    (java-mode . "java")
                    (awk-mode . "awk")
                    (other . "k&r")))
+
+;; Note that all of these will break with spaces. Hopefully this is generic enough
+;; that it won't break with non-gcc tasks- revisit if that's not the case.
+(setopt compilation-hidden-output
+        '(
+          ;; Hide the absolute path of the first file on a line, usually the
+          ;; compiler binary
+          "^/\\(\\([a-zA-Z0-9-_.]*\\)/\\)*"
+          ;; Hide includes directories, library directories, warning flags,
+          ;; defines, and some other prefixes.
+          " -\\(I\\|l\\|m\\|L\\|D\\|W\\|std=\\)[^ ]*"
+          ;; Hide other common gcc flags we don't care about
+          " -\\(g\\|M[A-Z]*\\)"
+          ))
 
 (add-to-list 'warning-suppress-types '(undo discard-info))
 
