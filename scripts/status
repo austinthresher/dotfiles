@@ -1,0 +1,29 @@
+#!/bin/bash
+
+tinysleep() {
+    python3 -c 'import time; time.sleep(0.1)'
+}
+
+# Thanks StackExchange
+# https://askubuntu.com/questions/274349/getting-cpu-usage-realtime
+
+cat <(grep 'cpu ' /proc/stat) \
+    <(tinysleep && grep 'cpu ' /proc/stat) \
+    | awk -v RS="" \
+    '{printf("CPU: %3d%% |  ", ($13-$2+$15-$4)*100/($13-$2+$15-$4+$16-$5))}'
+
+free -m | awk -f <(cat - <<-'EOF'
+    NR==2{printf("RAM:  %d%% %6d MiB Free", 100*$3/$2, $NF)}
+    NR==3{printf(" | SWP: %d%% %6d MiB Free", 100*$3/$2, $NF) }
+    END { print("") }
+EOF
+)
+
+if command -v nvidia-smi &>/dev/null; then
+    nvidia-smi \
+        --query-gpu utilization.gpu,memory.used,memory.total \
+        --format=csv,noheader,nounits \
+        | awk -F ',' '{printf("GPU: %3d%% | VRAM: %3d%% %6d MiB Free\n", $1, 100*$2/$3, $3-$2)}'
+    nvidia-smi --query-compute-apps name --format=csv,noheader | sed 's/,/\n/g'
+fi
+

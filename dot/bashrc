@@ -15,41 +15,10 @@ if [ -n "$WINDOWS" ] && [ -z "$DISPLAY" ]; then
     export DISPLAY=0:0
 fi
 
-# Report the user, hostname, and terse machine info when opening a new
-# interactive shell
-if [[ $- == *i* ]]; then
-    # These should always exist if our shell is actually bash
-    DISTRO="$OSTYPE $HOSTTYPE"
-    if command -v lsb_release &> /dev/null; then
-        DISTRO=$(lsb_release -sd)
-    elif command -v uname &> /dev/null; then
-        DISTRO=$(uname -sr)
-    fi
-    # Remove quotes that appear on some systems
-    DISTRO=$(echo "$DISTRO" | tr -d '"')
-
-    # Version with vertical dividers
-    # SEP="\e[90m│\e[0m"
-    # echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$DISTRO${WINDOWS:+ $WINDOWS}\e[0m $SEP"
-
-    # No dividers
-    echo -e " \e[92m$USER @ $(hostname)  \e[90m $DISTRO${WINDOWS:+ $WINDOWS} \e[0m"
-fi
-
 # The first part of this file runs both interactively and non-interactively
 # =========================================================================
 unset -f command_not_found_handle
 export HISTCONTROL=ignoreboth:erasedups
-
-if [ ! -z "$WSL_DISTRO_NAME" ] \
-    || [ "$OSTYPE" == cygwin ] \
-    || [ "$OSTYPE" == msys ]; then
-    export WINDOWS=1
-    # Assume there's an X server running
-    if [ -z "$DISPLAY" ]; then
-        export DISPLAY=0:0
-    fi
-fi
 
 # Fix ugly dircolors, the default blue on green is impossible to read.
 export LS_COLORS+=':ow=01;92;100'
@@ -63,8 +32,29 @@ export SCREENDIR="$HOME/.screen"
 # =============================================================
 case $- in
     *i*) ;; # Interactive session
-    *) return ;; # Non interactive
+    *)
+    [[ -e ~/.bashrc_local ]] && source ~/.bashrc_local
+    return ;; # Non interactive
 esac
+
+# Report the user, hostname, and terse machine info when opening a new
+# interactive shell
+# These should always exist if our shell is actually bash
+DISTRO="$OSTYPE $HOSTTYPE"
+if command -v lsb_release &> /dev/null; then
+    DISTRO=$(lsb_release -sd)
+elif command -v uname &> /dev/null; then
+    DISTRO=$(uname -sr)
+fi
+# Remove quotes that appear on some systems
+DISTRO=$(echo "$DISTRO" | tr -d '"')
+
+# Version with vertical dividers
+# SEP="\e[90m│\e[0m"
+# echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$DISTRO${WINDOWS:+ $WINDOWS}\e[0m $SEP"
+
+# No dividers
+echo -e " \e[92m$USER @ $(hostname)  \e[90m $DISTRO${WINDOWS:+ $WINDOWS} \e[0m"
 
 # Ignore legacy scroll lock on <C-S> and <C-Q>
 stty -ixon
@@ -203,3 +193,4 @@ DIM="\[\e[2m\]"
 RESET="\[\e[0m\]"
 export PS1="$TITLE$PROMPT_START$DARK\w$LIGHT$DIM $ $RESET"
 
+[[ -e ~/.bashrc_local ]] && source ~/.bashrc_local

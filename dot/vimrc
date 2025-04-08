@@ -25,7 +25,6 @@ set shortmess=filmnrxOTI
 set sidescroll=1
 set sidescrolloff=1
 set ttyfast
-set ttymouse=sgr " Fixes mouse issues in Alacritty
 
 " This is overwritten with a trailing space after the +eval check below
 set showbreak=>>>
@@ -64,6 +63,11 @@ command CD cd %:p:h
 " after this block is only executed when the version of vim supports +eval.
 " https://vi.stackexchange.com/questions/22448/detecting-whether-vim-supports-functions
 if 1 " BEGIN NO VIM-TINY
+
+if $TERM == 'alacritty'
+    set ttymouse=sgr
+endif
+
 
 let &showbreak = '>>> '
 
