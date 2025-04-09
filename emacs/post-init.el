@@ -1604,7 +1604,8 @@ show all buffers."
   ('visual "v" 'er/expand-region))
 
 (use-package rust-mode :ensure t)
-(use-package lua-mode :ensure t :mode "\\.lua\\'")
+(use-package lua-mode :ensure t :mode "\\.lua\\'"
+  :custom (lua-indent-level 4))
 (use-package vimrc-mode :ensure t :mode "[._]?g?vim\\(rc\\)?\\'")
 (use-package fennel-mode :ensure t :mode "\\.fnl\\'")
 (use-package dockerfile-mode :ensure t)

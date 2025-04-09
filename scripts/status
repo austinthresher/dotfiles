@@ -23,7 +23,11 @@ if command -v nvidia-smi &>/dev/null; then
     nvidia-smi \
         --query-gpu utilization.gpu,memory.used,memory.total \
         --format=csv,noheader,nounits \
-        | awk -F ',' '{printf("GPU: %3d%% | VRAM: %3d%% %6d MiB Free\n", $1, 100*$2/$3, $3-$2)}'
-    nvidia-smi --query-compute-apps name --format=csv,noheader | sed 's/,/\n/g'
+        | awk -F, '{printf("GPU: %3d%% | VRAM: %3d%% %6d MiB Free\n", $1, 100*$2/$3, $3-$2)}'
+    nvidia-smi --query-compute-apps pid,used_memory,name --format=csv,noheader \
+        | awk -F, '{
+            sub(/\/[^ ]*\//, "", $3);
+            if(length($3) > 80) { $3 = substr($3, 1, 79) "…" }
+            printf("%7d %10s %-80s\n", $1, $2, substr($3, 1, 80)) }'
 fi
 
