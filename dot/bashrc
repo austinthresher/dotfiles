@@ -110,11 +110,10 @@ is_executable () {
 }
 
 # Allow launching emacsclient directly without having to start a daemon first
-if is_executable emacsclient; then
-    alias emc='emacsclient-wrapper'
-    # alias em='emacsclient --alternate-editor="" --tty'
-    alias em='emacs -nw'
-fi
+is_executable emacsclient && alias emc='emacsclient-wrapper'
+# Terminal emacs for quick edits, no client connection
+# TODO: Use an alternate stripped down config for this?
+is_executable emacs && alias em='emacs -nw'
 
 # These scripts are in my dotfiles.
 # They pick an appropriate editor based on what's installed.

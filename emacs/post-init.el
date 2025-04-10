@@ -16,7 +16,6 @@
 ;;   the current symbol (or current function definition, if possible). Also
 ;;   look at the `fennel-doc-string-elt' symbol property to add docstring
 ;;   support to function-defining macros.
-;; * Figure out a way to have orderless-style search
 ;; * See if there's a way to advise `delete-window' to allow making side
 ;;   windows be the only window in thier frame. Do something like detecting
 ;;   when that would happen and "promote" the side window to a main window.
@@ -25,6 +24,9 @@
 ;;   specifically ones that surround a single line.
 ;; * Make Lisp/Fennel docstrings align with the indentation of the first line.
 ;;   Look at Python to figure out how to do this.
+;; * When using / to search, if the search term has no special characters and
+;;   spaces, treat the spaces as if they were ORs to approximate orderless
+;;   search
 
 
 ;;;; ======================================================================
@@ -225,6 +227,7 @@ tabs that only have a single window."
 (defvar my/mode-line-font-height-base 140)
 (defvar my/tab-line-font-height-base 110)
 
+(defvar my/which-key-font-pts 14.0) ;; This has to be in points
 (defvar my/font-height my/font-height-base)
 (defvar my/smaller-font-height my/smaller-font-height-base)
 (defvar my/tab-bar-font-height my/tab-bar-font-height-base)
@@ -241,7 +244,9 @@ tabs that only have a single window."
         my/mode-line-font-height
         (truncate (* my/display-scale my/mode-line-font-height-base))
         my/tab-line-font-height
-        (truncate (* my/display-scale my/tab-line-font-height-base))))
+        (truncate (* my/display-scale my/tab-line-font-height-base))
+        my/which-key-font-pts
+        (/ (* my/display-scale my/font-height-base) 10)))
 
 (my/update-font-heights)
 
@@ -277,9 +282,6 @@ tabs that only have a single window."
 (dolist (fam (list my/variable-font my/alt-variable-font my/buffer-name-font))
   (add-to-list 'face-font-family-alternatives
                `(,fam ,@(append my/var-alternatives my/mono-alternatives))))
-
-;; This has to be in points
-(defvar my/which-key-font-pts 14)
 
 ;; Useful for including in inherit lists
 (defface normal '((t (:weight normal))) "Normal weight")
@@ -510,7 +512,6 @@ tabs that only have a single window."
 ;;;; General settings
 
 (setq-default
- line-spacing 2
  truncate-lines t
  tab-width 8
  left-margin-width 0
@@ -1985,20 +1986,19 @@ exact major mode listed."
       (apply old-fn args)))
   (advice-add 'eglot-format :around 'my/eglot-format-advice))
 
+(use-package which-key-posframe :ensure t
+  :commands which-key-posframe-mode
+  :custom
+  (which-key-posframe-font (format "%s-%s" my/fixed-font my/which-key-font-pts))
+  (which-key-posframe-border-width 1)
+  (which-key-posframe-parameters '((left-fringe . 1)
+                                   (right-fringe . 1)
+                                   (line-spacing . nil)))
+  (which-key-posframe-poshandler
+   'posframe-poshandler-point-bottom-left-corner))
 
 ;; TODO: Figure out isolating visible buffers / etc on a per-project basis
 ;; (use-package perspective :ensure t)
-
-(unless (version< emacs-version "30")
-  (use-package which-key-posframe :ensure t
-    :commands which-key-posframe-mode
-    :custom
-    (which-key-posframe-font (format "%s %s" my/fixed-font my/which-key-font-pts))
-    (which-key-posframe-border-width 1)
-    (which-key-posframe-parameters '((left-fringe . 1)
-                                     (right-fringe . 1)))
-    (which-key-posframe-poshandler
-     'posframe-poshandler-point-bottom-left-corner)))
 
 ;; (use-package bufler
 ;;   :vc (:url "https://github.com/alphapapa/bufler.el")
@@ -2036,28 +2036,21 @@ exact major mode listed."
   (custom-buffer-done-kill t))
 
 ;; TODO: Set up which-key-replacement-alist and which-key-special-keys
-(unless (version< emacs-version "30")
-  (use-package which-key :ensure nil
-    :custom
-    (which-key-dont-use-unicode nil)
-    (which-key-idle-secondary-delay 0.1)
-    (which-key-paging-key "<f1>")
-    (which-key-show-operator-state-maps nil)
-    (which-key-min-column-description-width 32)
-    (which-key-max-description-length 48)
-    (which-key-max-display-columns 4)
-    (which-key-echo-keystrikes 0.1)
-    :config
-    (setq which-key-idle-delay 0.5)
-    (which-key-mode)
-    (which-key-posframe-mode)
-    (defun which-key-posframe--max-dimensions (_)
-      ;; The default doesn't take font size into account, scale appropriately.
-      ;; These values are total guesses but seem to work ok.
-      (let ((approx-char-w (* my/which-key-font-pts 0.8))
-            (approx-char-h (* my/which-key-font-pts 1.2)))
-        (cons (- (truncate (frame-pixel-height) approx-char-h) 2)
-              (truncate (frame-pixel-width) approx-char-w))))))
+;; TODO: Make prefix maps show up first in the list, give better names than "prefix"
+(use-package which-key :ensure nil
+  :custom
+  (which-key-dont-use-unicode nil)
+  (which-key-idle-secondary-delay 0.1)
+  (which-key-paging-key "<f1>")
+  (which-key-show-operator-state-maps nil)
+  (which-key-min-column-description-width 32)
+  (which-key-max-description-length 48)
+  (which-key-max-display-columns 4)
+  (which-key-echo-keystrikes 0.1)
+  :config
+  (setq which-key-idle-delay 0.5)
+  (which-key-mode)
+  (which-key-posframe-mode))
 
 (use-package flymake :ensure nil
   :config

@@ -9,4 +9,6 @@
 (push '(right-fringe . 1) default-frame-alist)
 (push '(line-spacing . 2) default-frame-alist)
 (push '(tab-bar-lines . 1) default-frame-alist)
+(push '(line-spacing . 2) default-frame-alist)
+
 (push '(tab-bar-lines . 1) initial-frame-alist)

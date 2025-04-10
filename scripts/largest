@@ -1,0 +1,8 @@
+#!/bin/bash
+
+AWKSRC='{
+    if ($1/1 >= 1024) $1=sprintf("%.1fG", $1/1024);
+    printf("%7s %s\n", $1, $2);
+}'
+
+du -sBM --threshold=1048576 * | sort -nr | awk "$AWKSRC" | head "$@"
