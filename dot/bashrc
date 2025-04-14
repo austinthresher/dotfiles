@@ -40,21 +40,22 @@ esac
 # Report the user, hostname, and terse machine info when opening a new
 # interactive shell
 # These should always exist if our shell is actually bash
-DISTRO="$OSTYPE $HOSTTYPE"
+distro="$OSTYPE $HOSTTYPE"
 if command -v lsb_release &> /dev/null; then
-    DISTRO=$(lsb_release -sd)
+    distro=$(lsb_release -sd)
 elif command -v uname &> /dev/null; then
-    DISTRO=$(uname -sr)
+    distro=$(uname -sr)
 fi
 # Remove quotes that appear on some systems
-DISTRO=$(echo "$DISTRO" | tr -d '"')
+distro=$(echo "$distro" | tr -d '"')
 
 # Version with vertical dividers
 # SEP="\e[90m│\e[0m"
-# echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$DISTRO${WINDOWS:+ $WINDOWS}\e[0m $SEP"
+# echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$distro${WINDOWS:+ $WINDOWS}\e[0m $SEP"
 
 # No dividers
-echo -e " \e[92m$USER @ $(hostname)  \e[90m $DISTRO${WINDOWS:+ $WINDOWS} \e[0m"
+echo -e " \e[92m$USER @ $(hostname)  \e[90m $distro${WINDOWS:+ $WINDOWS} \e[0m"
+unset distro
 
 # Ignore legacy scroll lock on <C-S> and <C-Q>
 stty -ixon
@@ -86,23 +87,24 @@ alias tmux='tmux -u'
 alias usermount="udisksctl"
 
 # NOTE: Takes the repo name before any flags. Extracting the last argument
-# was a lot more of a headache than just swapping the order.
+# was a lot more of a headache than just swapping the order. Because of this,
+# it will always use the repo name as the target directory.
 ghclone() {
-    REPO="$1"; shift
-    git clone "https://github.com/$REPO" "$@"
+    local repo="$1"; shift
+    git clone "$@" "https://github.com/$repo"
 }
 
 # View the history of a specific file in a repo, including renames
 githist() {
-    GIT_FILENAME="$1"; shift
-    git log --follow -p -U1 --oneline "$@" -- "${GIT_FILENAME}"
+    local git_filename="$1"; shift
+    git log --follow -p -U1 --oneline "$@" -- "$git_filename"
 }
 
 # View the history of the given function in the given filename
 gitfn() {
-    GIT_FUNCNAME="$1"; shift
-    GIT_FILENAME="$1"; shift
-    git log -U1 -L --oneline ":${GIT_FUNCNAME}:${GIT_FILENAME}" "$@"
+    local git_funcname="$1"; shift
+    local git_filename="$1"; shift
+    git log -U1 -L --oneline ":${git_funcname}:${git_filename}" "$@"
 }
 
 is_executable () {
@@ -128,7 +130,7 @@ if is_executable batcat && ! is_executable bat; then
     ln -s "$(which batcat)" "$HOME/.local/bin/bat"
 fi
 
-# Use bat as a cat replacement
+# Use bat as a cat replacement and add help command for pretty-printing usage
 if is_executable bat; then
     bathelp() {
         bat --plain --language=help
@@ -141,6 +143,7 @@ fi
 
 is_executable batman && eval "$(batman --export-env)"
 
+# Same as bat, the name fd conflicts with another package in apt
 if is_executable fdfind && ! is_executable fd; then
     ln -s "$(which fdfind)" "$HOME/.local/bin/fd"
 fi
@@ -156,6 +159,10 @@ is_executable gio && alias trash='gio trash'
 is_executable sshfs && alias sshfs='sshfs -o reconnect,ServerAliveInterval=5'
 # Alternative: without reconnect, just unmounts when the connection times out.
 # is_executable sshfs && alias sshfs='sshfs -o ServerAliveInterval=5'
+
+# I never remember this
+alias rsync-remote='rsync -azvPh'
+alias rsync-local='rsync -avPh'
 
 # TODO: Figure out where to put this and other config so that it applies to all
 # shell sessions, (specifically, noninteractive ones like launching the emacs
@@ -183,13 +190,17 @@ elif [ -f /etc/bash_completion ]; then
     . /etc/bash_completion
 fi
 
-PROMPT_CHAR=› # #   #»
-PROMPT_START="\[\e[32m\]$PROMPT_CHAR \[\e[0m\]"
-TITLE="\[\e]0;\w\a\]"
-DARK="\[\e[90m\]"
-LIGHT="\[\e[37m\]"
-DIM="\[\e[2m\]"
-RESET="\[\e[0m\]"
-export PS1="$TITLE$PROMPT_START$DARK\w$LIGHT$DIM $ $RESET"
+prompt_char=">"
+if [ "$TERM" != dumb ]; then
+    prompt_char="›" # #   #»
+    prompt_start="\[\e[32m\]$PROMPT_CHAR \[\e[0m\]"
+    title="\[\e]0;\w\a\]"
+    dark="\[\e[90m\]"
+    light="\[\e[37m\]"
+    dim="\[\e[2m\]"
+    reset="\[\e[0m\]"
+fi
+export PS1="$title$prompt_start$dark\w$light$dim \$ $reset"
+unset -v prompt_char prompt_start title dark light dim reset
 
 [[ -e ~/.bashrc_local ]] && source ~/.bashrc_local

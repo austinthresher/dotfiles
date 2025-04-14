@@ -1931,6 +1931,7 @@ exact major mode listed."
   :custom
   (consult-project-function 'projectile-project-root)
   (projectile-tags-file-name ".tags")
+  (projectile-run-use-comint-mode t)
   :config
   (add-to-list 'projectile-globally-ignored-buffers "\\`\\*.*\\'")
   (add-to-list* 'projectile-globally-ignored-modes
@@ -2741,31 +2742,13 @@ be visible."
       "s" #'evil-surround-region
       "S" #'evil-Surround-region))
 
-(defvar my/project-commands '())
-(defun my/current-project-symbol ()
-  (let ((cur (project-current)))
-    (if cur (intern (project-name cur)) 'none)))
-(defun my/current-project-compile-command ()
-  (plist-get my/project-commands (my/current-project-symbol)))
-(defun my/update-current-project-compile-command (cmd)
-  (setq my/project-commands
-        (plist-put my/project-commands (my/current-project-symbol) cmd)))
-
-(defun compile-interactively (command)
-  "Prompts for the compile command the first time it's called, or when called
-with a prefix. Always starts the compilation buffer in comint mode to allow
-interaction. Tracks the compile command used on a per-project basis."
-  (interactive
-   (list
-    (let ((command (my/current-project-compile-command)))
-      (if (or (null command)
-              current-prefix-arg)
-          (let ((new-command (compilation-read-command command)))
-            (my/update-current-project-compile-command new-command)
-            new-command)
-        ;; default to the previous used command, but don't store it
-        (or command compile-command)))))
-  (compile command t))
+;; https://emacs.stackexchange.com/questions/40553/projectile-run-project-without-prompt
+(defun run-project (&optional prompt)
+  (interactive "P")
+  (let ((compilation-read-command
+         (or (not (projectile-run-command (projectile-compilation-dir)))
+             prompt)))
+    (projectile-run-project prompt)))
 
 (defun my/set-window-height (win height &optional ignore pixelwise)
   "Set a window's total height. Arguments are forwarded to `window-resize'."
@@ -2891,7 +2874,7 @@ arbitrarily saved as a bottom left window. "
 (general-def
   "<f12>" 'cycle-bottom-windows
   "C-<f12>" 'modus-themes-rotate
-  "<f5>" 'compile-interactively
+  "<f5>" 'run-project
   "C-x C-b" 'ibuffer)
 
 ;; I don't want the tutorial, license, hello, or any of the other junk that can
