@@ -1,7 +1,8 @@
-# TODO: Split interactive stuff into a separate file
+# TODO: Split interactive stuff into a separate file, especially
+# the stuff that I might rely on in scripts, like pyenv/luarocks/paths/etc
 
 # Detect when we're running in Windows under a Unix-like shell
-# todo: git bash?
+# TODO: git bash?
 if [ ! -z "$WSL_DISTRO_NAME" ]; then
     export WINDOWS=WSL
 elif [ "$OSTYPE" == cygwin ]; then
@@ -28,14 +29,77 @@ export PAGER='less -R'
 export SCREENDIR="$HOME/.screen"
 [ ! -d "$SCREENDIR" ] && mkdir "$SCREENDIR" && chmod 700 "$SCREENDIR"
 
+# Non-login shells won't have this from .profile
+pathadd() {
+    if [[ ! $PATH == *$1* ]]; then
+        export PATH="$1:$PATH"
+    fi
+}
+
+is_executable () {
+    command -v "$@" &> /dev/null
+}
+
+# Lazy load everything that tells you to add `eval $(foo)` to your bashrc.
+# The second argument is a string of setup command(s) that will be passed to
+# `eval` the first time the given name is invoked. Nested eval works, so this
+# can be anything at all.
+lazy_load() {
+    local cmd_name="$1"; shift
+    local setup_cmd="$1"; shift
+    # Create a function that unsets itself, runs the setup command,
+    # and then calls the name it shadowed with the original arguments.
+    local func="$cmd_name() { "
+    # Uncomment these for debugging
+    # func+="echo \"lazy loading $cmd_name\" ;"
+    # func+="echo 'executing: $setup_cmd' ;"
+    func+="unset -f $cmd_name ; "
+    # Place the given commands directly in the body of the function
+    func+="$setup_cmd ; "
+    func+="$cmd_name \"\$@\" ; "
+    func+="}"
+    eval "$func"
+}
+
+# Don't overwrite pyenv if it's already installed the function
+if [[ $(type -t pyenv) != function ]] ; then
+    # Making this a function was a lot easier than escaping everything
+    setup_pyenv() {
+        # Default location for pyenv
+        if [[ -z $PYENV_ROOT ]] && [[ -d $HOME/.pyenv ]]; then
+            export PYENV_ROOT="$HOME/.pyenv"
+        fi
+        if [[ -d $PYENV_ROOT ]]; then
+            # Set default version if it isn't already configured. Setting it
+            # here has the lowest priority compared to local .python-version
+            # files or PYENV_VERSION.
+            [[ -e $PYENV_ROOT/version ]] || echo "3.12" > "$PYENV_ROOT/version"
+            pathadd "$PYENV_ROOT/bin" # see .profile
+        fi
+        if is_executable pyenv; then
+            eval "$(pyenv init - bash)"
+            if [[ $(pyenv commands) == *virtualenv-init* ]]; then
+                eval "$(pyenv virtualenv-init - bash)"
+            fi
+                    fi
+    }
+    lazy_load pyenv setup_pyenv
+fi
+
+# This should trigger teh
+lazy_load pipx 'export PIPX_DEFAULT_PYTHON="$(pyenv which python || which python3)"'
+
 # The rest of this file is skipped if not running interactively
 # =============================================================
 case $- in
-    *i*) ;; # Interactive session
-    *)
+    *i*) ;; # Interactive session, continue
+    *) # Non interactive, source local config and return
     [[ -e ~/.bashrc_local ]] && source ~/.bashrc_local
-    return ;; # Non interactive
+    return ;;
 esac
+
+# Ignore legacy scroll lock on <C-S> and <C-Q>
+stty -ixon
 
 # Report the user, hostname, and terse machine info when opening a new
 # interactive shell
@@ -48,22 +112,17 @@ elif command -v uname &> /dev/null; then
 fi
 # Remove quotes that appear on some systems
 distro=$(echo "$distro" | tr -d '"')
-
-# Version with vertical dividers
-# SEP="\e[90m│\e[0m"
-# echo -e "$SEP \e[32m$USER @ $(hostname) $SEP \e[37m$distro${WINDOWS:+ $WINDOWS}\e[0m $SEP"
-
-# No dividers
 echo -e " \e[92m$USER @ $(hostname)  \e[90m $distro${WINDOWS:+ $WINDOWS} \e[0m"
 unset distro
-
-# Ignore legacy scroll lock on <C-S> and <C-Q>
-stty -ixon
 
 alias rgrep='grep -Iirn'
 alias more='less'
 alias gdb='gdb -q'
 alias preview='feh --scale -d . &'
+
+# I never remember this
+alias rsync-remote='rsync -azvPh'
+alias rsync-local='rsync -avPh'
 
 # Pipe into this to prevent really long lines from taking over shell output.
 alias trunc="cut -b 1-120"
@@ -107,15 +166,11 @@ gitfn() {
     git log -U1 -L --oneline ":${git_funcname}:${git_filename}" "$@"
 }
 
-is_executable () {
-    command -v "$@" &> /dev/null
-}
-
 # Allow launching emacsclient directly without having to start a daemon first
-is_executable emacsclient && alias emc='emacsclient-wrapper'
+emc='emacsclient-wrapper'
 # Terminal emacs for quick edits, no client connection
 # TODO: Use an alternate stripped down config for this?
-is_executable emacs && alias em='emacs -nw'
+alias em='emacs -nw'
 
 # These scripts are in my dotfiles.
 # They pick an appropriate editor based on what's installed.
@@ -132,16 +187,18 @@ fi
 
 # Use bat as a cat replacement and add help command for pretty-printing usage
 if is_executable bat; then
-    bathelp() {
-        bat --plain --language=help
-    }
-    help() {
-      "$@" --help 2>&1 | bathelp
-    }
     alias cat='bat' # bat says it's smart enough to not break this
+    help() {
+        "$@" --help 2>&1 | bat --plain --language=help
+    }
+else
+    # This is still useful without syntax highlighting
+    help() {
+        "$@" --help 2>&1 | less -RF
+    }
 fi
 
-is_executable batman && eval "$(batman --export-env)"
+is_executable batman && lazy_load man 'eval "$(batman --export-env)"'
 
 # Same as bat, the name fd conflicts with another package in apt
 if is_executable fdfind && ! is_executable fd; then
@@ -154,47 +211,37 @@ if is_executable glow; then
     alias mdv=glow
 fi
 
-is_executable rlwrap && is_executable sbcl && alias sbcl='rlwrap sbcl'
+# Programs that don't have their own readline integration by default
+if is_executable rlwrap ; then
+    is_executable sbcl && alias sbcl='rlwrap sbcl'     # Steel Bank Common Lisp
+    is_executable csi && alias csi='rlwrap csi'        # Chicken Scheme
+    # Newer Lua versions do use readline, but I've probably symlinked to luajit
+    is_executable lua && alias lua='rlwrap lua'
+fi
+
 is_executable gio && alias trash='gio trash'
 is_executable sshfs && alias sshfs='sshfs -o reconnect,ServerAliveInterval=5'
 # Alternative: without reconnect, just unmounts when the connection times out.
 # is_executable sshfs && alias sshfs='sshfs -o ServerAliveInterval=5'
 
-# I never remember this
-alias rsync-remote='rsync -azvPh'
-alias rsync-local='rsync -avPh'
-
-# TODO: Figure out where to put this and other config so that it applies to all
-# shell sessions, (specifically, noninteractive ones like launching the emacs
-# daemon or over ssh). Maybe just wrap this in a "pyenv" script and throw it in
-# PATH so that it sets up the environment then forwards to the real pyenv.
-export PYENV_VERSION=3.13
-if ! is_executable pyenv; then
-    if [[ -d $HOME/.pyenv ]]; then
-        export PYENV_ROOT="$HOME/.pyenv"
-        if [[ ! "$PATH" == *"$PYENV_ROOT"* ]]; then
-            export PATH="$PYENV_ROOT/bin:$PATH"
-        fi
-    fi
-fi
-
-if is_executable pyenv; then
-    eval "$(pyenv init - bash)"
-    export PIPX_DEFAULT_PYTHON="$(pyenv which python)"
-fi
-
 # Enable bash completion if the files are present
-if [ -f /usr/share/bash-completion/bash_completion ]; then
-    . /usr/share/bash-completion/bash_completion
-elif [ -f /etc/bash_completion ]; then
-    . /etc/bash_completion
-fi
+# NOTE: Disabling for now, it seemed to prevent completion of filenames
+# in a lot of places that used to work. Going to try with it off for a
+# while and see which I prefer.
+# if [ -f /usr/share/bash-completion/bash_completion ]; then
+#     . /usr/share/bash-completion/bash_completion
+# elif [ -f /etc/bash_completion ]; then
+#     . /etc/bash_completion
+# fi
 
 prompt_char=">"
-if [ "$TERM" != dumb ]; then
+if [[ $TERM != dumb ]]; then
     prompt_char="›" # #   #»
-    prompt_start="\[\e[32m\]$PROMPT_CHAR \[\e[0m\]"
-    title="\[\e]0;\w\a\]"
+    prompt_start="\[\e[32m\]$prompt_char \[\e[0m\]"
+    # Emacs doesn't know what to do with xterm's 
+    if [[ ! $TERM == *emacs* ]]; then
+        title="\[\e]0;\w\a\]"
+    fi
     dark="\[\e[90m\]"
     light="\[\e[37m\]"
     dim="\[\e[2m\]"
@@ -203,4 +250,5 @@ fi
 export PS1="$title$prompt_start$dark\w$light$dim \$ $reset"
 unset -v prompt_char prompt_start title dark light dim reset
 
+# This was only sourced above if the shell was non-interactive, do it now
 [[ -e ~/.bashrc_local ]] && source ~/.bashrc_local
