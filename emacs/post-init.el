@@ -6,6 +6,7 @@
 ;; - autofocus occur window when it appears
 ;; - finish my/consult-history-advice
 ;; - add emacs/readline shortcuts to insert mode
+;; - fix corfu colors in light mode
 
 ;;;; ======================================================================
 ;;;; TODOs that probably require writing elisp:

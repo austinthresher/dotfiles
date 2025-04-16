@@ -167,7 +167,7 @@ gitfn() {
 }
 
 # Allow launching emacsclient directly without having to start a daemon first
-emc='emacsclient-wrapper'
+alias emc='emacsclient-wrapper'
 # Terminal emacs for quick edits, no client connection
 # TODO: Use an alternate stripped down config for this?
 alias em='emacs -nw'
