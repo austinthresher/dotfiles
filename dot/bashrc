@@ -1,6 +1,9 @@
 # TODO: Split interactive stuff into a separate file, especially
 # the stuff that I might rely on in scripts, like pyenv/luarocks/paths/etc
 
+# The first part of this file runs both interactively and non-interactively
+# =========================================================================
+
 # Detect when we're running in Windows under a Unix-like shell
 # TODO: git bash?
 if [ ! -z "$WSL_DISTRO_NAME" ]; then
@@ -16,8 +19,13 @@ if [ -n "$WINDOWS" ] && [ -z "$DISPLAY" ]; then
     export DISPLAY=0:0
 fi
 
-# The first part of this file runs both interactively and non-interactively
-# =========================================================================
+# Non-login shells won't have this from .profile
+pathadd() {
+    if [[ ! $PATH == *$1* ]]; then
+        export PATH="$1:$PATH"
+    fi
+}
+
 unset -f command_not_found_handle
 export HISTCONTROL=ignoreboth:erasedups
 
@@ -29,12 +37,14 @@ export PAGER='less -R'
 export SCREENDIR="$HOME/.screen"
 [ ! -d "$SCREENDIR" ] && mkdir "$SCREENDIR" && chmod 700 "$SCREENDIR"
 
-# Non-login shells won't have this from .profile
-pathadd() {
-    if [[ ! $PATH == *$1* ]]; then
-        export PATH="$1:$PATH"
-    fi
-}
+export PYENV_ROOT="$HOME/.pyenv"
+pathadd "$PYENV_ROOT/bin"
+if [[ -d $PYENV_ROOT ]]; then
+    # Set default version if it isn't already configured. Setting it
+    # here has the lowest priority compared to local .python-version
+    # files or PYENV_VERSION.
+    [[ -e $PYENV_ROOT/version ]] || echo "3.12" > "$PYENV_ROOT/version"
+fi
 
 is_executable () {
     command -v "$@" &> /dev/null
@@ -66,27 +76,16 @@ if [[ $(type -t pyenv) != function ]] ; then
     # Making this a function was a lot easier than escaping everything
     setup_pyenv() {
         # Default location for pyenv
-        if [[ -z $PYENV_ROOT ]] && [[ -d $HOME/.pyenv ]]; then
-            export PYENV_ROOT="$HOME/.pyenv"
-        fi
-        if [[ -d $PYENV_ROOT ]]; then
-            # Set default version if it isn't already configured. Setting it
-            # here has the lowest priority compared to local .python-version
-            # files or PYENV_VERSION.
-            [[ -e $PYENV_ROOT/version ]] || echo "3.12" > "$PYENV_ROOT/version"
-            pathadd "$PYENV_ROOT/bin" # see .profile
-        fi
         if is_executable pyenv; then
             eval "$(pyenv init - bash)"
             if [[ $(pyenv commands) == *virtualenv-init* ]]; then
                 eval "$(pyenv virtualenv-init - bash)"
             fi
-                    fi
+        fi
     }
     lazy_load pyenv setup_pyenv
 fi
 
-# This should trigger teh
 lazy_load pipx 'export PIPX_DEFAULT_PYTHON="$(pyenv which python || which python3)"'
 
 # The rest of this file is skipped if not running interactively

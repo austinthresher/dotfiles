@@ -7,6 +7,7 @@
 ;; - finish my/consult-history-advice
 ;; - add emacs/readline shortcuts to insert mode
 ;; - fix corfu colors in light mode
+;; - hook completion-setup-function to remove that annoying header
 
 ;;;; ======================================================================
 ;;;; TODOs that probably require writing elisp:
@@ -525,6 +526,9 @@ tabs that only have a single window."
  fast-but-imprecise-scrolling nil
  disabled-command-function nil
  display-raw-bytes-as-hex t
+ completion-auto-help 'always
+ completions-header-format nil
+ completions-max-height 10
  idle-update-delay 0.1
  mouse-1-click-follows-link t
  mouse-wheel-tilt-scroll t
@@ -550,6 +554,7 @@ tabs that only have a single window."
  eshell-kill-on-exit t
  eshell-scroll-to-bottom-on-input 'this
  view-inhibit-help-message t
+ tab-always-indent 'complete
  compilation-scroll-output t
  compilation-max-output-line-length nil
  c-ts-mode-indent-style 'k&r
@@ -894,25 +899,26 @@ matching against the buffer name for now."
     (newline)))
 (advice-add 'start-process-shell-command :before 'my/start-process-shell-command-advice)
 
-(defun my/indent-for-tab-advice (oldfn &rest args)
-  "Even when setting `tab-always-indent' to t, `indent-for-tab-command'
-prioritizes changing indentation before attempting completion. This advice
-gives priority to completion as long as the point is past the first
-non-whitespace character on the current line. This mostly affects modes for
-languages like Python where it's ambiguous whether a line is 'already indented'
-as mentioned in the documentation for `tab-always-indent'."
-  ;; Preserve old behavior in buffers that don't have tab set up for completion
-  ;; or when transient mark mode is enabled and there is an active region.
-  (if (or (not (eq tab-always-indent 'complete))
-          (region-active-p))
-      (funcall-interactively #'apply oldfn args)
-    (let ((text-before-point (buffer-substring-no-properties
-                              (line-beginning-position) (point))))
-      (message "|%s|" text-before-point)
-      (if (string-match-p "\\`[ \t]*\\'" text-before-point)
-          (funcall-interactively #'apply oldfn args)
-        (funcall-interactively #'completion-at-point)))))
-(advice-add 'indent-for-tab-command :around 'my/indent-for-tab-advice)
+;; Disabling this while I try out company-mode, might use it again later
+;; (defun my/indent-for-tab-advice (oldfn &rest args)
+;;   "Even when setting `tab-always-indent' to t, `indent-for-tab-command'
+;; prioritizes changing indentation before attempting completion. This advice
+;; gives priority to completion as long as the point is past the first
+;; non-whitespace character on the current line. This mostly affects modes for
+;; languages like Python where it's ambiguous whether a line is 'already indented'
+;; as mentioned in the documentation for `tab-always-indent'."
+;;   ;; Preserve old behavior in buffers that don't have tab set up for completion
+;;   ;; or when transient mark mode is enabled and there is an active region.
+;;   (if (or (not (eq tab-always-indent 'complete))
+;;           (region-active-p))
+;;       (funcall-interactively #'apply oldfn args)
+;;     (let ((text-before-point (buffer-substring-no-properties
+;;                               (line-beginning-position) (point))))
+;;       ;; (message "|%s|" text-before-point)
+;;       (if (string-match-p "\\`[ \t]*\\'" text-before-point)
+;;           (funcall-interactively #'apply oldfn args)
+;;         (funcall-interactively #'completion-at-point)))))
+;; (advice-add 'indent-for-tab-command :around 'my/indent-for-tab-advice)
 
 
 ;;;; ======================================================================
@@ -1335,9 +1341,7 @@ unless there is an active region."
       (vertico-scroll-up n)
       (when (eq idx vertico--index) (vertico-next))))
   :general-config
-  ('minibuffer-mode-map
-   "<tab>" 'completion-at-point
-   "TAB" 'completion-at-point)
+  ;; ('minibuffer-mode-map "<tab>" 'company-complete-common "TAB" 'company-complete-common)
   ('vertico-map
    "<next>" 'my/vertico-scroll-up
    "<prior>" 'my/vertico-scroll-down
@@ -1358,11 +1362,12 @@ unless there is an active region."
 
 (use-package orderless :ensure t
   :custom
-  (completion-styles '(orderless basic))
+  ;; TODO: Figure out how to make this not take forever when completing in the minibuffer
+  (completion-styles '(orderless))
   (completion-category-defaults nil)
   (completion-category-overrides '((file (styles partial-completion))
                                    (eglot (styles orderless))
-                                       (eglot-capf (styles orderless)))))
+                                   (eglot-capf (styles orderless)))))
 
 (use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
@@ -1501,58 +1506,47 @@ show all buffers."
     ;; TODO: Compare minibuffer input to default-directory, clear minibuffer if same
     nil))
 
-(use-package corfu :ensure t
-  :config
-  (global-corfu-mode)
-  (corfu-popupinfo-mode)
-  (defun my/corfu-complete-or-send ()
-    (interactive)
-    (funcall-interactively
-     (if (derived-mode-p 'eshell-mode 'comint-mode)
-         #'corfu-complete
-       #'corfu-send)))
-  :general-config
-  ('emacs
-   "C-S-SPC" 'set-mark-command)
-  ('(insert emacs)
-   "C-SPC" 'completion-at-point)        ; for when tab isn't usable
-  ('(insert emacs) 'corfu-map
-   "<prior>" 'corfu-scroll-down
-   "<next>" 'corfu-scroll-up
-   "<tab>" 'corfu-expand
-   "TAB" 'corfu-expand
-   "C-SPC" 'corfu-complete ;; Fill selected completion
-   "<return>" 'my/corfu-complete-or-send
-   "C-n" 'corfu-next
-   "C-p" 'corfu-previous)
-  ('evil-ex-completion-map
-   "M-n" 'next-history-element
-   "M-p" 'previous-history-element
-   "C-n" 'corfu-next
-   "C-p" 'corfu-previous)
-  :custom
-  (corfu-cycle t)
-  (corfu-preselect 'valid)
-  (corfu-preview-current nil)
-  (corfu-on-exact-match 'show)
-  (corfu-popupinfo-delay 0.1)
-  (corfu-popupinfo-hide nil)
-  (corfu-quit-no-match 'separator)
-  (corfu-left-margin-width 0.0)
-  (corfu-right-margin-width 0.2)
-  ;; Hide commands in M-x which do not apply to the current mode.
-  (read-extended-command-predicate #'command-completion-default-include-p)
-  (text-mode-ispell-word-completion nil)
-  (tab-always-indent 'complete))
 
-(use-package cape :ensure t :defer t
-  :commands (cape-dabbrev cape-file cape-elisp-block)
-  :bind ("C-c p" . cape-prefix-map)
-  :init
-  (general-add-hook 'completion-at-point-functions '( cape-dabbrev cape-file))
+(use-package company :ensure t
+  :custom
+  (company-minimum-prefix-length 0)
+  (company-abort-on-unique-match nil)
+  (company-tooltip-align-annotations t)
+  (company-require-match nil)
+  (company-idle-delay nil)
+  (company-selection-wrap-around t)
+  (company-insertion-on-trigger t)
   :config
-  ;; Fix the issue where completion doesn't show all of the candidates
-  (advice-add 'eglot-completion-at-point :around 'cape-wrap-buster))
+  (global-company-mode)
+  :general-config
+  ('company-active-map "<escape>" 'company-abort)
+  ('(insert emacs replace) 'company-mode-map
+   [remap indent-for-tab-command] 'company-indent-or-complete-common
+    "<tab>" 'company-indent-or-complete-common
+    "C-SPC" 'company-complete-common
+    "C-<space>" 'company-complete-common))
+
+(use-package company-posframe :ensure t
+  :custom
+  (company-posframe-quickhelp-delay 0.1)
+  (company-posframe-quickhelp-show-header nil)
+  :config
+  (company-posframe-mode)
+  (advice-add 'company-posframe-show :after 'company-posframe-quickhelp-show)
+  :general-config
+    ('company-posframe-active-map "<escape>" 'company-abort))
+
+(use-package keycast :ensure t
+  :custom
+  (keycast-tab-bar-location 'tab-bar-format-align-right)
+  (keycast-tab-bar-minimal-width 1)
+  :custom-face
+  (keycast-key ((t (:foreground unspecified :background unspecified
+                    :inherit 'help-key-binding))))
+  (keycast-command ((t (:inherit 'shadow))))
+  :config
+  (add-to-list 'keycast-substitute-alist '(self-insert-command nil nil))
+  (keycast-tab-bar-mode))
 
 (use-package form-feed-st :ensure t
   :hook
@@ -1959,6 +1953,10 @@ exact major mode listed."
                       csv-header-line
                       my/mono-header-line)))
 
+(use-package pet :ensure t
+  :config
+  (add-hook 'python-base-mode-hook 'pet-mode -10))
+
 ;; Only using this for the find-file previews
 (use-package dirvish :ensure t
   :custom
@@ -2016,7 +2014,7 @@ exact major mode listed."
             (setq eshell-visual-commands '()))
   :general-config
   ('(insert emacs) 'eshell-mode-map
-   "<tab>" 'completion-at-point
+   "<tab>" 'company-complete-common
    "C-S-w" 'evil-delete-backward-word
    "C-p" 'eshell-previous-matching-input-from-input
    "C-n" 'eshell-next-matching-input-from-input))
@@ -2940,7 +2938,7 @@ pressed twice in a row."
 ;;;; Window layout and display-buffer-alist
 
 (setq switch-to-buffer-obey-display-actions nil)
-(setq window-sides-slots '(1 0 0 2))
+(setq window-sides-slots '(0 1 0 2))
 (setq fit-window-to-buffer-horizontally t)
 
 (defun my/side-windows ()
@@ -3016,7 +3014,10 @@ it on the buffer itself."
                                  ibuffer-mode))
              (derived-rule (lambda (x) (cons 'derived-mode x)))
              )
-        `(("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
+        `(("\\`\\*Completions\\*"
+           display-buffer-in-side-window
+           (inhibit-same-window . t) (side . top))
+          ("\\`\\*Embark Collect \\(Live\\|Completions\\)\\*"
            display-buffer-in-direction
            (direction . rightmost)
            (window-parameters (mode-line-format . none)))
@@ -3055,5 +3056,4 @@ it on the buffer itself."
 (let ((local-init (expand-file-name "local-init.el"
                                     user-emacs-directory)))
   (when (file-exists-p local-init) (load local-init)))
-
 
