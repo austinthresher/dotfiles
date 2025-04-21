@@ -144,6 +144,12 @@ fi
 alias tmux='tmux -u'
 alias usermount="udisksctl"
 
+alias pe=pyenv
+alias venv='pyenv activate'
+alias activate='pyenv activate'
+alias deactivate='pyenv deactivate'
+
+
 # NOTE: Takes the repo name before any flags. Extracting the last argument
 # was a lot more of a headache than just swapping the order. Because of this,
 # it will always use the repo name as the target directory.
@@ -224,21 +230,25 @@ is_executable sshfs && alias sshfs='sshfs -o reconnect,ServerAliveInterval=5'
 # is_executable sshfs && alias sshfs='sshfs -o ServerAliveInterval=5'
 
 # Enable bash completion if the files are present
-# NOTE: Disabling for now, it seemed to prevent completion of filenames
-# in a lot of places that used to work. Going to try with it off for a
-# while and see which I prefer.
-# if [ -f /usr/share/bash-completion/bash_completion ]; then
-#     . /usr/share/bash-completion/bash_completion
-# elif [ -f /etc/bash_completion ]; then
-#     . /etc/bash_completion
-# fi
+# NOTE: Remember, specific programs that give problems can be removed
+# with `complete -r <program-name>`
+if [ -f /usr/share/bash-completion/bash_completion ]; then
+    . /usr/share/bash-completion/bash_completion
+elif [ -f /etc/bash_completion ]; then
+    . /etc/bash_completion
+fi
+
+if [[ -e ~/.complete_alias ]]; then
+    source ~/.complete_alias
+    complete -F _complete_alias "${!BASH_ALIASES[@]}"
+fi
 
 prompt_char=">"
 if [[ $TERM != dumb ]]; then
-    prompt_char="›" # #   #»
+    prompt_char="›"
     prompt_start="\[\e[32m\]$prompt_char \[\e[0m\]"
-    # Emacs doesn't know what to do with xterm's 
-    if [[ ! $TERM == *emacs* ]]; then
+    # Emacs term doesn't know what to do with xterm's title escape sequences
+    if [[ ! $TERM == *eterm* ]]; then
         title="\[\e]0;\w\a\]"
     fi
     dark="\[\e[90m\]"
