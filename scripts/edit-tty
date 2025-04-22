@@ -1,9 +1,9 @@
 #!/bin/bash
 
 CMD=vi
-if command -v emacsclient &> /dev/null
+if command -v emacs &> /dev/null
 then
-    CMD="emacsclient -t"
+    CMD="emacs -nw"
 elif command -v nvim &> /dev/null
 then
     CMD=nvim
@@ -12,4 +12,4 @@ then
     CMD=vim
 fi
 
-$CMD "$@"
+exec $CMD "$@"

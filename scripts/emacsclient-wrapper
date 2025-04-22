@@ -2,9 +2,15 @@
 # Taken from the default emacsclient.desktop, it was easier to modify this as
 # a standalone script than leaving it embedded with escapes.
 
-if [ -n "$*" ]
-then
-    emacsclient-new-tab "$@"
-else
-    emacsclient-new-window
-fi
+# NOTE: Trying out popping up a new frame instead of a new tab when opening
+# external files, making this script a bit useless. For now, this will just
+# forward its arguments to emacsclient-new-window.
+
+exec emacsclient-new-window "$@"
+
+# if [ -n "$*" ]
+# then
+#     emacsclient-new-tab "$@"
+# else
+#     emacsclient-new-window
+# fi

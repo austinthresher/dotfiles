@@ -149,7 +149,6 @@ alias venv='pyenv activate'
 alias activate='pyenv activate'
 alias deactivate='pyenv deactivate'
 
-
 # NOTE: Takes the repo name before any flags. Extracting the last argument
 # was a lot more of a headache than just swapping the order. Because of this,
 # it will always use the repo name as the target directory.
@@ -171,16 +170,25 @@ gitfn() {
     git log -U1 -L --oneline ":${git_funcname}:${git_filename}" "$@"
 }
 
-# Allow launching emacsclient directly without having to start a daemon first
-alias emc='emacsclient-wrapper'
-# Terminal emacs for quick edits, no client connection
-# TODO: Use an alternate stripped down config for this?
-alias em='emacs -nw'
-
 # These scripts are in my dotfiles.
 # They pick an appropriate editor based on what's installed.
 export EDITOR=edit-tty
 export VISUAL=edit
+
+
+# Force myself to get in the habit of using my editor of choice instead
+# of just typing vim every time
+alias vim=edit
+alias vi=edit-tty
+alias emc=edit
+# TODO: Use an alternate stripped down config for this?
+alias em=edit-tty
+
+# I often want easy access to view / edit scripts in $PATH
+wcat() { which "$1" && cat $(which "$1") ; }
+wedit() { which "$1" && edit $(which "$1") ; }
+wedit-tty() { which "$1" && edit-tty $(which "$1") ; }
+
 
 # The colon at the end indicates to prepend to the existing manpath
 export MANPATH="$HOME/.local/share/man:"

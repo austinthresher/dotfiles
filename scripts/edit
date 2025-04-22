@@ -3,7 +3,7 @@
 CMD=vi
 if command -v emacsclient &> /dev/null
 then
-    CMD="emacsclient -n -c"
+    CMD=emacsclient-wrapper
 elif command -v nvim &> /dev/null
 then
     CMD=nvim
@@ -12,4 +12,4 @@ then
     CMD=vim
 fi
 
-$CMD "$@"
+exec $CMD "$@"

@@ -1,2 +1,2 @@
 #!/bin/bash
-emacsclient --no-wait --alternate-editor="" --create-frame "$@"
+exec emacsclient --no-wait --alternate-editor="" --create-frame "$@"

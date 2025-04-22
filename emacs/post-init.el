@@ -29,7 +29,9 @@
 ;; * When using / to search, if the search term has no special characters and
 ;;   spaces, treat the spaces as if they were ORs to approximate orderless
 ;;   search
-
+;; * Some modes delete indentation spaces one by one. Can I get vim-style
+;;   behavior where it deletes by tab widths?
+;; * Fix Ctrl+Backspace to not delete past the current line
 
 ;;;; ======================================================================
 ;;;; Utility macros and functions
@@ -52,6 +54,15 @@ a quoted symbol naming the variable containing the list."
     `(let ((,val-sym (list ,@vals)))
        (setq ,list-name
              (seq-remove (lambda (x) (memq x ,val-sym)) ,list-name)))))
+
+(defmacro setq-local-on-hook (hook-name variable value)
+  "Macro to reduce the boilerplate required to set buffer-local values for
+specific modes. Both `hook-name` and `variable` should be unquoted symbols."
+  (cl-assert (symbolp hook-name))
+  (cl-assert (symbolp variable))
+  (let ((fn-name (intern (format "setq-local-%s-on-%s" hook-name variable))))
+    `(progn (defun ,fn-name () (setq-local ,variable ,value))
+            (add-hook (quote ,hook-name) (quote ,fn-name)))))
 
 ;; Thanks to https://kisaragi-hiu.com/emacs-detect-daemon-before-frame/
 (defun frame-exists-yet? ()
@@ -102,7 +113,6 @@ tabs that only have a single window."
   (modus-themes-slanted-constructs nil)
   (modus-themes-bold-constructs t)
   (modus-themes-variable-pitch-ui t)
-  (modus-themes-to-rotate '(modus-operandi modus-vivendi))
   (modus-themes-common-palette-user
    '((bg-normal bg-cyan-intense)
      (bg-insert bg-green-intense)
@@ -261,6 +271,7 @@ tabs that only have a single window."
 (defvar my/fixed-font "Monaspace Xenon Condensed 85x85")
 (defvar my/fixed-sans-font "Monaspace Argon Condensed 85x85")
 (defvar my/fixed-serif-font "Monaspace Xenon Condensed 85x85")
+(defvar my/org-label-face "Iosevka")
 
 (defvar my/variable-font "Roboto")
 (defvar my/alt-variable-font "Noto Sans SemiCondensed")
@@ -268,28 +279,89 @@ tabs that only have a single window."
 
 (defvar my/mono-alternatives
   '("Iosevka" "IosevkaTerm" "JetBrainsMono" "JetBrainsMono NFM" "Cascadia Code"
-    "Consolas" "Monospace" "FreeMono" "Courier New" "courier" "fixed"))
+    "Consolas" "Monospace" "FreeMono" "Courier New" "courier" "unifont" "fixed"))
 (defvar my/var-alternatives
   '("Roboto" "Noto Sans" "Segoe UI" "Arial" "FreeSans"))
 
-(defvar my/font-alternatives-original nil)
-(unless my/font-alternatives-original
-  (setq my/font-alternatives-original (copy-tree face-font-family-alternatives)))
+;; Cache the result of (font-family-list) because it will always return nil
+;; for tty clients, clobbering our fonts if a tty client connects.
+(defvar known-font-families nil) ;(font-family-list))
 
-(setq face-font-family-alternatives (copy-tree my/font-alternatives-original))
 
-(dolist (fam (list my/default-font my/comment-font my/special-font
-                   my/fixed-font my/fixed-sans-font my/fixed-serif-font))
-  (add-to-list 'face-font-family-alternatives `(,fam ,@my/mono-alternatives)))
-(dolist (fam (list my/variable-font my/alt-variable-font my/buffer-name-font))
-  (add-to-list 'face-font-family-alternatives
-               `(,fam ,@(append my/var-alternatives my/mono-alternatives))))
+;; It's a pain to remember these when I want to use a fixed face, stashing them here
+(defconst x11-fixed "-*-fixed-medium-*-*-*-15-*-*-*-*-*-iso10646-*")
+(defconst x11-fixed-large "-misc-fixed-*-r-normal-*-20-200-75-75-*-100-iso10646-*")
+(defconst x11-terminus "-*-terminus-medium-r-*-*-20-*-*-*-*-*-iso10646-*")
+(defconst x11-unifont "-gnu-unifont-medium-r-*-*-16-160-75-75-*-80-iso10646-*")
+
+;; Make sure we can fall back to the default X11 fixed font when terminus or
+;; unifont are not installed
+(add-to-list 'face-font-family-alternatives '("terminus" "unifont" "fixed"))
+(add-to-list 'face-font-family-alternatives '("unifont" "terminus" "fixed"))
+
+;; Set at startup, will likely be immediately overwritten
+(set-face-font 'default x11-terminus)
+
+;; Setting this variable will force the given font to be used for every single
+;; face. Note that it won't affect size except when it's an X11 bitmap font.
+(defvar my/forced-font nil)
+
+;; I originally used face-font-family-alternatives here, but that also
+;; configures those fonts to be used as fallbacks when a glyph is missing.
+;; I only want to use these fonts when a higher priority font doesn't exist,
+;; not on a per-glyph basis.
+(defun my/first-installed-font (fonts &optional available)
+  ;; Either update our cached value for font-family-alist,
+  ;; or use it because we're in a tty
+  (unless available
+    (setq available (font-family-list))
+    (if available
+        (setq known-font-families available)
+      (setq available known-font-families)))
+  (cond ((null available) "fixed")
+        ((null fonts) "fixed")
+        ((member (car fonts) available) (car fonts))
+        (t (my/first-installed-font (cdr fonts) available))))
+
+(defun my/format-font (font-or-family &optional height)
+  "Produces a string that can be passed as the :font face attribute while
+optionally accepting a height. This is a bit of a hack to allow using X11-style
+fonts or normal emacs face/height pairs in the same config. Only supports
+absolute heights- if the height is an integer, it's assumed to be in the same
+units as Emacs :height attributes, so it will be divided by 10 to produce a pt
+size. If it is a float, it's assumed to already be in pts. Height is ignored
+if the font passed looks like an X11 font."
+  (cond ((string-prefix-p "-" font-or-family) font-or-family)
+        ((floatp height) (format "%s-%.1f" font-or-family height))
+        ((integerp height) (format "%s-%.1f" font-or-family (/ height 10.0)))
+        (t font-or-family)))
+
+(defun my/get-mono (default &optional height)
+  (when my/forced-font (setq default my/forced-font))
+  (cond ((string-prefix-p "-" default) default)
+        ((string= default "fixed") x11-fixed)
+        ((string= default "fixed-large") x11-fixed-large)
+        ((string= default "terminus") x11-terminus)
+        ((string= default "unifont") x11-unifont)
+        (t (my/format-font (my/first-installed-font (cons default my/mono-alternatives))
+                           height))))
+
+(defun my/get-var (default &optional height)
+  (when my/forced-font (setq default my/forced-font))
+  (cond ((string-prefix-p "-" default) default)
+        ((string= default "fixed") x11-fixed)
+        ((string= default "fixed-large") x11-fixed-large)
+        ((string= default "terminus") x11-terminus)
+        ((string= default "unifont") x11-unifont)
+        (t (my/format-font (my/first-installed-font (cons default my/var-alternatives))
+                           height))))
+
 
 ;; Useful for including in inherit lists
+
 (defface normal '((t (:weight normal))) "Normal weight")
 (defface light '((t (:weight light))) "Light weight")
 (defface medium '((t (:weight medium))) "Medium weight")
-(defface smaller '((t (:height 0.8))) "Smaller height")
 (defface divider '((t (:underline (:color "#7F7F7F"
                                    :position 10)
                        :extend t)))
@@ -306,60 +378,65 @@ tabs that only have a single window."
 (defun my/update-faces-for-theme (&rest _)
   (setf (alist-get ".*Symbola.*" face-font-rescale-alist) 0.75)
   (my/update-font-heights)
+  (set-frame-font (my/get-mono my/default-font my/font-height))
   (modus-themes-with-colors
     (custom-set-faces
-     `(default ((t (:family ,my/default-font :height ,my/font-height))) t)
-     `(fixed-pitch-sans ((t (:family ,my/fixed-sans-font))) t)
-     `(fixed-pitch ((t (:family ,my/fixed-font))) t)
-     `(fixed-pitch-serif ((t (:family ,my/fixed-serif-font))) t)
-     `(variable-pitch ((t (:family ,my/variable-font))) t)
-     `(variable-pitch-text ((t (:family ,my/alt-variable-font
+     `(default ((t (:foreground ,fg-main))) t)
+     `(fixed-pitch-sans ((t (:font ,(my/get-mono my/fixed-sans-font)))) t)
+     `(fixed-pitch ((t (:font ,(my/get-mono my/fixed-font)))) t)
+     `(fixed-pitch-serif ((t (:font ,(my/get-mono my/fixed-serif-font)))) t)
+     `(variable-pitch ((t (:font ,(my/get-var my/variable-font)))) t)
+     `(variable-pitch-text ((t (:font ,(my/get-var my/alt-variable-font)
                                 :height unspecified)))
                            t)
-     `(terminal ((t (:family ,my/special-font))) t)
-     `(font-lock-comment-face ((t (:family ,my/comment-font))) t)
-     `(font-lock-doc-face ((t (:family ,my/comment-font))) t)
-     `(mode-line ((t (:family ,my/variable-font
-                      :height ,my/mode-line-font-height)))
+     `(terminal ((t (:font ,(my/get-mono my/special-font)))) t)
+     `(font-lock-comment-face ((t (:font ,(my/get-mono my/comment-font)))) t)
+     `(font-lock-doc-face ((t (:font ,(my/get-mono my/comment-font)))) t)
+     `(mode-line ((t (:font ,(my/get-var my/variable-font
+                                         my/mode-line-font-height))))
                  t)
-     `(mode-line-active ((t (:family ,my/variable-font
-                             :height ,my/mode-line-font-height)))
+     `(mode-line-active ((t (:font ,(my/get-var my/variable-font
+                                                my/mode-line-font-height))))
                         t)
-     `(mode-line-inactive ((t (:family ,my/variable-font
-                               :height ,my/mode-line-font-height
+     `(mode-line-inactive ((t (:font ,(my/get-var my/variable-font
+                                                  my/mode-line-font-height)
                                :background ,(my/blend-color bg-dim bg-main 0.25))))
                           t)
-     `(mode-line-buffer-id ((t (:family ,my/buffer-name-font
-                                :height ,my/mode-line-font-height))))
+     `(mode-line-buffer-id ((t (:font ,(my/get-var my/buffer-name-font
+                                                   my/mode-line-font-height)))))
      ;; Custom faces for evil-state in the mode line
-     `(state-normal ((t (:inherit (medium fixed-pitch-serif)
-                         :height ,(- my/mode-line-font-height 5)
+     `(state-normal ((t (:font ,(my/get-mono my/fixed-serif-font
+                                             (- my/mode-line-font-height 5))
                          :background ,bg-normal :foreground ,fg-normal)))
                     t)
-     `(state-insert ((t (:inherit (medium fixed-pitch-serif)
-                         :height ,(- my/mode-line-font-height 5)
+     `(state-insert ((t (:font ,(my/get-mono my/fixed-serif-font
+                                             (- my/mode-line-font-height 5))
                          :background ,bg-insert :foreground ,fg-insert)))
                     t)
-     `(state-visual ((t (:inherit (medium fixed-pitch-serif)
-                         :height ,(- my/mode-line-font-height 5)
+     `(state-visual ((t (:font ,(my/get-mono my/fixed-serif-font
+                                             (- my/mode-line-font-height 5))
                          :background ,bg-visual :foreground ,fg-visual)))
                     t)
-     `(state-replace ((t (:inherit (medium fixed-pitch-serif)
-                          :height ,(- my/mode-line-font-height 5)
+     `(state-replace ((t (:font ,(my/get-mono my/fixed-serif-font
+                                              (- my/mode-line-font-height 5))
                           :background ,bg-replace :foreground ,fg-replace)))
                      t)
-     `(state-operator ((t (:inherit (medium fixed-pitch-serif)
-                           :height ,(- my/mode-line-font-height 5)
+     `(state-operator ((t (:font ,(my/get-mono my/fixed-serif-font
+                                               (- my/mode-line-font-height 5))
                            :background ,bg-operator :foreground ,fg-operator)))
                       t)
-     `(state-emacs ((t (:inherit (medium fixed-pitch-serif)
-                        :height ,(- my/mode-line-font-height 5)
+     `(state-emacs ((t (:font ,(my/get-mono my/fixed-serif-font
+                                            (- my/mode-line-font-height 5))
+                        :inherit (medium fixed-pitch-serif)
                         :background ,bg-emacs :foreground ,fg-emacs)))
                    t)
-     `(state-other ((t (:inherit (fixed-pitch-serif error)))) t)
-     `(tab-bar ((t (:family ,my/buffer-name-font
+     `(state-other ((t (:font ,(my/get-mono my/fixed-serif-font
+                                            (- my/mode-line-font-height 5))
+                        :inherit error)
+                       ))
+                   t)
+     `(tab-bar ((t (:font ,(my/get-var my/buffer-name-font my/tab-bar-font-height)
                     :overline ,bg-main
-                    :height ,my/tab-bar-font-height
                     :underline (:position 0 :color ,bg-main))))
                t)
      `(tab-bar-tab ((t (:background ,bg-tab-current-alt))) t)
@@ -367,21 +444,19 @@ tabs that only have a single window."
                                  :background ,bg-dim
                                  :underline (:position 0 :color ,bg-main))))
                             t)
-     `(tab-line ((t (:family ,my/buffer-name-font
+     `(tab-line ((t (:font ,(my/get-var my/buffer-name-font my/tab-line-font-height)
                      :background ,(my/blend-color bg-main bg-dim 0.5)
-                     :underline (:position 0 :color ,bg-main)
-                     :height ,my/tab-line-font-height)))
+                     :underline (:position 0 :color ,bg-main))))
                 t)
      `(tab-line-tab-inactive
        ((t (:background ,(my/blend-color bg-main bg-dim 0.5)
             :box (:line-width (2 . 2)
                   :color ,(my/blend-color bg-main bg-dim 0.5)))))
        t)
-     `(tab-line-tab-current
-       ((t (:background ,bg-tab-current
-            :box (:line-width (2 . 2)
-                  :color ,bg-tab-current))))
-       t)
+     `(tab-line-tab-current ((t (:background ,bg-tab-current
+                                 :box (:line-width (2 . 2)
+                                       :color ,bg-tab-current))))
+                            t)
      ;; This is a separate face so it can be used by `my/mono-header-line`
      `(header-line-style ((t (:underline (:position 0 :color ,bg-inactive)
                               :background ,bg-cyan-nuanced)))
@@ -393,22 +468,22 @@ tabs that only have a single window."
                    t)
      ;; These don't have to align with other monospace fonts because headings
      ;; already use variable pitch.
-     `(org-note-face ((t (:family "Iosevka"
+     `(org-note-face ((t (:font ,(my/get-mono my/org-label-face)
                           :foreground ,fg-dim
                           :weight normal
                           :height 0.9)))
                      t)
-     `(org-idea-face ((t (:family "Iosevka"
+     `(org-idea-face ((t (:font ,(my/get-mono my/org-label-face)
                           :foreground ,blue-faint
                           :weight normal
                           :height 0.9)))
                      t)
-     `(org-done ((t (:family "Iosevka"))) t)
-     `(org-todo ((t (:family "Iosevka"))) t)
+     `(org-done ((t (:font ,(my/get-mono my/org-label-face)))) t)
+     `(org-todo ((t (:font ,(my/get-mono my/org-label-face)))) t)
      ;; Other custom(ized) org faces
      `(org-dim-face ((t (:foreground ,(my/blend-color fg-main bg-main 0.2)))) t)
      `(org-archived ((t (:foreground ,fg-dim :weight medium))) t)
-     `(org-block-begin-line ((t (:family ,my/special-font
+     `(org-block-begin-line ((t (:font ,(my/get-mono my/special-font)
                                  :weight medium
                                  :overline ,border
                                  :foreground ,bg-dim
@@ -416,7 +491,7 @@ tabs that only have a single window."
                                  :height 0.75)))
                             t)
      `(org-block ((t (:background ,bg-dim))) t)
-     `(org-block-end-line ((t (:family ,my/special-font
+     `(org-block-end-line ((t (:font ,(my/get-mono my/special-font)
                                :weight medium
                                :overline nil
                                :underline (:position 0 :color ,border)
@@ -434,81 +509,17 @@ tabs that only have a single window."
      `(vertical-border ((t (:foreground ,bg-dim))) t)
      )))
 
+
 (general-add-hook '(enable-theme-functions
                     server-after-make-frame-hook
                     after-init-hook)
                   'my/update-faces-for-theme)
 
-(defun my/overwrite-all-fonts (font &optional bold-font italic-font bold-italic-font)
-  (unless bold-font (setq bold-font font))
-  (unless italic-font (setq italic-font font))
-  (unless bold-italic-font (setq bold-italic-font bold-font))
-  (dolist (frame (frame-list))
-    (dolist (face (face-list))
-      (unless (and (eq 'unspecified (face-attribute face :font))
-                   (eq 'unspecified (face-attribute face :family))
-                   (eq 'unspecified (face-attribute face :height)))
-        (let ((bold? (or (string-match-p
-                          ".*bold.*" (symbol-name (face-attribute face :weight)))
-                         (string-match-p ".*bold.*" (symbol-name face))))
-              (italic? (or (string-match-p ".*italic.*" (symbol-name face))
-                           (eq 'italic (face-attribute face :slant))
-                           (eq 'oblique (face-attribute face :slant))))
-              (height (face-attribute face :height)))
-          (set-face-attribute face frame :height 'unspecified)
-          (cond ((and bold? italic?)
-                 (set-face-attribute face frame :font bold-italic-font))
-                (bold? (set-face-attribute face frame :font bold-font))
-                (italic? (set-face-attribute face frame :font italic-font))
-                ((or (and (floatp height) (> height 1.0))
-                     (and (numberp height) (> height my/font-height)))
-                 (set-face-attribute face frame :font bold-font))
-                (t (set-face-attribute face frame :font font))))))
-    (set-frame-font font nil t t)))
+(defun set-all-fonts (font-name)
+  (interactive "sFont name: ")
+  (setq my/forced-font (if (length= font-name 0) nil font-name))
+  (my/update-faces-for-theme))
 
-;; Find these with `xlsfonts -fn *terminus*`
-(defvar my/pixel-normal "-xos4-terminus-medium-r-*--20-*-*-*-*-*-iso8859-*")
-(defvar my/pixel-bold "-xos4-terminus-bold-r-*--20-*-*-*-*-*-iso8859-*")
-(defvar my/pixel-italic "-xos4-terminus-medium-o-*--20-*-*-*-*-*-iso8859-*")
-(defvar my/pixel-bold-italic "-xos4-terminus-bold-o-*--20-*-*-*-*-*-iso8859-*")
-(defun pixel-fonts ()
-  "Overwrite all faces with brute force to use pixel fonts for this session"
-  (interactive)
-  (my/overwrite-all-fonts my/pixel-normal
-                          my/pixel-bold
-                          my/pixel-italic
-                          my/pixel-bold-italic))
-
-(use-package spacious-padding :ensure t :demand t
-  :custom (spacious-padding-widths
-           '(:internal-border-width 8
-             :header-line-width 4
-             :mode-line-width 6
-             :tab-line-width 5
-             :tab-bar-width 0
-             :right-divider-width 8
-             :scroll-bar-width 0
-             :fringe-width 0))
-  :config
-  ;; I'm not sure why this isn't already an option. Quick hack to add
-  ;; bottom-divider-width too. It'd probably be better to use override advice
-  ;; but I'm not sure I want to keep this in the first place.
-  (defvar spacious-padding--bottom-divider-width nil)
-  (spacious-padding--define-get-frame-param "bottom-divider-width" 8)
-  ;; Copied from spacious-padding.el, just added bottom-divider-width
-  (defun spacious-padding-modify-frame-parameters (&optional reset)
-    (modify-all-frames-parameters
-     `((internal-border-width . ,(spacious-padding--get-internal-border-width reset))
-       (right-divider-width . ,(spacious-padding--get-right-divider-width reset))
-       (bottom-divider-width . ,(spacious-padding--get-bottom-divider-width reset))
-       (left-fringe . ,(or (spacious-padding--get-left-fringe-width reset)
-                           (spacious-padding--get-fringe-width reset)))
-       (right-fringe . ,(or (spacious-padding--get-right-fringe-width reset)
-                            (spacious-padding--get-fringe-width reset)))
-       (scroll-bar-width  . ,(spacious-padding--get-scroll-bar-width reset)))))
-  ;; Disabling for now, it's nice but takes up a lot of space
-  ;; (spacious-padding-mode)
-  )
 
 ;;;; ======================================================================
 ;;;; General settings
@@ -898,6 +909,9 @@ matching against the buffer name for now."
     (insert (concat "$ " command))
     (newline)))
 (advice-add 'start-process-shell-command :before 'my/start-process-shell-command-advice)
+
+
+
 
 ;; Disabling this while I try out company-mode, might use it again later
 ;; (defun my/indent-for-tab-advice (oldfn &rest args)
@@ -1297,7 +1311,6 @@ unless there is an active region."
    "C-<left>" 'my/eat-prev-word
    "C-<right>" 'my/eat-next-word))
 
-
 (use-package vertico :ensure t :defer t
   :commands (vertico-mode vertico-reverse-mode vertico-mouse-mode)
   :hook
@@ -1340,6 +1353,8 @@ unless there is an active region."
     (let ((idx vertico--index))
       (vertico-scroll-up n)
       (when (eq idx vertico--index) (vertico-next))))
+  ;; Use vertico when completing in the minibuffer (eval and similar)
+  (setq completion-in-region-function 'consult-completion-in-region)
   :general-config
   ;; ('minibuffer-mode-map "<tab>" 'company-complete-common "TAB" 'company-complete-common)
   ('vertico-map
@@ -1363,12 +1378,29 @@ unless there is an active region."
 (use-package orderless :ensure t
   :custom
   ;; TODO: Figure out how to make this not take forever when completing in the minibuffer
-  (completion-styles '(orderless))
-  (completion-category-defaults nil)
-  (completion-category-overrides '((file (styles partial-completion))
+  ;;(completion-category-defaults nil)
+  ;; I had to look these categories up in consult.el, I can't find where else
+  ;; they're documented
+  (orderless-component-separator "[ &]")
+  ;; The default was screwing up completion for Lisp symbols with special characters
+  (orderless-affix-dispatch-alist
+    `((?% . ,#'char-fold-to-regexp)
+      (?~ . ,#'orderless-not)
+      (?@ . ,#'orderless-annotation)
+      (?^ . ,#'orderless-literal-prefix)
+      (?, . ,#'orderless-flex)))
+  (completion-styles '(orderless basic))
+  (orderless-matching-styles '(orderless-literal-prefix orderless-literal orderless-regexp))
+  (completion-category-overrides '(
+                                   ;; (command (styles basic orderless))
+                                   ;; (consult-location (styles basic orderless))
+                                   ;; (face (styles basic orderless))
+                                   ;; (environment-variable (styles basic orderless))
+                                   ;; (buffer (styles basic orderless))
+                                   (file (styles basic partial-completion))
                                    (eglot (styles orderless))
-                                   (eglot-capf (styles orderless)))))
-
+                                   (eglot-capf (styles orderless))
+                                   )))
 (use-package marginalia :ensure t :defer t
   :commands (marginalia-mode marginalia-cycle)
   :hook (vertico-mode . marginalia-mode))
@@ -1506,47 +1538,86 @@ show all buffers."
     ;; TODO: Compare minibuffer input to default-directory, clear minibuffer if same
     nil))
 
-
 (use-package company :ensure t
   :custom
-  (company-minimum-prefix-length 0)
+  (company-minimum-prefix-length 2)
   (company-abort-on-unique-match nil)
   (company-tooltip-align-annotations t)
   (company-require-match nil)
-  (company-idle-delay nil)
+  (company-idle-delay 0.05)
   (company-selection-wrap-around t)
-  (company-insertion-on-trigger t)
+  (company-dabbrev-other-buffers t)
+  (company-transformers '(company-sort-prefer-same-case-prefix
+                          delete-consecutive-dups))
+  (company-tooltip-idle-delay 9999)
+  (company-frontends
+   '(company-preview-frontend
+     company-pseudo-tooltip-unless-just-one-frontend-with-delay
+     company-echo-metadata-frontend))
+  (company-backends '(company-capf :with company-dabbrev-code))
   :config
+  ;;company-pseudo-tooltip-overlap
+  (defun my/complete-common-and-show-tooltip ()
+    (interactive)
+    (let ((company-tooltip-idle-delay 0.0))
+      (company-complete)
+      (when company-candidates (company-call-frontends 'post-command))))
+
+  ;; If we don't have the tooltip, treat escape as if company were inactive
+  (defun my/company-abort ()
+    (interactive)
+    (if (company-tooltip-visible-p)
+        (company-abort)
+      (evil-force-normal-state)))
+  ;; Same as above- return without the tooltip should act as usual
+  (defun my/company-return ()
+    (interactive)
+    (if (company-tooltip-visible-p)
+        (company-complete-selection)
+      (company-abort)
+      (newline)))
+  (defun my/indent-or-complete (arg)
+    (interactive "P")
+    ;; The only time I want to start manual completion is when something
+    ;; exists before the point. Also don't complete after matched pairs of
+    ;; characters, like brackets and parens. This regexp was weird about the
+    ;; closing square bracket.
+    (if (or (bolp)
+            (looking-back "[[:space:]({[)}]\\|\\]" (line-beginning-position)))
+        (let ((tab-always-indent t))
+          (message "indent")
+          (indent-for-tab-command arg))
+      (let ((company-tooltip-idle-delay 0.0))
+        (company-indent-or-complete-common arg)
+        (when company-candidates (company-call-frontends 'post-command)))))
   (global-company-mode)
   :general-config
-  ('company-active-map "<escape>" 'company-abort)
+  ('company-active-map
+   "<escape>" 'my/company-abort
+   ;; Don't bind ESC, it messes with Alt keybindings
+   "<return>" 'my/company-return
+   "RET" 'my/company-return
+   "TAB" 'my/complete-common-and-show-tooltip
+   "<tab>" 'my/complete-common-and-show-tooltip)
   ('(insert emacs replace) 'company-mode-map
-   [remap indent-for-tab-command] 'company-indent-or-complete-common
-    "<tab>" 'company-indent-or-complete-common
-    "C-SPC" 'company-complete-common
-    "C-<space>" 'company-complete-common))
-
-(use-package company-posframe :ensure t
-  :custom
-  (company-posframe-quickhelp-delay 0.1)
-  (company-posframe-quickhelp-show-header nil)
-  :config
-  (company-posframe-mode)
-  (advice-add 'company-posframe-show :after 'company-posframe-quickhelp-show)
-  :general-config
-    ('company-posframe-active-map "<escape>" 'company-abort))
+   "TAB" 'my/indent-or-complete
+   "<tab>" 'my/indent-or-complete
+   "C-SPC" 'my/complete-common-and-show-tooltip
+   "C-<space>" 'my/complete-common-and-show-tooltip))
 
 (use-package keycast :ensure t
   :custom
   (keycast-tab-bar-location 'tab-bar-format-align-right)
   (keycast-tab-bar-minimal-width 1)
+  (keycast-tab-bar-format "%c%R%k")
   :custom-face
-  (keycast-key ((t (:foreground unspecified :background unspecified
-                    :inherit 'help-key-binding))))
-  (keycast-command ((t (:inherit 'shadow))))
+  (keycast-key ((t (:foreground unspecified :background reset
+                    :height 0.8
+                    :inherit help-key-binding))))
+  (keycast-command ((t (:inherit (shadow)))))
   :config
   (add-to-list 'keycast-substitute-alist '(self-insert-command nil nil))
-  (keycast-tab-bar-mode))
+  (general-add-hook 'after-init-hook 'keycast-tab-bar-mode))
 
 (use-package form-feed-st :ensure t
   :hook
@@ -1602,9 +1673,13 @@ show all buffers."
 (use-package rust-mode :ensure t)
 (use-package lua-mode :ensure t :mode "\\.lua\\'"
   :custom (lua-indent-level 4))
-(use-package vimrc-mode :ensure t :mode "[._]?g?vim\\(rc\\)?\\'")
+(use-package vimrc-mode :ensure t
+  :mode "[._]?g?vim\\(rc\\)?\\'"
+  
+  )
 (use-package fennel-mode :ensure t :mode "\\.fnl\\'")
 (use-package dockerfile-mode :ensure t)
+(use-package yaml-mode :ensure t)
 
 ;; Note: this lists vterm integration as a feature, consider reinstalling vterm
 ;; if it can't use eat instead
@@ -1973,6 +2048,7 @@ exact major mode listed."
 
 (use-package dtrt-indent :ensure t
   :hook (after-init . dtrt-indent-global-mode)
+  :custom (dtrt-indent-min-relevant-lines 1)
   :config
   ;; Eglot formats buffers using `tab-width'. Use dtrt-indent to find the
   ;; correct indentation variable for the current major mode, and then
@@ -1988,8 +2064,11 @@ exact major mode listed."
 
 (use-package which-key-posframe :ensure t
   :commands which-key-posframe-mode
+  :config
+  (defun my/which-key-set-font (&rest)
+    (setq which-key-posframe-font (my/get-mono my/fixed-font my/which-key-font-pts)))
+  (advice-add 'which-key-posframe--show-buffer :before 'my/which-key-set-font)
   :custom
-  (which-key-posframe-font (format "%s-%s" my/fixed-font my/which-key-font-pts))
   (which-key-posframe-border-width 1)
   (which-key-posframe-parameters '((left-fringe . 1)
                                    (right-fringe . 1)
@@ -2176,7 +2255,7 @@ exact major mode listed."
         (concat (file-name-as-directory org-directory) "notes"))
   (defun my/org-update () (org-update-checkbox-count t))
   (defun my/org-mode-local-hooks ()
-    (face-remap-add-relative 'variable-pitch :family my/buffer-name-font)
+    (face-remap-add-relative 'variable-pitch :inherit 'mode-line-buffer-id)
     (general-add-hook 'before-save-hook '( my/org-update) nil :local))
   (general-add-hook 'org-mode-hook '( auto-fill-mode
                                       my/org-mode-local-hooks))
@@ -2669,8 +2748,8 @@ visiting a file."
                             (if (or modified (not buffer-read-only)) modified-str ""))
                     'face `(:inherit ,(if modified 'error 'shadow)
                             :weight medium
-                            :family ,my/variable-font
-                            :height ,my/mode-line-font-height)))
+                            ;; :font ,(my/get-var my/variable-font my/mode-line-font-height)
+                            )))
     ""))
 
 (defun my/mode-line-height-hack ()
@@ -2684,8 +2763,7 @@ be visible."
          (mode-line-color (face-attribute face :background nil 'mode-line)))
     (propertize "" 'face `(:foreground ,mode-line-color
                             :weight medium
-                            :family ,my/variable-font
-                            :height ,my/mode-line-font-height
+                            ;; :font ,(my/get-var my/variable-font my/mode-line-font-height)
                             :inherit nil))))
 
 (setopt mode-line-right-align-edge 'window)
@@ -2872,7 +2950,7 @@ arbitrarily saved as a bottom left window. "
 
 (general-def
   "<f12>" 'cycle-bottom-windows
-  "C-<f12>" 'modus-themes-rotate
+  "C-<f12>" 'modus-themes-toggle
   "<f5>" 'run-project
   "C-x C-b" 'ibuffer)
 
