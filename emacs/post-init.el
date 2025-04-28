@@ -6,8 +6,9 @@
 ;; - autofocus occur window when it appears
 ;; - finish my/consult-history-advice
 ;; - add emacs/readline shortcuts to insert mode
-;; - fix corfu colors in light mode
 ;; - hook completion-setup-function to remove that annoying header
+;; - consider re-adding corfu specifically for eat / minibuffer completion,
+;;   where company either doesn't work or does the wrong thing
 
 ;;;; ======================================================================
 ;;;; TODOs that probably require writing elisp:
@@ -26,10 +27,7 @@
 ;;   specifically ones that surround a single line.
 ;; * Make Lisp/Fennel docstrings align with the indentation of the first line.
 ;;   Look at Python to figure out how to do this.
-;; * When using / to search, if the search term has no special characters and
-;;   spaces, treat the spaces as if they were ORs to approximate orderless
-;;   search
-;; * Some modes delete indentation spaces one by one. Can I get vim-style
+;; * Some modes backspace indentation spaces one by one. Can I get vim-style
 ;;   behavior where it deletes by tab widths?
 ;; * Fix Ctrl+Backspace to not delete past the current line
 
@@ -1163,6 +1161,20 @@ unless there is an active region."
             (apply old-fn (list beg end type async-command nil))
             (setq evil-previous-shell-command clean-command))))))
   (advice-add 'evil-shell-command :around 'my/evil-shell-command-async-advice)
+  (defun my/evil-ex-search-space-wildcard (fn string count direction)
+    "Wraps evil's ex search so that if the search term contains no escape
+sequences, then spaces in the search term are treated roughly like '.*'.
+This allows quickly typing multiple words that should appear on a line.
+Note that, unlike orderless, this still requires the terms to appear in
+the order specified. The presence of a backslash will revert to standard
+ex/vim-style searching."
+    (message "search term: %s" string)
+    (if (string-match-p "\\\\" string)
+        (funcall fn string count direction)
+      (funcall fn (replace-regexp-in-string "[[:blank:]]+\\([^[:blank:]]\\)" ".*\\1"
+                                            (string-trim string))
+               count direction)))
+  (advice-add 'evil-ex-search-full-pattern :around 'my/evil-ex-search-space-wildcard)
   (evil-mode t)
   ;; Fix mouse clicks in Customize buffers
   (with-eval-after-load "custom"
@@ -1206,8 +1218,7 @@ unless there is an active region."
            "<tab>" 'evil-shift-right-line
            "<backtab>" 'evil-shift-left-line
            "(" 'my/evil-backward-sexp
-           ")" 'my/evil-forward-sexp)
-  )
+           ")" 'my/evil-forward-sexp))
 
 (use-package evil-collection :ensure t
   :after evil
@@ -1354,7 +1365,7 @@ unless there is an active region."
       (vertico-scroll-up n)
       (when (eq idx vertico--index) (vertico-next))))
   ;; Use vertico when completing in the minibuffer (eval and similar)
-  (setq completion-in-region-function 'consult-completion-in-region)
+  ;; (setq completion-in-region-function 'consult-completion-in-region)
   :general-config
   ;; ('minibuffer-mode-map "<tab>" 'company-complete-common "TAB" 'company-complete-common)
   ('vertico-map
@@ -1423,6 +1434,7 @@ unless there is an active region."
    "C-c m" 'consult-man
    "C-c i" 'consult-info
    [remap Info-search] 'consult-info
+   [remap info] 'consult-info
    ;; C-x bindings in `ctl-x-map'
    "C-x M-:" 'consult-complex-command
    "C-x b" 'consult-buffer-similar
@@ -1555,6 +1567,8 @@ show all buffers."
      company-pseudo-tooltip-unless-just-one-frontend-with-delay
      company-echo-metadata-frontend))
   (company-backends '(company-capf :with company-dabbrev-code))
+  ;; TODO: Try to fix shell completion
+  (company-global-modes '(not eat-mode term-mode shell-mode eshell-mode))
   :config
   ;;company-pseudo-tooltip-overlap
   (defun my/complete-common-and-show-tooltip ()
@@ -1599,7 +1613,9 @@ show all buffers."
    "RET" 'my/company-return
    "TAB" 'my/complete-common-and-show-tooltip
    "<tab>" 'my/complete-common-and-show-tooltip)
-  ('(insert emacs replace) 'company-mode-map
+  ('(insert emacs replace)
+   ;; Trying this to fix tab misbehaving in shell/terminal-like buffers
+   '(text-mode-map prog-mode-map) ;;'company-mode-map
    "TAB" 'my/indent-or-complete
    "<tab>" 'my/indent-or-complete
    "C-SPC" 'my/complete-common-and-show-tooltip
@@ -2093,7 +2109,6 @@ exact major mode listed."
             (setq eshell-visual-commands '()))
   :general-config
   ('(insert emacs) 'eshell-mode-map
-   "<tab>" 'company-complete-common
    "C-S-w" 'evil-delete-backward-word
    "C-p" 'eshell-previous-matching-input-from-input
    "C-n" 'eshell-next-matching-input-from-input))
@@ -2612,15 +2627,16 @@ if one couldn't be determined."
 (defun my/evil-state () '(:eval (my/vim-state)))
 
 (defun my/modeline-modes ()
-  (let ((text (format-mode-line
-               (if (mode-line-window-selected-p)
-                   (butlast minions-mode-line-modes 3)
-                 (butlast minions-mode-line-modes 4))
-               t)))
-    (put-text-property 0 (length text)
-                       'face `((:height ,my/font-height) fixed-pitch)
-                       text)
-  text))
+  (when (boundp 'minions-mode-line-modes)
+    (let ((text (format-mode-line
+                 (if (mode-line-window-selected-p)
+                     (butlast minions-mode-line-modes 3)
+                   (butlast minions-mode-line-modes 4))
+                 t)))
+      (put-text-property 0 (length text)
+                         'face `((:height ,my/font-height) fixed-pitch)
+                         text)
+      text)))
 
 (defun my/modeline-project ()
   (let ((home (concat (getenv "HOME") "/")))

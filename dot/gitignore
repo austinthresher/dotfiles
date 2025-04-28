@@ -19,6 +19,7 @@ venv/
 tags
 .tags
 .projectile
+.aider*
 
 # Special filenames for personal build scripts/etc that I don't want to put
 # in project .gitignores. If a project actually has a 'build.sh' it can be

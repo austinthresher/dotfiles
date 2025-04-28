@@ -175,11 +175,6 @@ gitfn() {
 export EDITOR=edit-tty
 export VISUAL=edit
 
-
-# Force myself to get in the habit of using my editor of choice instead
-# of just typing vim every time
-alias vim=edit
-alias vi=edit-tty
 alias emc=edit
 # TODO: Use an alternate stripped down config for this?
 alias em=edit-tty
