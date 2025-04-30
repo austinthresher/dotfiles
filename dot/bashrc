@@ -249,7 +249,8 @@ fi
 prompt_char=">"
 if [[ $TERM != dumb ]]; then
     prompt_char="›"
-    prompt_start="\[\e[32m\]$prompt_char \[\e[0m\]"
+    prompt_start="\[\e[32m\]"
+    prompt_end="\[\e[0m\]"
     # Emacs term doesn't know what to do with xterm's title escape sequences
     if [[ ! $TERM == *eterm* ]]; then
         title="\[\e]0;\w\a\]"
@@ -259,8 +260,14 @@ if [[ $TERM != dumb ]]; then
     dim="\[\e[2m\]"
     reset="\[\e[0m\]"
 fi
-export PS1="$title$prompt_start$dark\w$light$dim \$ $reset"
-unset -v prompt_char prompt_start title dark light dim reset
+
+# Only show hostname when we're in an SSH session
+if [[ -n $SSH_TTY ]] ; then
+    prompt_char="$prompt_char \h"
+fi
+
+export PS1="$title$prompt_start$prompt_char$prompt_end $dark\w$light$dim \$ $reset"
+unset -v prompt_start title dark light dim reset
 
 # This was only sourced above if the shell was non-interactive, do it now
 [[ -e ~/.bashrc_local ]] && source ~/.bashrc_local
