@@ -67,6 +67,8 @@ if 1 " BEGIN NO VIM-TINY
 if $TERM == 'alacritty'
     set ttymouse=sgr
 endif
+" For some reason this is needed a second time?
+set mouse=a
 
 
 let &showbreak = '>>> '
