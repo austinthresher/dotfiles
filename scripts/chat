@@ -1,0 +1,19 @@
+#!/bin/bash
+
+# Quickly test an OpenAI API endpoint
+
+# Set MODEL as an environment variable if it needs to be set for the endpoint
+if [[ -n $MODEL ]]; then
+    payload="{ \"model\": \"$MODEL\", "
+else
+    payload='{ '
+fi
+
+# First argument is the base URL, everything else is the message
+base_url="$1"
+shift
+
+payload="${payload} \"stream\": true, \"messages\": [{\"role\": \"user\", \"content\": \"$*\"}]}"
+
+curl ${base_url}/v1/chat/completions -N -s --json "$payload" | stdbuf -o0 sh -c "sed -u 's/^[^{]*//' | jq -bj '.choices.[0].delta.content // empty'"
+
