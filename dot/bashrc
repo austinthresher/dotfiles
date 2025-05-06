@@ -97,6 +97,17 @@ case $- in
     return ;;
 esac
 
+prompt_color=2
+# Use a different color for active ssh sessions
+if [[ -n $SSH_TTY ]] ; then
+    if [[ -e $HOME/.prompt_color ]]; then
+        prompt_color=$(cat $HOME/.prompt_color)
+    else
+        prompt_color=3
+    fi
+    export TMUX_COLOR="color${prompt_color}"
+fi
+
 # Ignore legacy scroll lock on <C-S> and <C-Q>
 stty -ixon
 
@@ -111,7 +122,7 @@ elif command -v uname &> /dev/null; then
 fi
 # Remove quotes that appear on some systems
 distro=$(echo "$distro" | tr -d '"')
-echo -e " \e[92m$USER @ $(hostname)  \e[90m $distro${WINDOWS:+ $WINDOWS} \e[0m"
+echo -e " \e[9${prompt_color}m$USER @ $(hostname)  \e[90m $distro${WINDOWS:+ $WINDOWS} \e[0m"
 unset distro
 
 alias rgrep='grep -Iirn'
@@ -249,7 +260,7 @@ fi
 prompt_char=">"
 if [[ $TERM != dumb ]]; then
     prompt_char="›"
-    prompt_start="\[\e[32m\]"
+    prompt_start="\[\e[3${prompt_color}m\]"
     prompt_end="\[\e[0m\]"
     # Emacs term doesn't know what to do with xterm's title escape sequences
     if [[ ! $TERM == *eterm* ]]; then
@@ -267,7 +278,7 @@ if [[ -n $SSH_TTY ]] ; then
 fi
 
 export PS1="$title$prompt_start$prompt_char$prompt_end $dark\w$light$dim \$ $reset"
-unset -v prompt_start title dark light dim reset
+unset -v prompt_start title dark light dim reset prompt_color
 
 # This was only sourced above if the shell was non-interactive, do it now
 [[ -e ~/.bashrc_local ]] && source ~/.bashrc_local
