@@ -1,0 +1,42 @@
+#!/bin/bash
+
+# Pipe in HTML to get reasonably cleaned-up markdown
+# Requires perl and https://github.com/JohannesKaufmann/html-to-markdown
+
+# Use Perl because sed can't do non-greedy matches.
+# These flags set perl up to let . match newlines.
+replace() {
+    perl -0777 -p -e "s|$1|$2|s$3"
+}
+
+remove-nav-tags() {
+    replace '<nav .*?</nav>' '' g
+}
+
+remove-uncaptioned-images() {
+    replace '!\[]\(([^)]*)\)' '' g
+}
+
+caption-images() {
+    replace '!\[([^\]]+)]\(([^)]+)\)' '(Pictured: \1)' g
+}
+
+replace-links() {
+    replace '!?\[([^\]]*)]\(([^)]*)\)' '\1' g
+}
+
+remove-nav-tags | html2markdown \
+    --exclude-selector '[class*="sidebar"]' \
+    --exclude-selector '[class*="navigation"]' \
+    --exclude-selector '[class*="header"]' \
+    --exclude-selector '[class*="footer"]' \
+    --exclude-selector '[class$="-nav"]' \
+    --exclude-selector '[class^="nav-"]' \
+    "$@" | remove-uncaptioned-images | caption-images | replace-links
+
+
+
+#    sed 's/\!\[\([^]]\+\)]([^)]\+)/(Pictured: \1)/g' | \
+#    sed 's/\!\?\[\([^]]*\)]([^)]*)/\1/g'
+
+

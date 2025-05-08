@@ -84,6 +84,8 @@ if [[ $(type -t pyenv) != function ]] ; then
         fi
     }
     lazy_load pyenv setup_pyenv
+    lazy_load pip setup_pyenv
+    lazy_load python setup_pyenv
 fi
 
 lazy_load pipx 'export PIPX_DEFAULT_PYTHON="$(pyenv which python || which python3)"'

@@ -9,9 +9,9 @@ from readability import Document
 def get_page_contents(url):
     try:
         response = requests.get(url)
-        doc = Document(response.content)
+        doc = Document(response.content.decode('utf-8'))
         return str(doc.summary())
-    except e as Exception:
+    except Exception as e:
         return str(e)
 
 if __name__ == "__main__":
