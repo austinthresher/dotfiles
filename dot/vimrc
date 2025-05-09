@@ -76,10 +76,6 @@ set <M-S-h>=H
 set <M-S-j>=J
 set <M-S-k>=K
 set <M-S-l>=L
-set <M-S-n>=N
-" This one is confusing vim because it's also the DTS escape sequence.
-" Shift+Alt+P can still be set by mapping the escape sequence manually.
-" set <M-S-p>=P
 
 " Readline / Emacs insert mode keys.
 inoremap <C-a> <Home>
@@ -97,8 +93,6 @@ inoremap <C-t> <Left><C-o>X<C-o>p
 inoremap <C-g> <Esc>
 inoremap <C-k> <C-o>D
 inoremap <C-y> <C-o>p
-inoremap <M-n> <C-n>
-inoremap <M-p> <C-p>
 inoremap <M-f> <C-Right>
 inoremap <M-b> <C-Left>
 " Adding shift will move by WORDs instead of words.
@@ -145,27 +139,23 @@ nnoremap <M-S-h> <cmd>wincmd h<cr>
 nnoremap <M-S-j> <cmd>wincmd j<cr>
 nnoremap <M-S-k> <cmd>wincmd k<cr>
 nnoremap <M-S-l> <cmd>wincmd l<cr>
-nnoremap <M-S-n> <cmd>bn<cr>
-nnoremap <M-S-p> <cmd>bp<cr>
-nnoremap <esc>P <cmd>bp<cr>
+nnoremap <M-n> <cmd>bn<cr>
+nnoremap <M-p> <cmd>bp<cr>
 
 tnoremap <M-S-h> <cmd>wincmd h<cr>
 tnoremap <M-S-j> <cmd>wincmd j<cr>
 tnoremap <M-S-k> <cmd>wincmd k<cr>
 tnoremap <M-S-l> <cmd>wincmd l<cr>
-tnoremap <M-S-n> <cmd>bn<cr>
-tnoremap <M-S-p> <cmd>bp<cr>
-tnoremap <esc>P <cmd>bp<cr>
+tnoremap <M-n> <cmd>bn<cr>
+tnoremap <M-p> <cmd>bp<cr>
 tnoremap <M-x> <C-w>:
 
 inoremap <M-S-h> <cmd>wincmd h<cr>
 inoremap <M-S-j> <cmd>wincmd j<cr>
 inoremap <M-S-k> <cmd>wincmd k<cr>
 inoremap <M-S-l> <cmd>wincmd l<cr>
-inoremap <M-S-n> <cmd>bn<cr>
-inoremap <M-S-p> <cmd>bp<cr>
-inoremap <esc>P <cmd>bp<cr>
-
+inoremap <M-n> <cmd>bn<cr>
+inoremap <M-p> <cmd>bp<cr>
 
 " Change vim's working dir to the current file location
 command CD cd %:p:h
@@ -186,9 +176,6 @@ if 1 " BEGIN NO VIM-TINY
 if $TERM == 'alacritty'
     set ttymouse=sgr
 endif
-" For some reason this is needed a second time?
-set mouse=a
-
 
 let &showbreak = '>>> '
 
