@@ -10,7 +10,7 @@ set autoindent
 set showcmd
 set showmatch
 set matchtime=1
-set backspace=indent,eol,start
+set backspace=indent,eol,start,nostop
 set wildmenu
 set breakindent
 set breakindentopt=sbr
@@ -48,6 +48,7 @@ tnoremap <esc><esc> <c-\><c-n>
 nmap <silent> <c-j> <cmd>bn<cr>
 nmap <silent> <c-k> <cmd>bp<cr>
 
+
 nnoremap q b
 nnoremap Q B
 xnoremap q b
@@ -55,8 +56,126 @@ xnoremap Q B
 nnoremap <c-q> q
 xnoremap <c-q> q
 
+" Short timeout for Alt compatibility with Esc
+set timeout
+set timeoutlen=500
+set ttimeout
+set ttimeoutlen=50
+
+" Alt terminal compatibility, only adding keys I have configured
+set <M-b>=b
+set <M-f>=f
+set <M-p>=p
+set <M-n>=n
+set <M-d>=d
+set <M-t>=t
+set <M-x>=x
+set <M-S-b>=B
+set <M-S-f>=F
+set <M-S-h>=H
+set <M-S-j>=J
+set <M-S-k>=K
+set <M-S-l>=L
+set <M-S-n>=N
+" This one is confusing vim because it's also the DTS escape sequence.
+" Shift+Alt+P can still be set by mapping the escape sequence manually.
+" set <M-S-p>=P
+
+" Readline / Emacs insert mode keys.
+inoremap <C-a> <Home>
+inoremap <C-e> <End> 
+inoremap <C-b> <Left> 
+inoremap <C-f> <Right> 
+inoremap <C-p> <Up>
+inoremap <C-n> <Down>
+inoremap <C-h> <C-w>
+inoremap <C-w> <C-o>dB
+inoremap <C-d> <C-o>x
+inoremap <M-d> <C-o>dE
+inoremap <M-x> <C-o>:
+inoremap <C-t> <Left><C-o>X<C-o>p
+inoremap <C-g> <Esc>
+inoremap <C-k> <C-o>D
+inoremap <C-y> <C-o>p
+inoremap <M-n> <C-n>
+inoremap <M-p> <C-p>
+inoremap <M-f> <C-Right>
+inoremap <M-b> <C-Left>
+" Adding shift will move by WORDs instead of words.
+" Strangely, WORD is the default for C-Left/Right in all other modes
+inoremap <M-S-b> <C-o>B
+inoremap <M-S-f> <C-o>W
+
+" Note: Skipping C-x C-f in insert mode so that filename completion is available
+inoremap <C-x><C-s> <Cmd>update<cr>
+inoremap <silent> <C-x><C-k> <cmd>set nobuflisted\|bp\|bd #<cr>
+
+" Preserve C-x in normal mode with double tap
+nnoremap <C-x><C-x> <C-x>
+nnoremap <C-x><C-a> <C-a>
+nnoremap <silent> <C-x><C-k> <cmd>set nobuflisted\|bp\|bd #<cr>
+nnoremap <M-x> :
+nnoremap <C-x><C-s> <cmd>update<cr>
+nnoremap <C-x><C-f> :e<space>
+nnoremap <C-a> <Home>
+
+cnoremap <C-a> <Home>
+cnoremap <C-e> <End>
+cnoremap <C-f> <Right>
+cnoremap <C-b> <Left>
+cnoremap <C-d> <Del>
+cnoremap <M-p> <Up>
+cnoremap <M-n> <Down>
+cnoremap <M-f> <C-Right>
+cnoremap <M-b> <C-Left>
+cnoremap <M-S-f> <C-Right>
+cnoremap <M-S-b> <C-Left>
+cnoremap <C-g> <C-c>
+" Preserve access to completion list
+cnoremap <C-x><C-d> <C-d>
+" Yank / etc don't work in command line mode without eval,
+" map them to no-ops here. Look at readline.vim for eval
+" options if I really end up wanting these.
+cnoremap <C-y> <nop>
+cnoremap <C-k> <nop>
+cnoremap <M-d> <nop>
+
+" Window / buffer swapping
+nnoremap <M-S-h> <cmd>wincmd h<cr>
+nnoremap <M-S-j> <cmd>wincmd j<cr>
+nnoremap <M-S-k> <cmd>wincmd k<cr>
+nnoremap <M-S-l> <cmd>wincmd l<cr>
+nnoremap <M-S-n> <cmd>bn<cr>
+nnoremap <M-S-p> <cmd>bp<cr>
+nnoremap <esc>P <cmd>bp<cr>
+
+tnoremap <M-S-h> <cmd>wincmd h<cr>
+tnoremap <M-S-j> <cmd>wincmd j<cr>
+tnoremap <M-S-k> <cmd>wincmd k<cr>
+tnoremap <M-S-l> <cmd>wincmd l<cr>
+tnoremap <M-S-n> <cmd>bn<cr>
+tnoremap <M-S-p> <cmd>bp<cr>
+tnoremap <esc>P <cmd>bp<cr>
+tnoremap <M-x> <C-w>:
+
+inoremap <M-S-h> <cmd>wincmd h<cr>
+inoremap <M-S-j> <cmd>wincmd j<cr>
+inoremap <M-S-k> <cmd>wincmd k<cr>
+inoremap <M-S-l> <cmd>wincmd l<cr>
+inoremap <M-S-n> <cmd>bn<cr>
+inoremap <M-S-p> <cmd>bp<cr>
+inoremap <esc>P <cmd>bp<cr>
+
+
 " Change vim's working dir to the current file location
 command CD cd %:p:h
+
+" Why doesn't this command start with q
+command Quick copen
+nnoremap [q <cmd>cprev<cr>
+nnoremap ]q <cmd>cnext<cr>
+nnoremap [Q <cmd>cfirst<cr>
+nnoremap ]Q <cmd>clast<cr>
 
 " Everything below here requires the +eval feature, which is not present in
 " vim-tiny. See this url for an explanation of the trick used- everything
@@ -83,7 +202,17 @@ nnoremap _ <cmd>Explore<cr>
 
 " Maps for Netrw buffers
 function! CustomizeNetrw()
-    nmap <buffer> _ <Plug>NetrwBrowseUpDir
+    nnoremap <buffer> _ <Plug>NetrwBrowseUpDir
+    " I'm never going to use these, remove existing maps that start with q
+    try
+        nunmap <buffer> <silent> qF
+        nunmap <buffer> <silent> qf
+        nunmap <buffer> <silent> qL
+        nunmap <buffer> <silent> qb
+    catch
+    endtry
+    " Make q go back to the buffer without selecting a file
+    nnoremap <buffer> q <cmd>Rex<cr>
 endfunction
 
 augroup RunCustomizeNetrw

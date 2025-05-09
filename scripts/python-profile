@@ -1,0 +1,17 @@
+#!/bin/bash
+
+# Profile a python script and launch kcachegrind on the output
+
+script_name=$(basename "$1")
+outfile="${script_name}-$(date +%s).pyprof"
+
+python3 -m cProfile -o "$outfile" "$@"
+
+# Only launch kcachegrind if it's installed
+
+if command -v pyprof2calltree &>/dev/null; then
+    if command -v kcachegrind &>/dev/null; then
+        pyprof2calltree -i "$outfile" -k
+    fi
+fi
+
